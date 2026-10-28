@@ -23,6 +23,27 @@ jobs:
       - name: Run timing unit tests
         run: python -m unittest discover -s tests -v
   
+
+  windows-powershell-parse:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Parse Windows PowerShell launchers
+        shell: pwsh
+        run: |
+          $files = @("run_nutty_putty.ps1", "asset_tool.ps1", "check_tools.ps1")
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.ToString() }
+              throw "PowerShell syntax check failed: $file"
+            }
+            Write-Host "PowerShell syntax OK: $file"
+          }
+
   motion-lab-typecheck:
     runs-on: ubuntu-latest
     defaults:
