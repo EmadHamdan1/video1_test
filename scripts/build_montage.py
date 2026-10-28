@@ -463,7 +463,7 @@ def make_spec(
     presenter_y = float(settings.get("presenter_y", 0.18))
     assets = create_whiteboard_assets(
         BUILD_DIR / "visuals" / datetime.now().strftime("%Y%m%d_%H%M%S_%f"),
-        width, height, shot_count,
+        width, height, 0 if full_frame else shot_count,
         len(presenters) if settings.get("presenter_overlay", True) else 0,
         scene_x=scene_x, scene_y=scene_y, presenter_x=presenter_x, presenter_y=presenter_y
     )
@@ -485,11 +485,12 @@ def make_spec(
             "y":0.0 if full_frame else scene_y,
             "rotation":0
         })
-        frame_items.append({
-            "type":"photo", "path":assets["scene_cards"][index],
-            "start":round(shot_start,3), "duration":round(shot_duration,3),
-            "ref":frame_ref, "scale":1.0, "x":0.0, "y":0.0
-        })
+        if not full_frame:
+            frame_items.append({
+                "type":"photo", "path":assets["scene_cards"][index],
+                "start":round(shot_start,3), "duration":round(shot_duration,3),
+                "ref":frame_ref, "scale":1.0, "x":0.0, "y":0.0
+            })
         midpoint = (shot_start+shot_end)/2
         context = next((str(cue["text"]) for cue in captions
                         if float(cue["start"]) <= midpoint <= float(cue["end"])), "")
@@ -617,14 +618,23 @@ def make_spec(
             log("Configured icon overlay is missing; skipped: " + raw_icon_path)
             continue
         scene_id = str(overlay.get("scene_id", "")).strip()
-        scene = next((row for row in scene_rows if row.get("scene_ref") == scene_id), None)
-        if scene is None:
-            log("Icon overlay references an unknown scene; skipped: " + scene_id)
-            continue
         try:
-            offset = max(0.0, float(overlay.get("offset", 0.35)))
             requested_duration = max(0.25, float(overlay.get("duration", 1.4)))
-            icon_start = float(scene["start"]) + offset
+            if overlay.get("start_seconds") is not None:
+                icon_start = max(0.0, float(overlay.get("start_seconds", 0.0)))
+                scene = next((row for row in scene_rows
+                              if float(row["start"]) <= icon_start < float(row["end"])), None)
+                if scene is None:
+                    log("Icon absolute start falls outside the timeline; skipped: " + str(icon_start))
+                    continue
+                scene_id = str(scene["scene_ref"])
+            else:
+                scene = next((row for row in scene_rows if row.get("scene_ref") == scene_id), None)
+                if scene is None:
+                    log("Icon overlay references an unknown scene; skipped: " + scene_id)
+                    continue
+                offset = max(0.0, float(overlay.get("offset", 0.35)))
+                icon_start = float(scene["start"]) + offset
             icon_end = min(float(scene["end"]), icon_start + requested_duration)
             icon_scale = float(overlay.get("scale", 0.16))
             icon_x = float(overlay.get("x", -0.56))
