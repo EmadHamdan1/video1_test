@@ -914,6 +914,44 @@ def main(argv: list[str] | None = None) -> int:
                 text=True, capture_output=True, env=env, check=False,
             )
 
+    text_animation_results: list[dict[str, str]] = []
+    selected_motion = load_motion_preset(settings)
+    text_preset_name = str(selected_motion.get("text_preset", "marker_caption"))
+    text_intro_by_preset = {
+        "typewriter": "typewriter",
+        "punch_caption": "pop-up",
+        "kinetic_caption": "pop-up",
+        "lower_third": "fade-in",
+        "side_callout": "fade-in",
+        "number_pop": "pop-up",
+    }
+    text_intro = text_intro_by_preset.get(text_preset_name)
+    if text_intro:
+        text_segments = [
+            item for track in spec["tracks"] if track.get("type") == "text"
+            for item in track.get("items", [])
+        ]
+        for item in text_segments:
+            segment_id = refs.get(str(item.get("ref", "")))
+            if not segment_id or float(item.get("duration", 0.0)) < 0.45:
+                continue
+            intro_duration = min(0.42, max(0.12, float(item["duration"]) * 0.18))
+            result_text_anim = subprocess.run(
+                [capcut, "text-anim", str(draft_path), str(segment_id),
+                 "--intro", text_intro, "--intro-duration", str(round(intro_duration, 3))],
+                text=True, capture_output=True, env=env, check=False,
+            )
+            entry = {
+                "ref": str(item.get("ref", "")),
+                "animation": text_intro,
+                "status": "applied" if result_text_anim.returncode == 0 else "not applied",
+            }
+            if result_text_anim.returncode != 0:
+                entry["detail"] = (result_text_anim.stderr or result_text_anim.stdout or "").strip()[-300:]
+            text_animation_results.append(entry)
+        if text_animation_results:
+            log("Applied native CapCut text intro animations to " + str(sum(1 for item in text_animation_results if item["status"] == "applied")) + " text segment(s).")
+
     register_result = subprocess.run(
         [capcut, "register", str(draft_path), "--apply"],
         text=True, capture_output=True, env=env, check=False,
@@ -943,6 +981,7 @@ def main(argv: list[str] | None = None) -> int:
         "caption_cues": sum(len(track["items"]) for track in spec["tracks"] if track.get("type") == "text"),
         "caption_file": str(captions_path) if captions_path else None,
         "matting": matting_results,
+        "text_animations": text_animation_results,
         "warnings": payload.get("warnings", []),
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "notes": [
