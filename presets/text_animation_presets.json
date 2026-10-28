@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Design contracts for future text-overlay renderers. These names describe reusable motion recipes; CapCut text animations are not all auto-applied by the Python builder yet.",
+  "note": "The builder applies fade/float keyframes to phrase-level text. Selected presets can also invoke native CapCut text intro animations: typewriter -> typewriter, punch_caption/kinetic_caption/number_pop -> pop-up, and lower_third/side_callout -> fade-in. More specialized recipes remain guidance for Remotion or manual finishing.",
   "presets": {
     "marker_caption": {
       "label": "Marker Caption",
