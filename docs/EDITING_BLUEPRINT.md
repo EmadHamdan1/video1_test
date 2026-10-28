@@ -1,43 +1,54 @@
-# Editing blueprint
+# Editing blueprint — Whiteboard Explainer PRO
 
-## Goal
+## Visual direction
 
-Keep the narration as the spine of the edit and make the visuals support the spoken idea rather than compete with it. The first generated pass is deliberately conservative: the footage is still images, so visual interest comes from framing, pacing, cut timing, presenter appearances, readable captions, and a few deliberate sound accents.
+Use a whiteboard explainer / motion-graphics hybrid: a quiet paper canvas, one framed scene illustration on the left, and the presenter character on the right. The goal is not maximum motion on every frame; it is a clear visual hierarchy where the character explains and the illustration supports the point.
 
-## Timing and image choice
+The builder generates the paper, scene frames, shadows, small accent marks, and presenter backplates locally under `build/visuals`. They are normal media assets in the editable CapCut project. The source images and narration remain local and are never uploaded to this repository.
 
-- If Whisper is installed, the builder uses its subtitle boundaries as candidate edit points near the target shot intervals. Without Whisper, boundaries are paced from the MP3 duration.
-- The images are distributed across the narration in the supplied order. This version does not inspect image pixels with a vision model; matching an image to the exact sentence is a review task, and the CSV shows the cue text for each shot when available.
-- Avoid assuming that every available image must appear. When the voiceover is short, fewer readable shots are preferable to flickering through dozens of images too quickly.
-- Inspect the first 30 seconds carefully. YouTube's audience-retention guidance says the intro should fulfil the expectation created by the title and thumbnail, and recommends studying top moments, spikes, and dips once analytics are available: https://support.google.com/youtube/answer/9314415
+## Composition and timing
 
-## Motion
+- The main illustration is reduced to roughly half-frame scale and held inside a framed card, leaving open space for the presenter. The frame and illustration are separate editable layers.
+- The presenter track covers the narration with the supplied pose photos changing at a slower cadence than the scene images. This makes the presenter a constant guide instead of a sporadic pop-in.
+- The image list is still distributed in configured order. Without local Whisper timing, scene boundaries are evenly spaced from duration. With Whisper, subtitle ends can be used as candidate boundaries.
+- The system cannot inspect local image semantics or infer what each illustration depicts from filenames. The editor must review `build/scene_timing.csv` and adjust image order/timing where a scene conflicts with the spoken phrase.
 
-- Scene images receive a slow, low-amplitude zoom and a small alternating horizontal drift. This is a Ken Burns treatment for still images; it should not look like every photo is being aggressively pushed into the viewer's face.
-- The smooth easing is intentional: CapCut explains that keyframes control values such as position, scale, rotation, opacity, and color, and that easing or speed curves can make movement feel more natural: https://www.capcut.com/resource/how-to-add-keyframes-in-capcut
-- The movement values are starting points, not a universal formula. Review in the actual desktop build and reduce the scale delta if the original images already contain close framing.
-- Use transitions sparingly. The current build uses a short Mix transition as a neutral default. A horror-comedy moment may benefit from a brief flash or hit, but those should be placed manually only where the narration earns the emphasis.
+## Motion language
 
-## Presenter overlay
+- Scene illustrations alternate between a restrained scale-in and scale-out, with a small position drift. The keyframes start without easing and their paired endpoint carries `ease-in-out`, avoiding a warning on a lone eased keyframe.
+- The character gets a light scale pulse and a tiny vertical float during each pose interval, then a short dissolve to the next pose.
+- Cuts use short dissolves by default. Occasional `horizontal-blur` and `radial-blur` transitions mark selected changes; stronger transition presets should not be used on every shot.
+- The opening scene uses a short zoom-out reveal. The presenter fades in at the opening and fades out at the end.
+- CapCut documents the workflow for keyframing Position, Scale, Rotation, and Opacity here: https://www.capcut.com/resource/how-to-add-keyframes-in-capcut
+- Easing is meaningful because it controls acceleration and deceleration; use the curve to guide attention rather than adding motion for its own sake: https://help.figma.com/hc/en-us/articles/41238219562007-Motion-design-fundamentals-Easing
+- Motion staging and hierarchy are more important than decorative movement: https://www.ibm.com/design/language/animation/classic-principles/
 
-The presenter stills are on their own video track, alternate left/right, and appear in short intervals. The script attempts the capcut-cli smart-matting command on each presenter segment. These supplied files are JPEGs, so background removal is not guaranteed; check the first cutout and correct its scale or position in CapCut before rendering. If the backgrounds remain visible, use CapCut's manual Cutout / Remove background controls or supply transparent PNGs.
+## Presenter limitations
 
-## Audio and sound effects
+The script asks capcut-cli to apply smart matting to each JPEG presenter image. JPEG has no alpha channel, so success depends on CapCut's matting result and image background. A remaining rectangular background must be corrected using CapCut's Remove background/Cutout controls or replaced by a clean transparent PNG. Still pose images cannot animate lip movement or actual arm articulation; the current effect is timed pose changes and gentle whole-image motion.
 
-- The narration stays on a dedicated audio track and gets a very short fade-in and a short tail fade.
-- Local effect audio can be added through the sound_effects array in config.json. If no local effects were supplied, the program does not pretend that it inserted CapCut's private sound-library assets.
-- The generated SFX_Cue_Sheet.csv lists suggested search terms and times. Use only a few: a soft whoosh for an important visual transition, a restrained low hit for a real reveal, and a light pop for a genuinely comic beat. Keep these lower than the speech and listen on headphones and speakers.
-- Avoid adding a sound to every cut; repetitive whooshes quickly become tiring and can obscure words.
+## Audio, captions, and effects
+
+- Narration remains on its own editable track and receives a short lead/tail fade.
+- Visual transition and keyframe effects are built into the project. Audio effects are not invented or inserted from CapCut's private library.
+- `build/SFX_Cue_Sheet.csv` lists candidate time/search terms for a few restrained whooshes or cartoon pops. Add only effects that fit the spoken beat, and keep them below the voice.
+- Local Whisper is optional. Without it, automatic subtitles are not present and timing remains duration-based. The build reports that limitation instead of claiming captions were created.
 
 ## Quality pass
 
-1. Open the draft and check the beginning, the first presenter overlay, the midpoint, and the ending.
-2. Compare the narration with build/scene_timing.csv. Move any image whose meaning conflicts with the words being spoken.
-3. Confirm the presenter cutout doesn't cover key action or any captions.
-4. Listen to the voiceover with the optional sound effects enabled. Remove anything that masks consonants or makes the mix harsh.
-5. Export from CapCut, watch the exported file all the way through, then use audience-retention analytics to inform the next edit.
+1. Open the **Whiteboard Explainer PRO** draft in CapCut.
+2. Review the first 10 seconds, the first presenter pose change, the midpoint, and the ending.
+3. Confirm that the presenter image background is removed, and that the scene image stays inside its card during movement.
+4. Check that only occasional transitions use blur, and that most cuts remain quiet.
+5. Compare `build/scene_timing.csv` with the narration and adjust scenes where semantic alignment is wrong.
+6. Add only a few sound cues from CapCut's own library if they support the beat.
+7. Export from CapCut and inspect the rendered MP4 end-to-end before publishing.
 
-## Tool reference
+## References
 
-- capcut-cli is a community-made project, not an official CapCut product. It supports local draft creation, keyframes, transitions, audio fades, captions, and other edits: https://github.com/renezander030/capcut-cli
-- Its Ken Burns example discusses restrained zoom in/out values and warns against using visible zoom moves on very short shots: https://github.com/renezander030/capcut-cli/blob/master/examples/keyframe-zoom.md
+- CapCut official: https://www.capcut.com/resource/how-to-add-keyframes-in-capcut
+- Figma motion/easing: https://help.figma.com/hc/en-us/articles/41238219562007-Motion-design-fundamentals-Easing
+- IBM motion principles: https://www.ibm.com/design/language/animation/classic-principles/
+- capcut-cli commands and editable project API: https://github.com/renezander030/capcut-cli
+- capcut-cli keyframe example: https://github.com/renezander030/capcut-cli/blob/master/examples/keyframe-zoom.md
+- YouTube audience retention: https://support.google.com/youtube/answer/9314415
