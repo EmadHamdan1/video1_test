@@ -278,7 +278,7 @@ def make_fullframe_versions(images: list[Path]) -> list[Path]:
     return result
 
 
-def download_icons() -> tuple[list[dict[str, Any]], Path]:
+def download_icons(chapters: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], Path]:
     icon_dir = PROJECT / "assets" / "icons"
     generated = PROJECT / "assets" / "generated" / "icons"
     icon_dir.mkdir(parents=True, exist_ok=True)
@@ -317,7 +317,7 @@ def download_icons() -> tuple[list[dict[str, Any]], Path]:
             if result.returncode != 0 or not target.is_file():
                 log("Icon render skipped for " + name + ": " + (result.stderr or result.stdout)[-300:])
                 continue
-            chapter_start = 2.0
+            chapter_start = float(chapters[index].get("start_s", 2.0)) + 0.15 if index < len(chapters) else 2.15
             overlays.append({
                 "name": name, "path": str(target.resolve()),
                 "start_seconds": round(chapter_start, 3), "duration": 1.15,
@@ -433,7 +433,7 @@ def install_and_transcribe(audio: Path) -> tuple[list[dict[str, Any]], str]:
     except ImportError:
         requirements = ROOT / "requirements-transcription.txt"
         log("Word alignment is not installed; attempting optional faster-whisper install.")
-        result = run_process([sys.executable, "-m", "pip", "install", "-r", str(requirements)], timeout=None)
+        result = subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(requirements)], check=False, timeout=None)
         if result.returncode != 0:
             return [], "ESTIMATED: faster-whisper installation failed"
         try:
@@ -850,10 +850,11 @@ def prepare(project_override: str | None = None) -> int:
         ],
     }
     chapters = make_chapters(rows, duration, 2.0 if intro_path else 0.0)
-    overlays, icon_license = download_icons()
+    overlays, icon_license = download_icons(chapters)
 
     scene_images = ([intro_path] if intro_path else []) + fullframe_images
-    scene_texts = (["NUTTY PUTTY CAVE"] if intro_path else []) + STORY_EN[:len(fullframe_images)]
+    fallback_texts = STORY_EN + [STORY_EN[-1]] * max(0, len(fullframe_images) - len(STORY_EN))
+    scene_texts = (["NUTTY PUTTY CAVE"] if intro_path else []) + fallback_texts[:len(fullframe_images)]
     boundaries = fit_storyboard_boundaries(rows, tokens, duration, len(scene_images), 2.0 if intro_path else 0.0)
     if intro_path:
         boundaries[1] = min(duration, 2.0)
