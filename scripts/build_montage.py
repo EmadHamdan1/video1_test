@@ -93,12 +93,32 @@ def audio_duration(path: Path) -> float:
     )
 
 
+def find_whisper_command() -> str | None:
+    """Find Whisper on PATH or inside this repository's virtual environment."""
+    found = shutil.which("whisper")
+    if found:
+        return found
+
+    if os.name == "nt":
+        candidates = [
+            ROOT / ".venv" / "Scripts" / "whisper.exe",
+            ROOT / ".venv" / "Scripts" / "whisper",
+        ]
+    else:
+        candidates = [ROOT / ".venv" / "bin" / "whisper"]
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 def transcribe_if_available(audio: Path, settings: dict[str, Any]) -> tuple[list[dict[str, Any]], Path | None]:
     if not settings.get("transcribe_if_whisper_available", True):
         log("Whisper transcription is disabled in config.json.")
         return [], None
 
-    whisper = shutil.which("whisper")
+    whisper = find_whisper_command()
     if not whisper:
         log("Whisper was not found; using duration-based shot timing and no automatic captions.")
         return [], None
