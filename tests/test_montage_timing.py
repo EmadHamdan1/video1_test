@@ -195,6 +195,50 @@ class MontageTimingTests(unittest.TestCase):
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
 
+    def test_icon_overlay_uses_separate_track_and_scene_relative_timing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                icon = Path(temporary) / "test-icon.png"
+                icon.write_bytes(b"fake png placeholder")
+                config = {
+                    "project_name": "Icon overlay test",
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 4.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        "icon_overlays": [{
+                            "candidate_id": "C0001",
+                            "scene_id": "scene_001",
+                            "path": str(icon),
+                            "offset": 0.35,
+                            "duration": 1.4,
+                            "x": -0.56,
+                            "y": -0.42,
+                            "scale": 0.16,
+                        }],
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0, [], None
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Icon Overlays", tracks)
+                icon_item = tracks["Icon Overlays"]["items"][0]
+                self.assertEqual(icon_item["ref"], "icon_001")
+                self.assertAlmostEqual(icon_item["start"], scenes[0]["start"] + 0.35, places=2)
+                self.assertAlmostEqual(icon_item["duration"], 1.4, places=2)
+                self.assertTrue(any(
+                    operation.get("op") == "keyframe"
+                    and operation.get("target") == "icon_001"
+                    and operation.get("property") == "uniform_scale"
+                    for operation in spec["operations"]
+                ))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
 
 if __name__ == "__main__":
     unittest.main()
