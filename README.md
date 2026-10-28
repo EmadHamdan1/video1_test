@@ -227,7 +227,7 @@ Render samples with `npm run render:whiteboard`, `npm run render:caption`, or `n
 
 ## Dedicated Nutty Putty Cave build
 
-For the immediate first pass, the Windows runner uses **basic mode**: the 28 supplied illustrations plus the original narration MP3, with gentle image motion and brief presenter returns. It deliberately skips the Remotion title card, Whisper/transcription, music, generated sound effects, and caption overlays.
+The Windows runner defaults to the **full-style build** for the supplied Nutty Putty Cave story. It creates a cleaned voice master, attempts English word-level alignment with faster-whisper (and uses estimated timings if the optional installation/model download fails), renders the animated Remotion title, generates short original SFX and a suspense bed, writes English captions plus a separate Arabic subtitle SRT, renders Lucide chapter icons and short fact callouts, and applies rare shock-only accents.
 
 Close CapCut before building. From PowerShell:
 
@@ -239,16 +239,18 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\run_nutty_putty.ps1
 ```
 
-The script uses the exact local source paths configured in `scripts/prepare_nutty_putty.py`. It copies media into the ignored local `projects/nutty-putty-cave` folder, keeps the supplied narration MP3 unchanged, makes full-frame 16:9 image versions without cropping the artwork, calculates estimated shot timings without installing Whisper, validates the project, and creates an editable CapCut draft through `capcut-cli`.
+The script uses the exact local source paths configured in `scripts/prepare_nutty_putty.py`. It copies media into the ignored local `projects/nutty-putty-cave` folder, keeps the original MP3 as a source copy, prepares a normalized WAV master, fits images into 1920×1080 without cropping the artwork, writes scene timing and SFX cue sheets, validates the project, and creates an editable CapCut draft through `capcut-cli`.
 
 Generated local files include:
 
 - `projects/nutty-putty-cave/build/ASSET_CONTACT_SHEET.jpg` — contact sheet for checking the supplied art.
 - `projects/nutty-putty-cave/build/ASSET_CATALOG.json` — inventory, image dimensions, sizes, durations, hashes and duplicate candidates.
-- `projects/nutty-putty-cave/build/timeline.json` — estimated storyboard boundaries and scene notes.
-- `projects/nutty-putty-cave/build/QA_REPORT.md` — build outcome and checks.
+- `projects/nutty-putty-cave/build/timeline.json` and `word_timestamps.json` — story beats and word timing source.
+- `projects/nutty-putty-cave/build/captions.srt` and `captions_ar.srt` — English captions and separate Arabic subtitles.
+- `projects/nutty-putty-cave/build/SFX_Cue_Sheet.csv` — timed sound-effect cue sheet.
+- `projects/nutty-putty-cave/build/MISSING_ASSETS.json` and `QA_REPORT.md` — missing-art prompts and build/QA notes.
 
-**Important:** because Whisper is intentionally skipped, shot timings are estimates distributed across the narration duration. Preview and adjust image changes against speech in CapCut before export. This creates an editable draft, not a final MP4. Captions, the Remotion title card, audio mastering, music, SFX and extra graphic overlays can be added in a later pass.
+If transcription/model download fails, timing falls back to explicit estimates; inspect the timing mode recorded in `timeline.json`. This creates an editable CapCut draft, not a final MP4 export. Review artwork matching, presenter cutout quality, captions and audio levels inside CapCut before exporting.
 
 ## Editing principles and sources
 
