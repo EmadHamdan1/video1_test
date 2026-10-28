@@ -8,8 +8,9 @@
     "render:whiteboard": "remotion render src/index.ts WhiteboardExplainer out/whiteboard-explainer.mp4 --codec h264",
     "render:caption": "remotion render src/index.ts KineticCaption out/kinetic-caption.mp4 --codec h264",
     "render:transitions": "remotion render src/index.ts TransitionShowcase out/transition-showcase.mp4 --codec h264",
-    "typecheck": "tsc --noEmit",
-    "render:caption:alpha": "remotion render src/index.ts KineticCaption out/kinetic-caption-alpha.mov --codec prores --prores-profile 4444 --pixel-format yuva444p10le --image-format png"
+    "typecheck": "tsc --noEmit && node --check scripts/render-svg.mjs && npm run test:icon-renderer",
+    "render:caption:alpha": "remotion render src/index.ts KineticCaption out/kinetic-caption-alpha.mov --codec prores --prores-profile 4444 --pixel-format yuva444p10le --image-format png",
+    "test:icon-renderer": "node scripts/test-render-svg.mjs"
   },
   "dependencies": {
     "@remotion/transitions": "4.0.539",
