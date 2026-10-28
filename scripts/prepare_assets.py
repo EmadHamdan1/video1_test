@@ -22,6 +22,8 @@ PROJECTS_DIR = ROOT / "projects"
 ENV_FILE = ROOT / ".env"
 USER_AGENT = "Video1-Montage-Asset-Helper/1.0 (personal local video workflow)"
 MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024
+_OPENVERSE_TOKEN_CACHE: str | None = None
+_OPENVERSE_TOKEN_EXPIRES_AT = 0.0
 MANIFEST_FIELDS = [
     "id", "kind", "segment_id", "query", "title", "creator", "source",
     "license", "license_url", "source_page", "preview_url", "download_url",
@@ -108,6 +110,9 @@ def request_json(url: str, headers: dict[str, str] | None = None, timeout: int =
 
 
 def openverse_token() -> str | None:
+    global _OPENVERSE_TOKEN_CACHE, _OPENVERSE_TOKEN_EXPIRES_AT
+    if _OPENVERSE_TOKEN_CACHE and time.monotonic() < _OPENVERSE_TOKEN_EXPIRES_AT - 60:
+        return _OPENVERSE_TOKEN_CACHE
     client_id = os.environ.get("OPENVERSE_CLIENT_ID", "").strip()
     client_secret = os.environ.get("OPENVERSE_CLIENT_SECRET", "").strip()
     if not client_id or not client_secret:
@@ -126,7 +131,11 @@ def openverse_token() -> str | None:
     with urllib.request.urlopen(request, timeout=25) as response:
         payload = json.loads(response.read(1024 * 1024).decode("utf-8", errors="replace"))
     token = payload.get("access_token")
-    return str(token) if token else None
+    if token:
+        _OPENVERSE_TOKEN_CACHE = str(token)
+        _OPENVERSE_TOKEN_EXPIRES_AT = time.monotonic() + float(payload.get("expires_in", 3600))
+        return _OPENVERSE_TOKEN_CACHE
+    return None
 
 
 def get_openverse_results(kind: str, query: str, limit: int) -> list[dict[str, Any]]:
