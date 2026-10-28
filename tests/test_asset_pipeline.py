@@ -125,6 +125,29 @@ class AssetPipelineTests(unittest.TestCase):
                             "black-forest-labs/FLUX.1-dev", True
                         )
 
+    def test_license_review_is_explicit_and_persisted(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = ASSETS.new_project("Review", str(Path(temporary) / "review"))
+            row = {
+                "id": "C0001", "kind": "image", "segment_id": "scene_001",
+                "query": "forest", "title": "Forest", "creator": "Artist", "source": "Openverse",
+                "license": "CC BY 4.0", "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                "source_page": "https://example.test/forest", "preview_url": "",
+                "download_url": "", "selected": "no", "downloaded_path": "",
+                "downloaded_at": "", "license_reviewed": "no", "review_notes": "",
+                "start_seconds": "", "volume": "", "notes": "",
+            }
+            ASSETS.write_csv(project / "media_candidates.csv", [row])
+            with self.assertRaisesRegex(ValueError, "Provide a short review note"):
+                ASSETS.review_license(str(project), "C0001", "")
+            ASSETS.review_license(
+                str(project), "C0001",
+                "Verified the CC BY 4.0 terms and recorded attribution requirements."
+            )
+            updated = ASSETS.read_csv(project / "media_candidates.csv")
+            self.assertEqual(updated[0]["license_reviewed"], "yes")
+            self.assertIn("attribution", updated[0]["review_notes"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()
