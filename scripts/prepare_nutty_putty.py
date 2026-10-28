@@ -198,10 +198,15 @@ def ffprobe_duration(path: Path) -> float:
 
 
 def copy_sources() -> tuple[list[Path], list[Path], Path, Path, dict[str, Any]]:
-    missing = [path for path in [AUDIO_SOURCE, *IMAGE_SOURCES, *PRESENTER_SOURCES] if not path.is_file()]
-    if missing:
-        details = "\n".join("  - " + str(path) for path in missing)
-        raise FileNotFoundError("These source files could not be found. Check the exact Windows paths:\n" + details)
+    missing_required = [path for path in [AUDIO_SOURCE, *IMAGE_SOURCES] if not path.is_file()]
+    if missing_required:
+        details = "\n".join("  - " + str(path) for path in missing_required)
+        raise FileNotFoundError("Required source files were not found. Check the exact Windows paths:\n" + details)
+    available_presenters = [path for path in PRESENTER_SOURCES if path.is_file()]
+    missing_presenters = [path for path in PRESENTER_SOURCES if not path.is_file()]
+    if missing_presenters:
+        log("Optional presenter poses missing; using the available poses only: " +
+            ", ".join(path.name for path in missing_presenters))
     source_map: dict[str, Any] = {"images": [], "presenter": [], "audio": []}
     images: list[Path] = []
     for index, source in enumerate(IMAGE_SOURCES, start=1):
@@ -210,7 +215,7 @@ def copy_sources() -> tuple[list[Path], list[Path], Path, Path, dict[str, Any]]:
         images.append(target.resolve())
         source_map["images"].append({"original": str(source), "local": str(target.resolve()), "sequence": index})
     presenters: list[Path] = []
-    for index, source in enumerate(PRESENTER_SOURCES, start=1):
+    for index, source in enumerate(available_presenters, start=1):
         target = PROJECT / "assets" / "presenter" / ("pose_%02d%s" % (index, source.suffix.lower()))
         shutil.copy2(source, target)
         presenters.append(target.resolve())
@@ -430,9 +435,9 @@ def tokenise_story(lines: list[str]) -> list[dict[str, Any]]:
 def install_and_transcribe(audio: Path) -> tuple[list[dict[str, Any]], str]:
     try:
         from faster_whisper import WhisperModel
-    except ImportError:
+    except Exception:
         requirements = ROOT / "requirements-transcription.txt"
-        log("Word alignment is not installed; attempting optional faster-whisper install.")
+        log("Word alignment is not available; attempting optional faster-whisper install.")
         result = subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(requirements)], check=False, timeout=None)
         if result.returncode != 0:
             return [], "ESTIMATED: faster-whisper installation failed"
@@ -440,7 +445,7 @@ def install_and_transcribe(audio: Path) -> tuple[list[dict[str, Any]], str]:
             import importlib
             importlib.invalidate_caches()
             from faster_whisper import WhisperModel
-        except ImportError:
+        except Exception:
             return [], "ESTIMATED: faster-whisper import failed"
     try:
         threads = max(2, min(8, os.cpu_count() or 4))
