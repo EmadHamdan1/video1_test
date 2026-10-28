@@ -225,6 +225,32 @@ npm run studio
 
 Render samples with `npm run render:whiteboard`, `npm run render:caption`, or `npm run render:transitions`. Outputs go to `motion-lab/out/` and are ignored by Git. They can be imported into CapCut as rendered clips; React elements do not turn into independent CapCut layers automatically. The main CapCut builder also applies smooth scale/position keyframes and phrase-level text with native entrance animations when Whisper timings or project story text are present. For text, the pipeline deliberately does not rely on alpha-keyframe fades because capcut-cli documents that CapCut may ignore those at render time: https://github.com/renezander030/capcut-cli/blob/master/docs/draft-schema/03-keyframes-and-animations.md.
 
+## Dedicated Nutty Putty Cave build
+
+A one-command Windows workflow stages the supplied Nutty Putty Cave files from the local source paths configured in scripts/prepare_nutty_putty.py. The local copies and generated assets remain under projects/nutty-putty-cave and are ignored by Git.
+
+Close CapCut, save any open edits, then run PowerShell from the repository root:
+
+```powershell
+cd C:\Users\EmQr\video1_test
+git switch feat/capcut-montage-pipeline
+git pull origin feat/capcut-montage-pipeline
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\run_nutty_putty.ps1
+```
+
+The runner checks the local source paths, prepares a normalized voice master with FFmpeg, attempts word-level English timing with faster-whisper, renders the two-second flat-vector Remotion title, creates 16:9 padded versions of supplied images, downloads Lucide chapter icons and license when the network is available, synthesizes original one-shot effects and a low suspense music bed, then builds and registers an editable CapCut draft using capcut-cli. If faster-whisper cannot install or download its model, the workflow logs that limitation and falls back to estimated word timing.
+
+Generated local deliverables include:
+
+- `projects/nutty-putty-cave/build/ASSET_CATALOG.json` — source paths, sizes, image dimensions, media durations where readable, hashes and duplicate candidates.
+- `projects/nutty-putty-cave/build/ASSET_CONTACT_SHEET.jpg` — contact sheet to visually check story-art order.
+- `projects/nutty-putty-cave/build/timeline.json` — word timing, story beats, camera notes, chapter titles, and sound-effect timing.
+- `projects/nutty-putty-cave/build/captions.srt` and `SFX_Cue_Sheet.csv`.
+- `projects/nutty-putty-cave/build/MISSING_ASSETS.json` and `QA_REPORT.md`.
+
+Important limits: the supplied source images are assigned in the order provided, not claimed to be semantically recognized from their file names. Check the contact sheet and review the opening, Corkscrew, rope-snap/no-pulse moments, sealed-cave ending and final teaser in CapCut before exporting. The pipeline creates an editable CapCut draft; it does not claim that a final MP4 was exported. Arkeonix MCP is a separate optional VS Code MCP server and is not required by this build runner.
+
 ## Editing principles and sources
 
 - [CapCut: keyframes on PC](https://www.capcut.com/resource/how-to-add-keyframes-in-capcut) — animate position, scale, rotation, opacity, and adjust the timing.
