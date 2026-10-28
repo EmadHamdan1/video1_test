@@ -87,6 +87,16 @@
       "api": "https://www.remotion.dev/docs/",
       "auth": "Local Node.js project; no asset API key",
       "policy": "Renders are local video assets. Rendered clips import into CapCut as clips, not editable React layers. Review Remotion license before commercial use."
+    },
+    {
+      "id": "resvg",
+      "kind": [
+        "icon-rendering",
+        "svg-to-png"
+      ],
+      "api": "https://www.npmjs.com/package/@resvg/resvg-js",
+      "auth": "Local npm package installed with motion-lab; no API key",
+      "policy": "Renders selected SVG icons to transparent PNGs for CapCut overlay tracks. Original SVG and upstream license metadata remain local in each video project."
     }
   ],
   "policy": [
