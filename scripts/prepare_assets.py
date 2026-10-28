@@ -512,6 +512,7 @@ def new_project(name: str, project_dir: str | None = None) -> Path:
             "add_captions_when_transcribed": True,
             "make_sfx_cue_sheet": True,
             "sound_effects": [],
+            "icon_overlays": [],
         },
     }
     paths["config"].write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -986,6 +987,92 @@ def generate_hf_image(
     return target
 
 
+def place_icon(
+    project: str, candidate_id: str, scene_id: str,
+    offset: float = 0.35, duration: float = 1.4,
+    x: float = -0.56, y: float = -0.42, scale: float = 0.16,
+    color: str = "#159A90", size: int = 256,
+) -> Path:
+    """Convert a downloaded SVG icon and place it as an editable CapCut overlay on a scene."""
+    paths = project_paths(project)
+    if not paths["config"].is_file():
+        raise FileNotFoundError("Project config not found. Run new-project first.")
+    if offset < 0 or duration <= 0:
+        raise ValueError("Icon offset must be >= 0 and duration must be > 0.")
+    if not (-1.0 <= x <= 1.0 and -1.0 <= y <= 1.0):
+        raise ValueError("Icon x/y positions must be normalized within -1..1.")
+    if not (0.03 <= scale <= 1.0):
+        raise ValueError("Icon scale must be between 0.03 and 1.0.")
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+        raise ValueError("Icon color must be a #RRGGBB value.")
+    plan_rows = read_csv(paths["plan"])
+    if not any(row.get("segment_id") == scene_id for row in plan_rows):
+        raise KeyError("Scene ID was not found in scene_plan.csv: " + scene_id)
+
+    manifest = read_csv(paths["manifest"])
+    candidate = next((row for row in manifest if row.get("id", "").upper() == candidate_id.upper()), None)
+    if candidate is None:
+        raise KeyError("Candidate ID not found: " + candidate_id)
+    if candidate.get("kind") != "icon":
+        raise ValueError(candidate_id + " is not an icon. Download a Lucide SVG with the icons command first.")
+    svg_path = Path(candidate.get("downloaded_path", "")).expanduser()
+    if not svg_path.is_file() or svg_path.suffix.lower() != ".svg":
+        raise FileNotFoundError("The selected SVG file was not found: " + str(svg_path))
+
+    renderer = ROOT / "motion-lab" / "scripts" / "render-svg.mjs"
+    node_modules_marker = ROOT / "motion-lab" / "node_modules" / "@resvg" / "resvg-js"
+    node = shutil.which("node")
+    if not node or not renderer.is_file() or not node_modules_marker.is_dir():
+        raise RuntimeError(
+            "The SVG renderer is not installed. Run these once from PowerShell: "
+            "cd .\\motion-lab; npm install"
+        )
+
+    safe_name = slugify(Path(candidate.get("title", candidate_id)).stem)
+    target = paths["generated"] / "icons" / (safe_name + "-" + scene_id + ".png")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    rendered = subprocess.run(
+        [node, str(renderer), str(svg_path.resolve()), str(target.resolve()), str(size), color],
+        text=True, capture_output=True, check=False,
+    )
+    if rendered.returncode != 0 or not target.is_file():
+        detail = (rendered.stderr or rendered.stdout or "unknown SVG renderer error").strip()
+        raise RuntimeError("Could not render the selected icon: " + detail[-800:])
+
+    config = json.loads(paths["config"].read_text(encoding="utf-8-sig"))
+    settings = config.setdefault("settings", {})
+    overlays = settings.setdefault("icon_overlays", [])
+    overlays[:] = [
+        item for item in overlays
+        if not (str(item.get("candidate_id", "")).upper() == candidate_id.upper()
+                and str(item.get("scene_id", "")) == scene_id)
+    ]
+    overlays.append({
+        "candidate_id": candidate_id.upper(),
+        "name": candidate.get("title", candidate_id),
+        "scene_id": scene_id,
+        "path": str(target.resolve()),
+        "offset": round(offset, 3),
+        "duration": round(duration, 3),
+        "x": round(x, 3),
+        "y": round(y, 3),
+        "scale": round(scale, 3),
+        "color": color,
+    })
+    paths["config"].write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    candidate["selected"] = "yes"
+    candidate["segment_id"] = scene_id
+    candidate["notes"] = (
+        (candidate.get("notes", "").strip() + " ") +
+        "Placed in " + scene_id + " at +" + str(round(offset, 3)) + "s for " +
+        str(round(duration, 3)) + "s; rendered PNG: " + str(target.resolve())
+    ).strip()
+    write_csv(paths["manifest"], manifest)
+    write_gallery(paths)
+    log("Placed " + candidate_id + " on " + scene_id + " -> " + str(target))
+    return target
+
+
 def choose_candidate(project: str, candidate_id: str) -> None:
     """Mark one visual as primary for a story beat without deselecting audio cues."""
     paths = project_paths(project)
@@ -1335,6 +1422,18 @@ def command_parser() -> argparse.ArgumentParser:
     gen.add_argument("--model", default=None, help="Model ID; defaults to HF_IMAGE_MODEL in .env, then black-forest-labs/FLUX.1-dev.")
     gen.add_argument("--confirm-possible-cost", action="store_true", help="Explicitly acknowledge that provider inference may cost credits.")
 
+    place_icon_parser = sub.add_parser("place-icon", help="Place a downloaded SVG icon on a scene as an editable CapCut overlay.")
+    place_icon_parser.add_argument("--project", required=True)
+    place_icon_parser.add_argument("--id", required=True, help="Icon candidate ID from media_candidates.csv.")
+    place_icon_parser.add_argument("--scene-id", required=True, help="Story beat, e.g. scene_003.")
+    place_icon_parser.add_argument("--offset", type=float, default=0.35, help="Seconds after the scene starts.")
+    place_icon_parser.add_argument("--duration", type=float, default=1.4)
+    place_icon_parser.add_argument("--x", type=float, default=-0.56, help="Normalized CapCut x position, -1..1.")
+    place_icon_parser.add_argument("--y", type=float, default=-0.42, help="Normalized CapCut y position, -1..1.")
+    place_icon_parser.add_argument("--scale", type=float, default=0.16, help="Icon scale, 0.03..1.0.")
+    place_icon_parser.add_argument("--color", default="#159A90", help="Icon stroke color, #RRGGBB.")
+    place_icon_parser.add_argument("--size", type=int, default=256, help="Raster size, 32..2048 px.")
+
     choose = sub.add_parser("choose", help="Choose the primary image or video for a story beat.")
     choose.add_argument("--project", required=True)
     choose.add_argument("--id", required=True, help="Candidate ID from media_candidates.csv/gallery.")
@@ -1382,6 +1481,11 @@ def main(argv: list[str] | None = None) -> int:
         download_icons(args.project, names)
     elif args.command == "generate-image":
         generate_hf_image(args.project, args.scene_id, args.prompt, args.model, args.confirm_possible_cost)
+    elif args.command == "place-icon":
+        place_icon(
+            args.project, args.id, args.scene_id, args.offset, args.duration,
+            args.x, args.y, args.scale, args.color, args.size
+        )
     elif args.command == "choose":
         choose_candidate(args.project, args.id)
     elif args.command == "set-preset":
