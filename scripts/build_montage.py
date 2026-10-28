@@ -304,13 +304,9 @@ def make_spec(
         pan_end = 0.035 if index % 2 == 0 else -0.035
         zoom_finish = zoom_end if index % 3 != 2 else max(zoom_start, zoom_end - 0.025)
         operations.extend([
-            {"op": "keyframe", "target": ref, "property": "scale_x", "time": 0.0,
+            {"op": "keyframe", "target": ref, "property": "uniform_scale", "time": 0.0,
              "value": zoom_start, "easing": "ease-in-out"},
-            {"op": "keyframe", "target": ref, "property": "scale_x", "time": seconds,
-             "value": zoom_finish, "easing": "ease-in-out"},
-            {"op": "keyframe", "target": ref, "property": "scale_y", "time": 0.0,
-             "value": zoom_start, "easing": "ease-in-out"},
-            {"op": "keyframe", "target": ref, "property": "scale_y", "time": seconds,
+            {"op": "keyframe", "target": ref, "property": "uniform_scale", "time": seconds,
              "value": zoom_finish, "easing": "ease-in-out"},
             {"op": "keyframe", "target": ref, "property": "position_x", "time": 0.0,
              "value": -pan_end, "easing": "ease-in-out"},
@@ -577,15 +573,22 @@ def main() -> int:
 
     payload: dict[str, Any] = {}
     output_text = result.stdout.strip()
-    try:
-        payload = json.loads(output_text) if output_text else {}
-    except json.JSONDecodeError:
-        for line in reversed(output_text.splitlines()):
-            try:
-                payload = json.loads(line)
-                break
-            except json.JSONDecodeError:
-                continue
+    if output_text:
+        try:
+            payload = json.loads(output_text)
+        except json.JSONDecodeError:
+            # Some CLI builds print a status line before their pretty-printed JSON.
+            decoder = json.JSONDecoder()
+            for offset, character in enumerate(output_text):
+                if character not in "{[":
+                    continue
+                try:
+                    candidate, _ = decoder.raw_decode(output_text[offset:])
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(candidate, dict) and ("draft_path" in candidate or "refs" in candidate):
+                    payload = candidate
+                    break
 
     draft_path = Path(str(payload.get("draft_path", out_dir))).resolve()
     refs = payload.get("refs", {}) if isinstance(payload.get("refs", {}), dict) else {}
