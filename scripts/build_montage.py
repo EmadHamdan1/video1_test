@@ -652,25 +652,13 @@ def make_spec(
                 "shadowSmoothing": 3,
             },
         })
-        fade_in = min(0.16, clip_duration * 0.24)
-        fade_out = min(0.14, clip_duration * 0.20)
-        steady_end = max(fade_in + 0.02, clip_duration - fade_out)
+        entrance_time = min(0.16, clip_duration * 0.24)
+        # CapCut does not reliably render alpha/opacity keyframes on text segments.
+        # Use supported position keyframes for the tiny float, plus native text-anim below.
         operations.extend([
-            {"op":"keyframe","target":ref,"property":"opacity","time":0.0,"value":0.0},
-            {"op":"keyframe","target":ref,"property":"opacity","time":round(fade_in,3),"value":1.0,"easing":"ease-out"},
             {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":default_y + 0.025},
-            {"op":"keyframe","target":ref,"property":"position_y","time":round(fade_in,3),"value":default_y,"easing":"ease-out"},
+            {"op":"keyframe","target":ref,"property":"position_y","time":round(entrance_time,3),"value":default_y,"easing":"ease-out"},
         ])
-        if steady_end > fade_in + 0.015:
-            operations.append({
-                "op":"keyframe","target":ref,"property":"opacity",
-                "time":round(steady_end,3),"value":1.0,"easing":"linear"
-            })
-        if clip_duration > steady_end + 0.015:
-            operations.append({
-                "op":"keyframe","target":ref,"property":"opacity",
-                "time":clip_duration,"value":0.0,"easing":"ease-in"
-            })
 
     bg_item = {
         "type":"photo","path":assets["background"],"start":0.0,
@@ -922,6 +910,8 @@ def main(argv: list[str] | None = None) -> int:
     selected_motion = load_motion_preset(settings)
     text_preset_name = str(selected_motion.get("text_preset", "marker_caption"))
     text_intro_by_preset = {
+        "marker_caption": "fade-in",
+        "marker_underline": "fade-in",
         "typewriter": "typewriter",
         "punch_caption": "pop-up",
         "kinetic_caption": "pop-up",
