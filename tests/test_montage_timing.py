@@ -222,6 +222,10 @@ class MontageTimingTests(unittest.TestCase):
                         "show_scene_text_without_transcript": False,
                         "flash_overlay_path": str(flash),
                         "flash_times": [4.5],
+                        "callout_overlays": [{
+                            "path": str(flash), "start_seconds": 3.1, "duration": 0.8,
+                            "label": "18 x 10 INCHES",
+                        }],
                     },
                 }
                 spec, scenes, _ = BUILDER.make_spec(
@@ -242,6 +246,10 @@ class MontageTimingTests(unittest.TestCase):
                 self.assertAlmostEqual(scenes[0]["end"], 2.0)
                 self.assertAlmostEqual(scenes[1]["start"], 2.0)
                 self.assertIn("Shock Flash Hits", tracks)
+                self.assertIn("Story Fact Callouts", tracks)
+                callout_item = tracks["Story Fact Callouts"]["items"][0]
+                self.assertAlmostEqual(callout_item["start"], 3.1)
+                self.assertAlmostEqual(callout_item["duration"], 0.8)
                 self.assertTrue(any(
                     operation.get("op") == "keyframe" and operation.get("property") == "rotation"
                     for operation in spec["operations"]
