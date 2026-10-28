@@ -95,7 +95,7 @@ def safe_web_url(value: Any, *, allow_file: bool = False) -> str:
 def safe_ext(url: str, content_type: str = "", kind: str = "image") -> str:
     extension = Path(urllib.parse.urlparse(url).path).suffix.lower()
     allowed = {
-        "image": {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif"},
+        "image": {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"},
         "video": {".mp4", ".mov", ".webm"},
         "audio": {".mp3", ".wav", ".ogg", ".flac", ".m4a"},
         "icon": {".svg"},
@@ -106,11 +106,15 @@ def safe_ext(url: str, content_type: str = "", kind: str = "image") -> str:
     mapping = {
         "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png",
         "image/webp": ".webp", "image/gif": ".gif", "image/svg+xml": ".svg",
-        "image/avif": ".avif", "video/mp4": ".mp4", "video/webm": ".webm",
-        "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/wav": ".wav",
-        "audio/ogg": ".ogg", "audio/flac": ".flac", "audio/mp4": ".m4a",
+        "image/avif": ".avif", "video/mp4": ".mp4", "video/quicktime": ".mov",
+        "video/webm": ".webm", "audio/mpeg": ".mp3", "audio/mp3": ".mp3",
+        "audio/wav": ".wav", "audio/ogg": ".ogg", "audio/flac": ".flac", "audio/mp4": ".m4a",
     }
-    return mapping.get(content_type, {"image": ".jpg", "video": ".mp4", "audio": ".mp3", "icon": ".svg"}.get(kind, ".bin"))
+    mapped = mapping.get(content_type, "")
+    if mapped in allowed.get(kind, set()):
+        return mapped
+    fallback = {"image": ".jpg", "video": ".mp4", "audio": ".mp3", "icon": ".svg"}
+    return fallback.get(kind, ".bin")
 
 
 def request_json(url: str, headers: dict[str, str] | None = None, timeout: int = 25) -> dict[str, Any]:
@@ -678,12 +682,14 @@ def write_gallery(paths: dict[str, Path]) -> Path:
         source_url = html.escape(safe_web_url(row.get("source_page", "")), quote=True)
         preview_raw = row.get("preview_url", "").strip()
         downloaded_raw = row.get("downloaded_path", "").strip()
+        local_preview = False
         if not preview_raw and downloaded_raw and Path(downloaded_raw).is_file():
             try:
                 preview_raw = Path(downloaded_raw).resolve().as_uri()
+                local_preview = True
             except ValueError:
                 preview_raw = ""
-        preview = html.escape(safe_web_url(preview_raw, allow_file=True), quote=True)
+        preview = html.escape(safe_web_url(preview_raw, allow_file=local_preview), quote=True)
         license_url = html.escape(safe_web_url(row.get("license_url", "")), quote=True)
         dl = html.escape(downloaded_raw)
         license_reviewed = row.get("license_reviewed", "no").strip().lower() in {"yes", "true", "1"}
@@ -775,8 +781,17 @@ def download_candidate(project: str, candidate_id: str) -> Path:
             raise ValueError("The server returned an HTML page, not a direct media file.")
         if not part_path or part_path.stat().st_size < 128:
             raise ValueError("The downloaded file is empty or unusually small.")
-        if target_path.suffix not in {".svg"} and target_path.suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".mp4", ".mov", ".webm", ".mp3", ".wav", ".ogg", ".flac", ".m4a"}:
-            raise ValueError("Unsupported downloaded file extension: " + target_path.suffix)
+        supported_extensions = {
+            "image": {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"},
+            "video": {".mp4", ".mov", ".webm"},
+            "audio": {".mp3", ".wav", ".ogg", ".flac", ".m4a"},
+            "icon": {".svg"},
+        }
+        if target_path.suffix.lower() not in supported_extensions.get(kind, set()):
+            raise ValueError(
+                "Unsupported extension " + target_path.suffix + " for " + kind
+                + ". Use the dedicated icons command for SVG icon assets."
+            )
         part_path.replace(target_path)
         for existing in rows:
             if existing.get("id") == row.get("id"):
