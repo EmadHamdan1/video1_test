@@ -33,7 +33,7 @@ if ($LASTEXITCODE -ne 0) { throw "Asset preparation failed. Read the error above
 Write-Host ""
 Write-Host "=== Phase 2: validate paths and project settings ===" -ForegroundColor Cyan
 & (Join-Path $RepoRoot "asset_tool.ps1") preflight --project $Project
-if ($LASTEXITCODE -ne 0) { throw "Preflight failed. Review projects\nutty-putty-cave\build\preflight_report.json." }
+if ($LASTEXITCODE -ne 0) { throw ("Preflight failed. Review " + (Join-Path $RepoRoot "$Project\build\preflight_report.json") + ".") }
 
 Write-Host ""
 Write-Host "=== Phase 3: build editable CapCut draft ===" -ForegroundColor Cyan
