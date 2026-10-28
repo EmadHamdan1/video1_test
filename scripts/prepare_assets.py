@@ -76,6 +76,22 @@ def clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def safe_web_url(value: Any, *, allow_file: bool = False) -> str:
+    """Allow only safe external HTTP(S) links, plus file URLs for gallery-local previews."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    parsed = urllib.parse.urlparse(raw)
+    allowed = {"http", "https"} | ({"file"} if allow_file else set())
+    if parsed.scheme.lower() not in allowed:
+        return ""
+    if parsed.scheme.lower() in {"http", "https"} and not parsed.netloc:
+        return ""
+    if parsed.scheme.lower() == "file" and not allow_file:
+        return ""
+    return raw
+
+
 def safe_ext(url: str, content_type: str = "", kind: str = "image") -> str:
     extension = Path(urllib.parse.urlparse(url).path).suffix.lower()
     allowed = {
@@ -629,7 +645,7 @@ def write_gallery(paths: dict[str, Path]) -> Path:
         candidate_id = html.escape(row.get("id", ""))
         query = html.escape(row.get("query", ""))
         segment = html.escape(row.get("segment_id", "") or "unassigned")
-        source_url = html.escape(row.get("source_page", ""), quote=True)
+        source_url = html.escape(safe_web_url(row.get("source_page", "")), quote=True)
         preview_raw = row.get("preview_url", "").strip()
         downloaded_raw = row.get("downloaded_path", "").strip()
         if not preview_raw and downloaded_raw and Path(downloaded_raw).is_file():
@@ -637,8 +653,8 @@ def write_gallery(paths: dict[str, Path]) -> Path:
                 preview_raw = Path(downloaded_raw).resolve().as_uri()
             except ValueError:
                 preview_raw = ""
-        preview = html.escape(preview_raw, quote=True)
-        license_url = html.escape(row.get("license_url", ""), quote=True)
+        preview = html.escape(safe_web_url(preview_raw, allow_file=True), quote=True)
+        license_url = html.escape(safe_web_url(row.get("license_url", "")), quote=True)
         dl = html.escape(downloaded_raw)
         license_reviewed = row.get("license_reviewed", "no").strip().lower() in {"yes", "true", "1"}
         review_status = '<p class="reviewed">License reviewed</p>' if license_reviewed else '<p class="needs-review">License needs review before publication</p>'
