@@ -1390,7 +1390,6 @@ def build_project(project: str, python_executable: str | None = None) -> int:
     builder = ROOT / "scripts" / "build_montage.py"
     command = [python, str(builder), "--config", str(paths["config"].resolve()), "--build-dir", str(paths["build"].resolve())]
     log("Launching editable CapCut build for " + str(paths["root"]))
-    import subprocess
     result = subprocess.run(command, cwd=str(ROOT), check=False)
     return int(result.returncode)
 
