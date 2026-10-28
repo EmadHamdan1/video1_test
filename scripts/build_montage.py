@@ -366,7 +366,7 @@ def make_spec(
     presenter_x = float(settings.get("presenter_x", 0.72))
     presenter_y = float(settings.get("presenter_y", 0.18))
     assets = create_whiteboard_assets(
-        BUILD_DIR/"visuals", width, height, shot_count,
+        BUILD_DIR / "visuals" / datetime.now().strftime("%Y%m%d_%H%M%S_%f"), width, height,
         len(presenters) if settings.get("presenter_overlay", True) else 0,
         scene_x=scene_x, scene_y=scene_y, presenter_x=presenter_x, presenter_y=presenter_y
     )
@@ -770,7 +770,7 @@ def main() -> int:
         "scene_segments": len(scenes),
         "presenter_segments": len(presenter_rows),
         "registered_in_capcut": registered,
-        "visual_assets_dir": str((BUILD_DIR / "visuals").resolve()),
+        "visual_assets_dir": str(Path(spec["tracks"][0]["items"][0]["path"]).parent),
         "caption_cues": len(captions),
         "caption_file": str(captions_path) if captions_path else None,
         "matting": matting_results,
@@ -789,7 +789,7 @@ def main() -> int:
 
     log("Draft creation finished.")
     log("Draft directory: " + str(draft_path))
-    log("Visual assets: " + str((BUILD_DIR / "visuals").resolve()))
+    log("Visual assets: " + str(Path(spec["tracks"][0]["items"][0]["path"]).parent))
     log("Shot plan: " + str(scene_csv))
     if settings.get("make_sfx_cue_sheet", True):
         log("Sound-effect cue sheet: " + str(BUILD_DIR / "SFX_Cue_Sheet.csv"))
