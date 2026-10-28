@@ -10,7 +10,8 @@
     "render:transitions": "remotion render src/index.ts TransitionShowcase out/transition-showcase.mp4 --codec h264",
     "typecheck": "tsc --noEmit && node --check scripts/render-svg.mjs && npm run test:icon-renderer",
     "render:caption:alpha": "remotion render src/index.ts KineticCaption out/kinetic-caption-alpha.mov --codec prores --prores-profile 4444 --pixel-format yuva444p10le --image-format png",
-    "test:icon-renderer": "node scripts/test-render-svg.mjs"
+    "test:icon-renderer": "node scripts/test-render-svg.mjs",
+    "render:nutty-title": "remotion render src/index.ts NuttyPuttyTitle ../projects/nutty-putty-cave/assets/generated/nutty-putty-title.mp4 --codec h264 --crf 17"
   },
   "dependencies": {
     "@remotion/transitions": "4.0.539",
