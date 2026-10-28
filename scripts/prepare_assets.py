@@ -787,7 +787,11 @@ def download_icons(project: str, names: list[str]) -> list[Path]:
                 "source": "Lucide", "license": "ISC", "license_url": license_url,
                 "source_page": "https://lucide.dev/icons/" + icon_name,
                 "preview_url": "", "download_url": url, "selected": "yes",
-                "downloaded_path": str(target.resolve()), "start_seconds": "", "volume": "",
+                "downloaded_path": str(target.resolve()),
+                "downloaded_at": datetime.now().isoformat(timespec="seconds"),
+                "license_reviewed": "yes",
+                "review_notes": "Lucide ISC license file saved alongside this icon.",
+                "start_seconds": "", "volume": "",
                 "notes": "Open source SVG icon; include LUCIDE-LICENSE.txt when redistributing the source icon.",
             })
         except urllib.error.HTTPError as exc:
