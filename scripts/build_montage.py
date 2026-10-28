@@ -584,9 +584,11 @@ def make_spec(
     # Build editable phrase-level text clips. Timed Whisper cues take priority; otherwise
     # story sentences supplied by the per-video project become scene callouts.
     caption_items: list[dict[str, Any]] = []
+    text_preset_name = str(motion.get("text_preset", "marker_caption"))
+    text_preset = load_text_animation_preset(text_preset_name)
     transcript_enabled = bool(settings.get("add_captions_when_transcribed", True) and captions_path and captions)
     caption_sources: list[dict[str, Any]] = []
-    max_words = int(settings.get("caption_words_per_chunk", 5))
+    max_words = int(settings.get("caption_words_per_chunk", text_preset.get("words_per_chunk", 5)))
     min_hold = float(settings.get("caption_min_hold_seconds", 0.85))
     if transcript_enabled:
         for cue in captions:
@@ -607,8 +609,6 @@ def make_spec(
     else:
         caption_track_name = "Animated Captions"
 
-    text_preset_name = str(motion.get("text_preset", "marker_caption"))
-    text_preset = load_text_animation_preset(text_preset_name)
     font_sizes = {
         "marker_caption": 18, "punch_caption": 22, "lower_third": 18,
         "kinetic_caption": 21, "typewriter": 18, "marker_underline": 18,
