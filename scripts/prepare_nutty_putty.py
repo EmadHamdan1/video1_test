@@ -197,7 +197,7 @@ def ffprobe_duration(path: Path) -> float:
     return duration
 
 
-def copy_sources() -> tuple[list[Path], list[Path], Path, Path, dict[str, Any]]:
+def copy_sources(simple: bool = False) -> tuple[list[Path], list[Path], Path, Path, dict[str, Any]]:
     missing_required = [path for path in [AUDIO_SOURCE, *IMAGE_SOURCES] if not path.is_file()]
     if missing_required:
         details = "\n".join("  - " + str(path) for path in missing_required)
@@ -223,6 +223,9 @@ def copy_sources() -> tuple[list[Path], list[Path], Path, Path, dict[str, Any]]:
     source_copy = PROJECT / "assets" / "audio" / "narration_source.mp3"
     shutil.copy2(AUDIO_SOURCE, source_copy)
     source_map["audio"].append({"original": str(AUDIO_SOURCE), "local": str(source_copy.resolve())})
+    if simple:
+        log("Basic CapCut mode: keeping the supplied narration MP3 unchanged.")
+        return images, presenters, source_copy.resolve(), source_copy.resolve(), source_map
     master = PROJECT / "assets" / "audio" / "narration_master.wav"
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -895,13 +898,144 @@ def inventory_asset(path: Path, asset_type: str, original: str = "") -> dict[str
     return row
 
 
-def prepare(project_override: str | None = None) -> int:
+
+def prepare_simple_project(
+    source_images: list[Path], presenter_images: list[Path], narration: Path, source_map: dict[str, Any]
+) -> int:
+    """Build only supplied images + the original narration; no title card, ASR, music or SFX."""
+    fullframe_images = make_fullframe_versions(source_images)
+    make_contact_sheet(source_images, PROJECT / "build" / "ASSET_CONTACT_SHEET.jpg")
+    duration = ffprobe_duration(narration)
+    tokens = tokenise_story(STORY_EN)
+    align_tokens(tokens, [], duration)
+    rows = line_timing(STORY_EN, tokens)
+    timing_mode = "ESTIMATED from script length and narration duration; Whisper skipped"
+    (PROJECT / "build" / "word_timestamps.json").write_text(
+        json.dumps({"source": timing_mode, "alignment_ratio": 0.0, "words": tokens, "sentences": rows},
+                   ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    boundaries = fit_storyboard_boundaries(rows, tokens, duration, len(fullframe_images), 0.0)
+    scene_texts = (STORY_EN + [STORY_EN[-1]] * max(0, len(fullframe_images) - len(STORY_EN)))[:len(fullframe_images)]
+    settings = {
+        "motion_preset": "nutty_putty_casefile", "layout_mode": "full_frame",
+        "use_storyboard_boundaries": True, "scene_image_scale": 1.0,
+        "scene_image_x": 0.0, "scene_image_y": 0.0,
+        "scene_zoom_start": 1.0, "scene_zoom_end": 1.065, "scene_pan_amount": 0.006,
+        "target_shot_seconds": 2.65, "minimum_shot_seconds": 1.25,
+        "presenter_overlay": True, "presenter_mode": "reset", "presenter_backplate": False,
+        "presenter_smart_matte": True, "presenter_scale": 0.23, "presenter_x": -0.73, "presenter_y": 0.43,
+        "presenter_pose_seconds": 35.0, "presenter_reset_duration": 2.15,
+        "use_precomputed_captions": False, "transcribe_if_whisper_available": False,
+        "add_captions_when_transcribed": False, "show_scene_text_without_transcript": False,
+        "voice_volume": 1.0, "voice_fade_in": 0.0, "voice_fade_out": 0.0,
+        "make_sfx_cue_sheet": False, "sound_effects": [],
+        "icon_overlays": [], "callout_overlays": [],
+        "flash_overlay_path": "", "flash_times": [],
+        "horror_overlay_path": "", "horror_overlay_times": [],
+    }
+    config = {
+        "project_name": "Nutty Putty Cave — Basic CapCut Edit", "drafts_dir": "",
+        "audio": str(narration.resolve()),
+        "scene_images": [str(path.resolve()) for path in fullframe_images],
+        "scene_texts": scene_texts,
+        "presenter_images": [str(path.resolve()) for path in presenter_images],
+        "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+        "storyboard_boundaries": boundaries,
+        "story_beats": [
+            {"scene_id": "story_%03d" % (i + 1), "text": row["text"],
+             "start_s": row["start_s"], "end_s": row["end_s"],
+             "emotion": BEAT_META[i][0], "shock_level": BEAT_META[i][1], "trigger_word": BEAT_META[i][2]}
+            for i, row in enumerate(rows)
+        ],
+        "chapter_titles": [], "background_music": {}, "settings": settings,
+    }
+    for name in ("project.json", "config.json"):
+        (PROJECT / name).write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    original_map = {}
+    for group in source_map.values():
+        for entry in group:
+            original_map[str(Path(entry["local"]).resolve())] = entry["original"]
+    catalog = []
+    for image in source_images:
+        catalog.append(inventory_asset(image, "story_art_original", original_map.get(str(image.resolve()), "")))
+    for image in fullframe_images:
+        catalog.append(inventory_asset(image, "story_art_16x9"))
+    for image in presenter_images:
+        item = inventory_asset(image, "host_avatar_pose", original_map.get(str(image.resolve()), ""))
+        item["tags"] = ["host_avatar", "pose category requires visual confirmation"]
+        item["confidence"] = "low"
+        catalog.append(item)
+    catalog.append(inventory_asset(narration, "voiceover", str(AUDIO_SOURCE)))
+    hashes: dict[str, list[str]] = {}
+    for item in catalog:
+        if item.get("sha256"):
+            hashes.setdefault(item["sha256"], []).append(item["path"])
+    duplicates = [items for items in hashes.values() if len(items) > 1]
+    unreadable = [item for item in catalog if item.get("problem")]
+    catalog_doc = {
+        "version": 1, "project": "Nutty Putty Cave — Basic CapCut Edit",
+        "created_at": datetime.now().isoformat(timespec="seconds"), "asset_count": len(catalog),
+        "counts_by_type": {kind: sum(a.get("type") == kind for a in catalog)
+                           for kind in sorted({str(a.get("type", "unknown")) for a in catalog})},
+        "duplicates": duplicates, "unreadable": unreadable,
+        "visual_review_status": "Contact sheet created. Semantic image-to-script matching requires a visual review.",
+        "assets": catalog,
+    }
+    (PROJECT / "build" / "ASSET_CATALOG.json").write_text(
+        json.dumps(catalog_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    timeline = create_story_timeline(STORY_EN, rows, tokens, fullframe_images, boundaries, [],
+                                     duration, timing_mode, [])
+    timeline.update({
+        "asset_count": len(catalog), "caption_count": 0, "arabic_subtitle_count": 0,
+        "sfx_count": 0, "music_enabled": False, "title_card_enabled": False, "whisper_enabled": False,
+        "source_image_count": len(source_images),
+    })
+    (PROJECT / "build" / "timeline.json").write_text(
+        json.dumps(timeline, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (PROJECT / "build" / "MISSING_ASSETS.json").write_text(json.dumps({
+        "items": [
+            {"asset": "cave cross-section illustration", "status": "optional; not generated in basic mode",
+             "prompt": "16:9 flat-vector narrow Utah cave passage, cream background, bold black outlines, no text."},
+            {"asset": "rescue pulley illustration", "status": "optional; not generated in basic mode",
+             "prompt": "16:9 flat-vector cave rescue pulley and rope under tension, clear silhouette, no text."},
+        ],
+        "policy": "First make sure the basic editable CapCut draft opens correctly; optional effects can be added later."
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (PROJECT / "build" / "ASSET_CATALOG_SUMMARY.md").write_text(
+        "# Basic Asset Catalog\n\n"
+        f"- Supplied story images: {len(source_images)}\n- Processed 16:9 images: {len(fullframe_images)}\n"
+        f"- Presenter poses: {len(presenter_images)}\n- Voiceover: original MP3, unchanged\n"
+        "- Whisper: skipped\n- Title card, music, SFX, captions, icons and callouts: disabled\n"
+        f"- Duplicate groups: {len(duplicates)}\n- Unreadable files: {len(unreadable)}\n- Timing: {timing_mode}\n",
+        encoding="utf-8"
+    )
+    (PROJECT / "build" / "QA_REPORT.md").write_text(
+        "# Nutty Putty Cave — Basic Build QA\n\n"
+        "- Uses supplied story images and the original narration MP3 only.\n"
+        "- No Remotion title card, no SFX, no music, no subtitles on the CapCut timeline, no Whisper.\n"
+        "- 1920x1080, 30 fps, 16:9. Images use restrained push-in keyframes; presenter images may briefly return every ~35 seconds.\n"
+        f"- Narration duration: {duration:.3f}s. Scene timing is estimated from text length because Whisper is skipped.\n"
+        "- Review images against narration in CapCut; image filenames alone do not confirm semantic matching.\n"
+        "- This is an editable CapCut draft, not a final MP4 export.\n",
+        encoding="utf-8"
+    )
+    log("Basic mode: no title card, no Whisper, no SFX, no music, no captions.")
+    log(f"Project prepared: {PROJECT}")
+    log(f"Voiceover duration: {duration:.2f}s; images: {len(source_images)}; processed: {len(fullframe_images)}")
+    log("Contact sheet: " + str(PROJECT / "build" / "ASSET_CONTACT_SHEET.jpg"))
+    return 0
+
+
+def prepare(project_override: str | None = None, simple: bool = False) -> int:
     global PROJECT
     if project_override:
         candidate = Path(project_override).expanduser()
         PROJECT = candidate.resolve() if candidate.is_absolute() else (ROOT / candidate).resolve()
     ensure_dirs()
-    source_images, presenter_images, source_audio, master_audio, source_map = copy_sources()
+    source_images, presenter_images, source_audio, master_audio, source_map = copy_sources(simple=simple)
     (PROJECT / "story.txt").write_text("\n".join(STORY_EN) + "\n", encoding="utf-8")
     (PROJECT / "story_ar.txt").write_text("\n".join(STORY_AR) + "\n", encoding="utf-8")
     (PROJECT / "source_files.json").write_text(json.dumps(source_map, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -910,6 +1044,9 @@ def prepare(project_override: str | None = None) -> int:
         "Use run_nutty_putty.ps1 from the repository root to rebuild the editable CapCut draft.\n",
         encoding="utf-8",
     )
+
+    if simple:
+        return prepare_simple_project(source_images, presenter_images, master_audio, source_map)
 
     fullframe_images = make_fullframe_versions(source_images)
     make_contact_sheet(source_images, PROJECT / "build" / "ASSET_CONTACT_SHEET.jpg")
@@ -1338,9 +1475,11 @@ def main() -> int:
     parser.add_argument("--stage", choices=("prepare", "finalize"), default="prepare")
     parser.add_argument("--project", default=None)
     parser.add_argument("--build-exit-code", type=int, default=0)
+    parser.add_argument("--simple", action="store_true",
+                        help="Images + original narration only; skip title render, Whisper, music and sound effects.")
     args = parser.parse_args()
     if args.stage == "prepare":
-        return prepare(args.project)
+        return prepare(args.project, simple=args.simple)
     return finalize(args.build_exit_code, args.project)
 
 
