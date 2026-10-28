@@ -70,6 +70,28 @@ class NuttyPuttyPreparationTests(unittest.TestCase):
         self.assertAlmostEqual(boundaries[-1], 39.0)
         self.assertTrue(all(right > left for left, right in zip(boundaries, boundaries[1:])))
 
+    def test_fact_callout_is_generated_only_for_a_matched_script_phrase(self):
+        tokens = BUILDER.tokenise_story(["John was twenty-six years old."])
+        for index, token in enumerate(tokens):
+            token["start_s"] = index * 0.25
+            token["end_s"] = index * 0.25 + 0.2
+        old_project = BUILDER.PROJECT
+        try:
+            import tempfile
+            with tempfile.TemporaryDirectory() as temporary:
+                BUILDER.PROJECT = Path(temporary)
+                overlays = BUILDER.make_fact_callouts(tokens, 5.0)
+                self.assertEqual(len(overlays), 1)
+                self.assertEqual(overlays[0]["label"], "26 YEARS OLD")
+                image_path = Path(overlays[0]["path"])
+                self.assertTrue(image_path.is_file())
+                from PIL import Image
+                with Image.open(image_path) as image:
+                    self.assertEqual(image.size, (1920, 1080))
+                    self.assertEqual(image.mode, "RGBA")
+        finally:
+            BUILDER.PROJECT = old_project
+
     def test_caption_chunks_never_exceed_three_words(self):
         tokens = BUILDER.tokenise_story(["One two three four five six seven."])
         for index, token in enumerate(tokens):
