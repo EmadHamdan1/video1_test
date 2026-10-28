@@ -124,7 +124,7 @@ On first use, `asset_tool.ps1` creates a local `.env` file from `.env.example`. 
 - Freesound: optional `FREESOUND_API_KEY` for sound search: https://freesound.org/docs/api/. Search results may download an MP3 preview rather than the full-quality original.
 - Lucide: the `icons` command downloads SVGs and the ISC license file; those icons are marked reviewed because the included upstream license is explicit.
 
-The manifest records a source URL, creator, license text/URL, downloaded path/time, and whether you personally reviewed the license. A license label is not a legal guarantee. After checking the source and terms, record the review:
+The manifest records a source URL, creator, license text/URL, downloaded path/time, and whether you personally reviewed the license. Run `preflight` before building; it checks the project JSON, audio path, local scene media, motion preset and assets whose licenses still need review. License flags are reminders rather than legal guarantees. After checking the source and terms, record the review:
 
 ```powershell
 .\asset_tool.ps1 review-license --project projects\horror-explainer-episode-01 --id C0001 --notes "Verified the license and recorded attribution requirements."
@@ -166,6 +166,7 @@ After selecting/downloading scene media, pass the narration audio. The presenter
 
 ```powershell
 .\asset_tool.ps1 apply --project projects\horror-explainer-episode-01 --audio "D:\Path\to\narration.mp3" --presenter-dir "C:\Path\to\presenter-poses" --include-sfx
+.\asset_tool.ps1 preflight --project projects\horror-explainer-episode-01
 .\asset_tool.ps1 build --project projects\horror-explainer-episode-01
 ```
 
