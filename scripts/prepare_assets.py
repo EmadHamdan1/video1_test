@@ -630,16 +630,28 @@ def write_gallery(paths: dict[str, Path]) -> Path:
         query = html.escape(row.get("query", ""))
         segment = html.escape(row.get("segment_id", "") or "unassigned")
         source_url = html.escape(row.get("source_page", ""), quote=True)
-        preview = html.escape(row.get("preview_url", ""), quote=True)
+        preview_raw = row.get("preview_url", "").strip()
+        downloaded_raw = row.get("downloaded_path", "").strip()
+        if not preview_raw and downloaded_raw and Path(downloaded_raw).is_file():
+            try:
+                preview_raw = Path(downloaded_raw).resolve().as_uri()
+            except ValueError:
+                preview_raw = ""
+        preview = html.escape(preview_raw, quote=True)
         license_url = html.escape(row.get("license_url", ""), quote=True)
-        dl = html.escape(row.get("downloaded_path", ""))
+        dl = html.escape(downloaded_raw)
         license_reviewed = row.get("license_reviewed", "no").strip().lower() in {"yes", "true", "1"}
         review_status = '<p class="reviewed">License reviewed</p>' if license_reviewed else '<p class="needs-review">License needs review before publication</p>'
-        image = (
-            '<img loading="lazy" src="' + preview + '" alt="' + title + '">'
-            if preview and row.get("kind") in {"image", "video", "icon"} else
-            '<div class="no-preview">No preview — open source</div>'
-        )
+        kind = row.get("kind", "")
+        if preview and kind in {"image", "icon"}:
+            preview_markup = '<img loading="lazy" src="' + preview + '" alt="' + title + '">'
+        elif preview and kind == "video":
+            preview_markup = '<video controls preload="none" src="' + preview + '"></video>'
+        elif preview and kind == "audio":
+            preview_markup = '<audio controls preload="none" src="' + preview + '"></audio>'
+        else:
+            preview_markup = '<div class="no-preview">No preview — open source</div>'
+        image = preview_markup
         cards.append(
             '<article class="card"><div class="preview">' + image + '</div>'
             '<div class="body"><div class="top"><strong>' + candidate_id + '</strong><span>' +
@@ -658,7 +670,7 @@ body{margin:0;background:#f3f4f6;color:#17202a;font:15px/1.45 system-ui,Segoe UI
 header{padding:24px 5vw;background:#18212f;color:#f7f8fa}header h1{margin:0 0 8px;font-size:24px}
 main{padding:24px 4vw}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px}
 .card{background:white;border:1px solid #d8dde5;border-radius:14px;overflow:hidden;box-shadow:0 4px 14px #12203a0c}
-.preview{height:185px;background:#e7eaf0;display:grid;place-items:center}.preview img{width:100%;height:100%;object-fit:contain}
+.preview{height:185px;background:#e7eaf0;display:grid;place-items:center}.preview img,.preview video{width:100%;height:100%;object-fit:contain}.preview audio{width:92%}
 .no-preview{color:#6b7280}.body{padding:15px}.top{display:flex;justify-content:space-between;color:#64748b;font-size:12px}
 h2{font-size:16px;line-height:1.3;margin:12px 0 7px}.body p{margin:6px 0;overflow-wrap:anywhere}
 .query{color:#475569}.license{font-weight:600}.pending{color:#925c16}.downloaded{color:#137454}
