@@ -116,15 +116,15 @@ Search more scenes by increasing `--max-scenes` (up to 25). For video clips, use
 
 If you downloaded multiple alternatives for the same story beat, choose the primary candidate explicitly. This marks one image/video as selected and deselects other visual alternatives for that same beat; audio choices are left alone:
 
-\`\`\`powershell
+```powershell
 .\asset_tool.ps1 choose --project projects\horror-explainer-episode-01 --id C0004
-\`\`\`
+```
 
 ### 3. Choose the motion style
 
 Set a reusable motion preset for each video project before applying the assets/building:
 
-\`\`\`powershell
+```powershell
 # Calm whiteboard explainer: default
 .\asset_tool.ps1 set-preset --project projects\horror-explainer-episode-01 --preset whiteboard_smooth
 
@@ -136,9 +136,9 @@ Set a reusable motion preset for each video project before applying the assets/b
 
 # Slower documentary pacing
 # .\asset_tool.ps1 set-preset --project projects\horror-explainer-episode-01 --preset documentary_cinematic
-\`\`\`
+```
 
-The profiles live in \`presets/motion_presets.json\`; typography recipes live in \`presets/text_animation_presets.json\`. Native CapCut text entrances and smooth position/scale keyframes are added by the builder. The Remotion motion-lab is an optional separate tool for more custom rendered graphics.
+The profiles live in `presets/motion_presets.json`; typography recipes live in `presets/text_animation_presets.json`. Native CapCut text entrances and smooth position/scale keyframes are added by the builder. The Remotion motion-lab is an optional separate tool for more custom rendered graphics.
 
 ### 4. Configure optional API sources
 
