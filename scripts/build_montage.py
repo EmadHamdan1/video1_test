@@ -610,9 +610,9 @@ def make_spec(
         caption_track_name = "Animated Captions"
 
     font_sizes = {
-        "marker_caption": 18, "punch_caption": 22, "lower_third": 18,
-        "kinetic_caption": 21, "typewriter": 18, "marker_underline": 18,
-        "number_pop": 23, "side_callout": 18,
+        "marker_caption": 30, "punch_caption": 38, "lower_third": 28,
+        "kinetic_caption": 34, "typewriter": 30, "marker_underline": 28,
+        "number_pop": 40, "side_callout": 28,
     }
     default_x, default_y = 0.0, float(settings.get("caption_y", 0.77))
     if text_preset_name == "lower_third":
@@ -622,7 +622,7 @@ def make_spec(
     elif text_preset_name == "side_callout":
         default_x, default_y = -0.36, float(settings.get("caption_y", 0.22))
     font_size = int(settings.get("caption_font_size", font_sizes.get(text_preset_name, 18)))
-    text_color = str(settings.get("caption_color", "#FFFFFF"))
+    text_color = str(settings.get("caption_color", "#24313B"))
     for index, cue in enumerate(caption_sources, start=1):
         clip_duration = round(float(cue["end"]) - float(cue["start"]), 3)
         if clip_duration < 0.25:
@@ -644,10 +644,10 @@ def make_spec(
             "target": ref,
             "style": {
                 "shadow": True,
-                "shadowAlpha": 0.78,
-                "shadowColor": "#111820",
-                "shadowDistance": 4,
-                "shadowSmoothing": 5,
+                "shadowAlpha": 0.22,
+                "shadowColor": "#FFFFFF",
+                "shadowDistance": 2,
+                "shadowSmoothing": 3,
             },
         })
         fade_in = min(0.16, clip_duration * 0.24)
