@@ -110,7 +110,7 @@ Open `media_gallery.html` to compare previews, sources, creators, and license de
 Search more scenes by increasing `--max-scenes` (up to 25). For video clips, use `--kind video`; those clips can be used as scene media just like images. For a hand-drawn explainer, download SVG icons with:
 
 ```powershell
-.\asset_tool.ps1 icons --project projects\horror-explainer-episode-01 --names search,arrow-right,lightbulb,alert-triangle,check-circle,play
+.\asset_tool.ps1 icons --project projects\horror-explainer-episode-01 --names search,arrow-right,lightbulb,triangle-alert,circle-check,play
 ```
 
 ### 3. Configure optional API sources
