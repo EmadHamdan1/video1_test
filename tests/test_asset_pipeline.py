@@ -252,6 +252,41 @@ class AssetPipelineTests(unittest.TestCase):
             sound_row = next(row for row in manifest if row["id"] == "C0002")
             self.assertEqual(sound_row["start_seconds"], "3.98")
 
+    def test_choose_candidate_deselects_other_visuals_but_keeps_audio(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = ASSETS.new_project("Choose media", str(Path(temporary) / "choose-media"))
+            def row(cid, kind, segment, selected="yes"):
+                return {
+                    "id": cid, "kind": kind, "segment_id": segment, "query": "",
+                    "title": cid, "creator": "", "source": "test", "license": "CC0",
+                    "license_url": "", "source_page": "https://example.test/" + cid,
+                    "preview_url": "", "download_url": "", "selected": selected,
+                    "downloaded_path": "", "downloaded_at": "", "license_reviewed": "yes",
+                    "review_notes": "", "start_seconds": "", "volume": "", "notes": "",
+                }
+            rows = [
+                row("C0001", "image", "scene_001"),
+                row("C0002", "image", "scene_001"),
+                row("C0003", "video", "scene_001"),
+                row("C0004", "audio", "scene_001"),
+            ]
+            ASSETS.write_csv(project / "media_candidates.csv", rows)
+            ASSETS.choose_candidate(str(project), "C0002")
+            updated = {row["id"]: row for row in ASSETS.read_csv(project / "media_candidates.csv")}
+            self.assertEqual(updated["C0001"]["selected"], "no")
+            self.assertEqual(updated["C0002"]["selected"], "yes")
+            self.assertEqual(updated["C0003"]["selected"], "no")
+            self.assertEqual(updated["C0004"]["selected"], "yes")
+
+    def test_set_project_preset_validates_and_saves_choice(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = ASSETS.new_project("Choose style", str(Path(temporary) / "choose-style"))
+            with self.assertRaisesRegex(ValueError, "Unknown motion preset"):
+                ASSETS.set_project_preset(str(project), "nonexistent_style")
+            ASSETS.set_project_preset(str(project), "horror_comedy")
+            config = json.loads((project / "project.json").read_text(encoding="utf-8"))
+            self.assertEqual(config["settings"]["motion_preset"], "horror_comedy")
+
 
 if __name__ == "__main__":
     unittest.main()
