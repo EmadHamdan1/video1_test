@@ -1,0 +1,3 @@
+# Optional local word-level transcription for project timing.
+# Requires FFmpeg/FFprobe on PATH. The first transcription run downloads the model.
+faster-whisper>=1.2.1,<2
