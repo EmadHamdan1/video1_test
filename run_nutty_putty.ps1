@@ -26,8 +26,8 @@ if ($CapCutProcess) {
 }
 
 Write-Host ""
-Write-Host "=== Phase 1: inventory source assets, align narration, create effects ===" -ForegroundColor Cyan
-& $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project
+Write-Host "=== Phase 1: copy images and narration (no Whisper or audio extras) ===" -ForegroundColor Cyan
+& $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project --simple
 if ($LASTEXITCODE -ne 0) { throw "Asset preparation failed. Read the error above; no draft was built." }
 
 Write-Host ""
@@ -55,4 +55,5 @@ Write-Host "QA report: $(Join-Path $BuildDir 'QA_REPORT.md')"
 Write-Host "Contact sheet: $(Join-Path $BuildDir 'ASSET_CONTACT_SHEET.jpg')"
 Write-Host ""
 Write-Host "Open CapCut Desktop and look for the newly registered Nutty Putty Cave draft."
-Write-Host "Preview the first 10 seconds, rope-snap / no-pulse moments, sealed-cave ending and final teaser before export."
+Write-Host "This basic build includes images and narration only: no title card, music, SFX, captions, or Whisper."
+Write-Host "Preview the full timeline and adjust image-to-speech timing in CapCut. Export MP4 from CapCut when ready."
