@@ -545,6 +545,28 @@ def make_search_query(sentence: str, max_words: int = 9) -> str:
     return " ".join(kept)
 
 
+
+def make_sfx_search_query(sentence: str) -> str:
+    text = sentence.lower()
+    groups = [
+        (["scared", "fear", "monster", "ghost", "dark", "danger", "horror", "creepy", "suddenly",
+          "خوف", "مخيف", "مرعب", "وحش", "شبح", "خطر", "ظلام", "فجأة", "رعب"],
+         "horror suspense impact riser"),
+        (["funny", "joke", "ridiculous", "silly", "oops", "laugh", "surprised",
+          "مضحك", "نكتة", "كوميدي", "غريب", "صدمة", "مفاجأة"],
+         "cartoon pop boing comedic sting"),
+        (["run", "running", "move", "moving", "fast", "enter", "exit", "switch", "transition",
+          "يركض", "تحرك", "تحركت", "انتقل", "دخل", "خرج", "بسرعة"],
+         "short whoosh transition"),
+        (["reveal", "discovered", "secret", "finally", "truth", "كشف", "اكتشف", "سر", "الحقيقة", "أخيراً"],
+         "cinematic reveal riser soft hit"),
+    ]
+    for words, query in groups:
+        if any(word in text for word in words):
+            return query
+    return "subtle transition whoosh soft pop"
+
+
 def make_scene_plan(project: str) -> Path:
     paths = project_paths(project)
     if not paths["config"].is_file() or not paths["story"].is_file():
@@ -555,15 +577,22 @@ def make_scene_plan(project: str) -> Path:
         raise ValueError("Replace the placeholder in story.txt with your story/narration first.")
     rows = []
     for index, sentence in enumerate(sentences, start=1):
+        visual_query = make_search_query(sentence)
         rows.append({
             "segment_id": "scene_%03d" % index,
             "sentence": sentence,
-            "search_query": make_search_query(sentence),
+            "search_query": visual_query,
+            "visual_prompt": "Create a clear, literal visual of: " + sentence,
+            "sfx_search_query": make_sfx_search_query(sentence),
+            "text_overlay": sentence,
             "asset_kind": "image",
             "selected_candidate_id": "",
-            "notes": "Review or translate search_query if the source results are weak.",
+            "notes": "Review/translate search_query if results are weak; verify each media license before publication.",
         })
-    write_csv(paths["plan"], rows, ["segment_id", "sentence", "search_query", "asset_kind", "selected_candidate_id", "notes"])
+    write_csv(paths["plan"], rows, [
+        "segment_id", "sentence", "search_query", "visual_prompt", "sfx_search_query",
+        "text_overlay", "asset_kind", "selected_candidate_id", "notes"
+    ])
     log("Planned " + str(len(rows)) + " visual beat(s): " + str(paths["plan"]))
     log("Search queries are suggestions; review them and translate to English when that improves results.")
     return paths["plan"]
@@ -622,7 +651,8 @@ def search_plan(project: str, kind: str, limit: int, max_scenes: int) -> None:
     plan_rows = read_csv(paths["plan"])
     results_count = 0
     for row in plan_rows[:max_scenes]:
-        query = row.get("search_query", "").strip()
+        query_field = "sfx_search_query" if kind == "audio" else "search_query"
+        query = row.get(query_field, "").strip() or row.get("search_query", "").strip()
         if not query:
             continue
         log("Searching " + row["segment_id"] + ": " + query)
