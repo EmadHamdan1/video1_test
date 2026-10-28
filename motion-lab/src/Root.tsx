@@ -6,7 +6,7 @@ import { TransitionShowcase } from "./TransitionShowcase";
 
 export const Root: React.FC = () => (
   <>
-    <Composition<WhiteboardProps>
+    <Composition<any, WhiteboardProps>
       id="WhiteboardExplainer"
       component={WhiteboardExplainer}
       durationInFrames={180}
@@ -21,7 +21,7 @@ export const Root: React.FC = () => (
         sceneNumber: "01",
       }}
     />
-    <Composition<CaptionProps>
+    <Composition<any, CaptionProps>
       id="KineticCaption"
       component={KineticCaption}
       durationInFrames={90}
