@@ -58,6 +58,9 @@ class MontageTimingTests(unittest.TestCase):
                 "scene_ref": "scene_001",
                 "frame_ref": "frame_001",
                 "layout": "whiteboard-card-left / presenter-right",
+                "emotion": "scary",
+                "trigger_word": "CORKSCREW",
+                "shock_level": 2,
             }]
             BUILDER.write_scene_csv(path, scenes, [])
             with path.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -66,6 +69,9 @@ class MontageTimingTests(unittest.TestCase):
         self.assertEqual(rows[0]["frame_ref"], "frame_001")
         self.assertEqual(rows[0]["layout"], "whiteboard-card-left / presenter-right")
         self.assertEqual(rows[0]["presenter_ref"], "")
+        self.assertEqual(rows[0]["emotion"], "scary")
+        self.assertEqual(rows[0]["trigger_word"], "CORKSCREW")
+        self.assertEqual(rows[0]["shock_level"], "2")
 
 
     def test_whiteboard_spec_uses_framed_images_and_persistent_presenter(self):
