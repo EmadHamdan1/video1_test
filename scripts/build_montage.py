@@ -378,7 +378,7 @@ def transition_for_scene(index: int, motion: dict[str, Any] | None = None) -> tu
     for rule in rules.get("accents", []):
         every = int(rule.get("every", 0) or 0)
         if every > 0 and number % every == 0:
-            return str(rule.get("slug", default.get("slug", "dissolve"))), float(rule.get("duration", default.get("duration", 0.24))
+            return str(rule.get("slug", default.get("slug", "dissolve"))), float(rule.get("duration", default.get("duration", 0.24)))
     return str(default.get("slug", "dissolve")), float(default.get("duration", 0.24))
 
 
