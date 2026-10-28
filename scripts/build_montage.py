@@ -383,6 +383,45 @@ def transition_for_scene(index: int, motion: dict[str, Any] | None = None) -> tu
 
 
 
+def split_timed_text(start: float, end: float, text: str, max_words: int = 5, min_hold: float = 0.85) -> list[dict[str, Any]]:
+    """Split a long cue into readable phrase chunks and allocate time by word count."""
+    words = re.findall(r"\S+", str(text).strip())
+    span = max(0.0, float(end) - float(start))
+    if not words or span <= 0:
+        return []
+    max_words = max(1, int(max_words))
+    desired_chunks = max(1, math.ceil(len(words) / max_words))
+    max_chunks_by_reading_time = max(1, int(span / max(0.35, min_hold)))
+    chunk_count = min(desired_chunks, max_chunks_by_reading_time)
+    chunk_size = math.ceil(len(words) / chunk_count)
+    chunks = [words[index:index + chunk_size] for index in range(0, len(words), chunk_size)]
+    total_words = sum(len(chunk) for chunk in chunks)
+    cursor_words = 0
+    result: list[dict[str, Any]] = []
+    for chunk in chunks:
+        cue_start = float(start) + span * cursor_words / total_words
+        cursor_words += len(chunk)
+        cue_end = float(start) + span * cursor_words / total_words
+        if cue_end - cue_start >= 0.25:
+            result.append({
+                "start": round(cue_start, 3),
+                "end": round(cue_end, 3),
+                "text": " ".join(chunk),
+            })
+    return result
+
+
+def load_text_animation_preset(name: str) -> dict[str, Any]:
+    preset_path = ROOT / "presets" / "text_animation_presets.json"
+    try:
+        data = json.loads(preset_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    presets = data.get("presets", {}) if isinstance(data, dict) else {}
+    selected = presets.get(name)
+    return dict(selected) if isinstance(selected, dict) else {}
+
+
 def make_spec(
     config: dict[str, Any], audio: Path, images: list[Path], presenters: list[Path],
     duration: float, captions: list[dict[str, Any]], captions_path: Path | None,
@@ -536,13 +575,100 @@ def make_spec(
         except (TypeError,ValueError):
             log("Invalid optional SFX entry skipped: " + str(item))
 
-    if settings.get("add_captions_when_transcribed",True) and captions_path and captions:
-        operations.append({"op":"captions","path":captions_path.name,"trackName":"Captions","timeOffset":0.0})
     operations.append({
         "op":"audio-fade","target":"voiceover",
         "fadeIn":float(settings.get("voice_fade_in",0.16)),
         "fadeOut":float(settings.get("voice_fade_out",0.7))
     })
+
+    # Build editable phrase-level text clips. Timed Whisper cues take priority; otherwise
+    # story sentences supplied by the per-video project become scene callouts.
+    caption_items: list[dict[str, Any]] = []
+    transcript_enabled = bool(settings.get("add_captions_when_transcribed", True) and captions_path and captions)
+    caption_sources: list[dict[str, Any]] = []
+    max_words = int(settings.get("caption_words_per_chunk", 5))
+    min_hold = float(settings.get("caption_min_hold_seconds", 0.85))
+    if transcript_enabled:
+        for cue in captions:
+            cue_start = max(0.0, float(cue.get("start", 0.0)))
+            cue_end = min(duration, float(cue.get("end", 0.0)))
+            caption_sources.extend(split_timed_text(cue_start, cue_end, str(cue.get("text", "")), max_words, min_hold))
+        caption_track_name = "Animated Captions"
+    elif settings.get("show_scene_text_without_transcript", True) and config.get("scene_texts"):
+        texts = config.get("scene_texts", [])
+        for index, scene in enumerate(scene_rows):
+            if index >= len(texts) or not str(texts[index]).strip():
+                continue
+            caption_sources.extend(split_timed_text(
+                float(scene["start"]), float(scene["end"]), str(texts[index]),
+                max_words, min_hold
+            ))
+        caption_track_name = "Animated Scene Callouts"
+    else:
+        caption_track_name = "Animated Captions"
+
+    text_preset_name = str(motion.get("text_preset", "marker_caption"))
+    text_preset = load_text_animation_preset(text_preset_name)
+    font_sizes = {
+        "marker_caption": 18, "punch_caption": 22, "lower_third": 18,
+        "kinetic_caption": 21, "typewriter": 18, "marker_underline": 18,
+        "number_pop": 23, "side_callout": 18,
+    }
+    default_x, default_y = 0.0, float(settings.get("caption_y", 0.77))
+    if text_preset_name == "lower_third":
+        default_x, default_y = -0.42, float(settings.get("caption_y", 0.72))
+    elif text_preset_name == "punch_caption":
+        default_x, default_y = 0.0, float(settings.get("caption_y", 0.64))
+    elif text_preset_name == "side_callout":
+        default_x, default_y = -0.36, float(settings.get("caption_y", 0.22))
+    font_size = int(settings.get("caption_font_size", font_sizes.get(text_preset_name, 18)))
+    text_color = str(settings.get("caption_color", "#FFFFFF"))
+    for index, cue in enumerate(caption_sources, start=1):
+        clip_duration = round(float(cue["end"]) - float(cue["start"]), 3)
+        if clip_duration < 0.25:
+            continue
+        ref = "caption_%04d" % index
+        text_item = {
+            "text": str(cue["text"]),
+            "start": round(float(cue["start"]), 3),
+            "duration": clip_duration,
+            "fontSize": font_size,
+            "color": text_color,
+            "x": float(settings.get("caption_x", default_x)),
+            "y": default_y + 0.025,
+            "ref": ref,
+        }
+        caption_items.append(text_item)
+        operations.append({
+            "op": "text-style",
+            "target": ref,
+            "style": {
+                "shadow": True,
+                "shadowAlpha": 0.78,
+                "shadowColor": "#111820",
+                "shadowDistance": 4,
+                "shadowSmoothing": 5,
+            },
+        })
+        fade_in = min(0.16, clip_duration * 0.24)
+        fade_out = min(0.14, clip_duration * 0.20)
+        steady_end = max(fade_in + 0.02, clip_duration - fade_out)
+        operations.extend([
+            {"op":"keyframe","target":ref,"property":"opacity","time":0.0,"value":0.0},
+            {"op":"keyframe","target":ref,"property":"opacity","time":round(fade_in,3),"value":1.0,"easing":"ease-out"},
+            {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":default_y + 0.025},
+            {"op":"keyframe","target":ref,"property":"position_y","time":round(fade_in,3),"value":default_y,"easing":"ease-out"},
+        ])
+        if steady_end > fade_in + 0.015:
+            operations.append({
+                "op":"keyframe","target":ref,"property":"opacity",
+                "time":round(steady_end,3),"value":1.0,"easing":"linear"
+            })
+        if clip_duration > steady_end + 0.015:
+            operations.append({
+                "op":"keyframe","target":ref,"property":"opacity",
+                "time":clip_duration,"value":0.0,"easing":"ease-in"
+            })
 
     bg_item = {
         "type":"photo","path":assets["background"],"start":0.0,
@@ -558,6 +684,8 @@ def make_spec(
         tracks.append({"type":"video","name":"Presenter Accent","items":plate_items})
     if presenter_items:
         tracks.append({"type":"video","name":"Presenter Explainer","items":presenter_items})
+    if caption_items:
+        tracks.append({"type":"text","name":caption_track_name,"items":caption_items})
     tracks.append({"type":"audio","name":"Narration","items":audio_items})
     if sfx_items:
         tracks.append({"type":"audio","name":"Local Sound Effects","items":sfx_items})
@@ -812,7 +940,7 @@ def main(argv: list[str] | None = None) -> int:
         "presenter_segments": len(presenter_rows),
         "registered_in_capcut": registered,
         "visual_assets_dir": str(Path(spec["tracks"][0]["items"][0]["path"]).parent),
-        "caption_cues": len(captions),
+        "caption_cues": sum(len(track["items"]) for track in spec["tracks"] if track.get("type") == "text"),
         "caption_file": str(captions_path) if captions_path else None,
         "matting": matting_results,
         "warnings": payload.get("warnings", []),
@@ -834,8 +962,10 @@ def main(argv: list[str] | None = None) -> int:
     log("Shot plan: " + str(scene_csv))
     if settings.get("make_sfx_cue_sheet", True):
         log("Sound-effect cue sheet: " + str(BUILD_DIR / "SFX_Cue_Sheet.csv"))
-    if captions_path:
-        log("Editable captions were added from the local Whisper transcript.")
+    if any(track.get("type") == "text" for track in spec["tracks"]):
+        log("Editable phrase-level text overlays were added with fade/float keyframes.")
+    elif captions_path:
+        log("Whisper transcript exists, but text overlays were disabled by this project's settings.")
     else:
         log("No automatic captions were added. Install Whisper to enable transcript timing and captions.")
     log("Reopen CapCut and inspect the project before exporting.")
