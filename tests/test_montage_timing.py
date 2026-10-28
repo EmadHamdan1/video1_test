@@ -206,7 +206,7 @@ class MontageTimingTests(unittest.TestCase):
                     "project_name": "Full-frame horror test",
                     "story_beats": [
                         {"start_s": 0.0, "end_s": 2.0, "text": "NUTTY PUTTY CAVE", "emotion": "tense", "shock_level": 1, "trigger_word": "CAVE"},
-                        {"start_s": 2.0, "end_s": 4.5, "text": "John went deeper", "emotion": "scary", "shock_level": 2, "trigger_word": "DEEPER"},
+                        {"start_s": 2.0, "end_s": 4.5, "text": "John went deeper", "emotion": "scary", "shock_level": 3, "trigger_word": "ROPE SNAPPED"},
                     ],
                     "storyboard_boundaries": [0.0, 2.0, 4.5, 7.0],
                     "background_music": {"path": str(Path(temporary) / "music.wav"), "start": 0.0, "duration": 7.0, "volume": 0.3},
