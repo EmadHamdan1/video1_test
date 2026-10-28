@@ -134,7 +134,11 @@ def get_openverse_results(kind: str, query: str, limit: int) -> list[dict[str, A
         "q": query, "page_size": min(max(1, limit), 20), "mature": "false",
     })
     headers: dict[str, str] = {}
-    token = openverse_token()
+    try:
+        token = openverse_token()
+    except Exception as exc:
+        log("Openverse credentials were not accepted; trying anonymous search: " + str(exc))
+        token = None
     if token:
         headers["Authorization"] = "Bearer " + token
     payload = request_json("https://api.openverse.org/v1/" + endpoint + "/?" + params, headers)
@@ -776,7 +780,9 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
     images = []
     for row in rows:
         local = row.get("downloaded_path", "").strip()
-        if row.get("kind") == "image" and local and Path(local).is_file():
+        if row.get("kind") in {"image", "video"} and local and Path(local).is_file():
+            if row.get("selected", "yes").strip().lower() not in {"yes", "true", "1", "selected"}:
+                continue
             images.append(row)
     # One image per scene segment, in story order. If no segment is associated, preserve selection order.
     segment_order = {}
@@ -795,7 +801,9 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
 
     if not chosen:
         chosen = sorted(
-            (path.resolve() for path in paths["images"].glob("*") if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}),
+            (path.resolve() for media_dir in (paths["images"], paths["videos"])
+             for path in media_dir.glob("*") if path.is_file()
+             and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov", ".webm", ".m4v"}),
             key=lambda path: path.name.lower(),
         )
     if chosen:
@@ -848,7 +856,11 @@ def build_project(project: str, python_executable: str | None = None) -> int:
     paths = project_paths(project)
     if not paths["config"].is_file():
         raise FileNotFoundError("Project config not found. Run new-project first.")
-    python = python_executable or sys.executable
+    if python_executable:
+        python = python_executable
+    else:
+        candidate = ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        python = str(candidate) if candidate.is_file() else sys.executable
     builder = ROOT / "scripts" / "build_montage.py"
     command = [python, str(builder), "--config", str(paths["config"].resolve()), "--build-dir", str(paths["build"].resolve())]
     log("Launching editable CapCut build for " + str(paths["root"]))
