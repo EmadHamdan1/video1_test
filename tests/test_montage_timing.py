@@ -56,11 +56,15 @@ class MontageTimingTests(unittest.TestCase):
                 "image": "scene.jpeg",
                 "caption_context": "",
                 "scene_ref": "scene_001",
+                "frame_ref": "frame_001",
+                "layout": "whiteboard-card-left / presenter-right",
             }]
             BUILDER.write_scene_csv(path, scenes, [])
             with path.open("r", encoding="utf-8-sig", newline="") as handle:
                 rows = list(csv.DictReader(handle))
         self.assertEqual(rows[0]["scene_ref"], "scene_001")
+        self.assertEqual(rows[0]["frame_ref"], "frame_001")
+        self.assertEqual(rows[0]["layout"], "whiteboard-card-left / presenter-right")
         self.assertEqual(rows[0]["presenter_ref"], "")
 
 
