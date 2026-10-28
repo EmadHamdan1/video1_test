@@ -68,7 +68,7 @@ Check the first 10 seconds, one middle section, a presenter-pose change, and the
 
   Then connect `src/server.js` to a compatible local MCP host, such as VS Code Copilot. Installing it alone does not connect it to the ChatGPT web session.
 - **Remotion (optional motion-graphics lab):** a separate React-based workspace for custom animated callouts, kinetic typography, hand-drawn/paper-style motion, and transition previews. Short renders can be imported into CapCut; the rendered clip itself is not editable as separate React layers inside CapCut. Start guide: https://www.remotion.dev/docs/. Remotion's free license covers individuals and companies up to three people, subject to its terms: https://www.remotion.dev/docs/license/pricing.
-- **Whisper (optional transcription):** can create time-coded captions and candidate narration edit points; it does not decide which image semantically matches each sentence. Install FFmpeg first. From this repository, use `..venvScriptspython.exe -m pip install -U openai-whisper`. The package pulls PyTorch and can be a large installation, so skip it until timed captions are needed.
+- **Whisper (optional transcription):** can create time-coded captions and candidate narration edit points; it does not decide which image semantically matches each sentence. Install FFmpeg first. From this repository, use `.\.venv\Scripts\python.exe -m pip install -U openai-whisper`. The package pulls PyTorch and can be a large installation, so skip it until timed captions are needed.
 
 Keep the original draft and media as backups. Before any MCP edit, close CapCut, clone the target draft, review planned changes, and inspect the saved project in CapCut before exporting.
 
