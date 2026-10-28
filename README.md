@@ -1,78 +1,64 @@
-# Video1 Test — editable CapCut montage builder
+# Video1 Test — Whiteboard Explainer PRO
 
-This repository builds a **local, editable CapCut desktop draft** from a voiceover, scene images, and presenter pose images. It does not upload your media to GitHub and does not flatten the edit into a single MP4.
+This repository builds a **local, editable CapCut Desktop project** from the voiceover, scene illustrations, and presenter poses already stored on the user's PC. Source media is not uploaded to GitHub, and the edit remains a multitrack CapCut draft rather than a flattened MP4.
 
-## What it builds
+## What the PRO build changes
 
-- A main visual track with slow Ken Burns-style zooms and small alternating pans.
-- Controlled Mix transitions between the scene images.
-- A separate voice track, with the original narration kept dominant.
-- Optional presenter cutouts on a separate overlay track, with alternating left/right placement. The script asks CapCut's smart-matting command to remove the JPEG backgrounds when supported.
-- Optional editable captions if the local Whisper CLI is installed.
-- A CSV shot plan and a sound-effect cue sheet to review timing and add the best matching CapCut library sounds.
+- A locally generated whiteboard-paper canvas with subtle dots and a restrained visual identity.
+- Each scene illustration sits in a framed card with a soft shadow and small marker-style accents instead of filling the entire 16:9 frame.
+- The presenter is on a dedicated foreground track for almost the whole narration. The supplied poses change at measured intervals, with a very small scale/bob animation to avoid a frozen cutout.
+- Scene cards use small alternating Ken-Burns moves (scale and position), smooth easing, mostly short dissolves, and occasional documented horizontal/radial blur transitions for emphasis.
+- The first scene gets a short reveal; the presenter fades in/out at the beginning/end.
+- The launcher installs requirements, creates the project, attempts presenter background matting, and registers the resulting draft in CapCut automatically.
+- Editable shot timing and a sound-effect cue sheet are still written to `build/scene_timing.csv` and `build/SFX_Cue_Sheet.csv`.
 
-## Important limitation
+## Important limits — kept explicit
 
-The audio and images are on your computer, so GitHub cannot inspect or edit them remotely. The script checks them when run locally. It can use Whisper sentence timings to make cuts feel more intentional, but it does **not** claim semantic image-to-sentence matching: filenames and timestamps do not reveal exactly what an image depicts. Review build/scene_timing.csv before rendering, and move shots in CapCut when an image does not match the spoken line.
+The media paths point to files on the local Windows PC. GitHub cannot inspect those images or listen to the audio. The current pipeline distributes images in the order configured and times them from narration duration; if local Whisper is installed it can use subtitle boundaries, but **it does not semantically match every illustration to the exact spoken sentence**. Review `build/scene_timing.csv` and move any mismatched scene in CapCut.
 
-The presenter images are JPEGs, not transparent PNGs. CapCut smart matting may remove their backgrounds, but the result depends on the actual images and installed CapCut version. Inspect the first output before building the final video.
+Presenter images are JPEGs. The builder asks CapCut to remove their background, but matte quality depends on the actual images and CapCut version. Inspect the first pose; if a white rectangle remains, use CapCut's Remove background / Cutout tool or supply transparent PNGs.
+
+The look is an editable whiteboard-style motion-graphics treatment, not a full hand-drawn animation: still image poses cannot move their hands or lips by themselves. They are animated via scale/position and timed pose changes.
 
 ## Requirements
 
 - Windows 10/11
-- Node.js 18 or newer
-- CapCut Desktop installed
-- Python 3.10 or newer
-- capcut-cli, installed from npm
-- mutagen (installed from requirements.txt)
-- Optional: OpenAI Whisper CLI for transcript-driven boundaries and captions. If Whisper is not found, the project is still created with duration-based timing.
+- CapCut Desktop
+- Node.js 18+
+- Python 3.13 (the launcher uses `py -3.13`)
+- `capcut-cli` (installed by the launcher when missing)
+- Python packages from `requirements.txt` (`mutagen` and `Pillow`)
+- Optional local Whisper CLI for timed captions
 
-## Run on Windows
+## Rebuild the PRO draft
 
-Close CapCut first, then open this repository in VS Code. Run these commands in the VS Code PowerShell terminal:
+1. Close CapCut completely before running the script.
+2. In PowerShell, navigate to the project folder and pull the latest branch changes:
 
-~~~powershell
-node --version
-npm --version
-npm install -g capcut-cli
+   ```powershell
+   cd C:\Users\EmQr\video1_test
+   git pull origin feat/capcut-montage-pipeline
+   ```
 
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+3. Run:
 
-.\.venv\Scripts\python.exe .\scripts\build_montage.py
-~~~
+   ```powershell
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+   .\run_montage.ps1
+   ```
 
-An easier option is to run the included Windows launcher. It creates the virtual environment, installs the small Python dependency, and installs capcut-cli through npm if needed:
+The launcher creates a new dated `Video1_Whiteboard_Pro_YYYYMMDD_HHMMSS` draft and attempts to register it in CapCut. The older draft is left in place as a rollback copy. Open **Video1 Test - Whiteboard Explainer PRO** from CapCut's home/project list. The project uses generated assets in `build\visuals`; do not delete that folder while the draft depends on it.
 
-~~~powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\run_montage.ps1
-~~~
+## Quality check before export
 
-The script reads paths from config.json. Update a path if it does not exist on your machine. The source images and MP3 remain local and are excluded from Git.
+Check the first 10 seconds, one middle section, a presenter-pose change, and the final 5 seconds. Confirm the presenter cutout, scene framing, transitions, and voice track. If the images do not match the narration at a particular point, move the image segments using `build/scene_timing.csv` as a guide. The project has not been visually verified on this PC until that playback review is done.
 
-Optional captions: install Whisper and its FFmpeg dependency separately, then verify that whisper --help works in the same terminal. Whisper is optional because its PyTorch download can be large.
+## Editing principles and sources
 
-~~~powershell
-whisper --help
-capcut doctor
-~~~
+- [CapCut: keyframes on PC](https://www.capcut.com/resource/how-to-add-keyframes-in-capcut) — animate position, scale, rotation, opacity, and adjust the timing.
+- [Figma: motion design and easing](https://help.figma.com/hc/en-us/articles/41238219562007-Motion-design-fundamentals-Easing) — use acceleration/deceleration intentionally; avoid mechanical linear motion.
+- [IBM Design: classic animation principles](https://www.ibm.com/design/language/animation/classic-principles/) — stage the most important information first and avoid competing actions.
+- [capcut-cli](https://github.com/renezander030/capcut-cli) and its [keyframe zoom example](https://github.com/renezander030/capcut-cli/blob/master/examples/keyframe-zoom.md) — local editable draft generation, transitions, and keyframes. This is an independent community tool, not an official CapCut product.
+- [YouTube audience retention guidance](https://support.google.com/youtube/answer/9314415) — review the intro and retention points when analytics become available.
 
-## Open the draft
-
-When the script finishes, it prints the draft directory and writes build/build_report.json. Reopen CapCut and find **Video1 Test - Professional Montage** in Projects. If it does not appear, read the draft directory in the report and check that drafts_dir in config.json points to your installed CapCut draft-library folder. Do not move the generated draft directory after creation.
-
-The project is editable: visual shots, presenter overlays, narration, and captions (when available) are separate timeline segments. Review the timeline and sound-effect cues before exporting the final video from CapCut.
-
-## First-pass sound design
-
-The builder creates build/SFX_Cue_Sheet.csv; it does not falsely claim to have inserted CapCut catalogue effects. Search the listed terms in CapCut's Audio / Sound effects library and place a few well-timed cues on a separate audio track. Keep effects quiet under speech; avoid a whoosh on every single cut.
-
-## Editing references
-
-- YouTube audience retention: https://support.google.com/youtube/answer/9314415
-- CapCut keyframe animation: https://www.capcut.com/tools/keyframe-animation
-- capcut-cli project and command reference: https://github.com/renezander030/capcut-cli
-- capcut-cli Ken Burns workflow: https://github.com/renezander030/capcut-cli/blob/master/examples/keyframe-zoom.md
-
-This project is a community workflow built on capcut-cli, not an official CapCut product.
+The style follows a rule of motion hierarchy: the narration and explainer stay primary, the scene card is secondary, and decorative motion is used only to direct attention.
