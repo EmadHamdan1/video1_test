@@ -25,7 +25,8 @@ MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024
 MANIFEST_FIELDS = [
     "id", "kind", "segment_id", "query", "title", "creator", "source",
     "license", "license_url", "source_page", "preview_url", "download_url",
-    "selected", "downloaded_path", "start_seconds", "volume", "notes",
+    "selected", "downloaded_path", "downloaded_at", "license_reviewed", "review_notes",
+    "start_seconds", "volume", "notes",
 ]
 STOP_WORDS = {
     "the", "and", "for", "with", "from", "that", "this", "then", "than",
@@ -317,6 +318,9 @@ def normalize_candidate(raw: dict[str, Any], kind: str, query: str, segment_id: 
         "download_url": str(raw.get("download_url", raw.get("url", "")) or ""),
         "selected": "no",
         "downloaded_path": "",
+        "downloaded_at": "",
+        "license_reviewed": "no",
+        "review_notes": "",
         "start_seconds": "",
         "volume": "0.12",
         "notes": clean_text(raw.get("notes", "")),
@@ -620,6 +624,8 @@ def write_gallery(paths: dict[str, Path]) -> Path:
         preview = html.escape(row.get("preview_url", ""), quote=True)
         license_url = html.escape(row.get("license_url", ""), quote=True)
         dl = html.escape(row.get("downloaded_path", ""))
+        license_reviewed = row.get("license_reviewed", "no").strip().lower() in {"yes", "true", "1"}
+        review_status = '<p class="reviewed">License reviewed</p>' if license_reviewed else '<p class="needs-review">License needs review before publication</p>'
         image = (
             '<img loading="lazy" src="' + preview + '" alt="' + title + '">'
             if preview and row.get("kind") in {"image", "video", "icon"} else
@@ -633,6 +639,7 @@ def write_gallery(paths: dict[str, Path]) -> Path:
             '<p class="query">Query: ' + query + '</p><p class="license">' + license_name + '</p>'
             '<p>' + (('<a href="' + license_url + '" target="_blank" rel="noreferrer">License</a> · ') if license_url else '') +
             (('<a href="' + source_url + '" target="_blank" rel="noreferrer">Source page</a>') if source_url else 'No source URL') + '</p>'
+            + review_status
             + ('<p class="downloaded">Downloaded: ' + html.escape(dl) + '</p>' if dl else '<p class="pending">Not downloaded — use explicit IDs with the download command.</p>')
             + '</div></article>'
         )
@@ -647,6 +654,7 @@ main{padding:24px 4vw}.grid{display:grid;grid-template-columns:repeat(auto-fill,
 h2{font-size:16px;line-height:1.3;margin:12px 0 7px}.body p{margin:6px 0;overflow-wrap:anywhere}
 .query{color:#475569}.license{font-weight:600}.pending{color:#925c16}.downloaded{color:#137454}
 a{color:#245fc7;text-decoration:none}a:hover{text-decoration:underline}
+.reviewed{color:#137454;font-weight:700}.needs-review{color:#925c16;font-weight:700}
 </style></head><body><header><h1>Media Review Gallery</h1><p>Review each source and license. Nothing is automatically downloaded. Choose candidate IDs explicitly in PowerShell.</p></header>
 <main><p>Candidate count: """ + str(len(rows)) + """</p><div class="grid">""" + "\n".join(cards) + """</div></main></body></html>"""
     gallery_path = paths["root"] / "media_gallery.html"
@@ -707,6 +715,8 @@ def download_candidate(project: str, candidate_id: str) -> Path:
             if existing.get("id") == row.get("id"):
                 existing["selected"] = "yes"
                 existing["downloaded_path"] = str(target_path.resolve())
+                existing["downloaded_at"] = datetime.now().isoformat(timespec="seconds")
+                existing.setdefault("license_reviewed", "no")
         write_csv(paths["manifest"], rows)
         write_gallery(paths)
         target_path.with_suffix(target_path.suffix + ".source.txt").write_text(
@@ -724,6 +734,24 @@ def download_candidate(project: str, candidate_id: str) -> Path:
         if part_path and part_path.exists():
             part_path.unlink(missing_ok=True)
         raise
+
+
+def review_license(project: str, candidate_id: str, notes: str) -> None:
+    """Record a human's completed license/source review in the local manifest."""
+    paths = project_paths(project)
+    rows = read_csv(paths["manifest"])
+    candidate = next((row for row in rows if row.get("id", "").upper() == candidate_id.upper()), None)
+    if candidate is None:
+        raise KeyError("Candidate ID not found: " + candidate_id)
+    if not candidate.get("source_page", "").strip() or not candidate.get("license", "").strip():
+        raise ValueError("Cannot mark review complete without source page and license metadata.")
+    if not notes.strip():
+        raise ValueError("Provide a short review note, e.g. 'Commercial use permitted; attribution added.'")
+    candidate["license_reviewed"] = "yes"
+    candidate["review_notes"] = notes.strip()
+    write_csv(paths["manifest"], rows)
+    write_gallery(paths)
+    log("Marked " + candidate_id + " as license-reviewed. This records your review; it is not legal advice.")
 
 
 def download_icons(project: str, names: list[str]) -> list[Path]:
@@ -836,6 +864,9 @@ def generate_hf_image(
         "download_url": "",
         "selected": "yes",
         "downloaded_path": str(target.resolve()),
+        "downloaded_at": datetime.now().isoformat(timespec="seconds"),
+        "license_reviewed": "no",
+        "review_notes": "",
         "start_seconds": "",
         "volume": "",
         "notes": (
@@ -846,12 +877,12 @@ def generate_hf_image(
     write_csv(paths["manifest"], manifest)
     write_gallery(paths)
     (target.with_suffix(".png.source.txt")).write_text(
-        "Scene ID: " + scene_id + "\\n"
-        + "Prompt: " + final_prompt + "\\n"
-        + "Model: " + model + "\\n"
-        + "Model page: " + model_page + "\\n"
-        + "Generated: " + datetime.now().isoformat(timespec="seconds") + "\\n"
-        + "Check model/provider terms before publication.\\n",
+        "Scene ID: " + scene_id + "\n"
+        + "Prompt: " + final_prompt + "\n"
+        + "Model: " + model + "\n"
+        + "Model page: " + model_page + "\n"
+        + "Generated: " + datetime.now().isoformat(timespec="seconds") + "\n"
+        + "Check model/provider terms before publication.\n",
         encoding="utf-8",
     )
     log("Generated image " + candidate_id + " -> " + str(target))
@@ -986,6 +1017,11 @@ def command_parser() -> argparse.ArgumentParser:
     download = sub.add_parser("download", help="Download only the candidate IDs explicitly selected by you.")
     download.add_argument("--project", required=True)
     download.add_argument("--ids", required=True, help="Comma-separated IDs, such as C0001,C0004.")
+    review = sub.add_parser("review-license", help="Record a human-reviewed license/source check for one manifest item.")
+    review.add_argument("--project", required=True)
+    review.add_argument("--id", required=True)
+    review.add_argument("--notes", required=True, help="Brief note of what you checked.")
+
     icons = sub.add_parser("icons", help="Download selected Lucide SVG icons.")
     icons.add_argument("--project", required=True)
     icons.add_argument("--names", required=True, help="Comma-separated Lucide icon names in kebab-case.")
@@ -1026,6 +1062,8 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "download":
         for candidate_id in [item.strip() for item in args.ids.split(",") if item.strip()]:
             download_candidate(args.project, candidate_id)
+    elif args.command == "review-license":
+        review_license(args.project, args.id, args.notes)
     elif args.command == "icons":
         names = [item.strip() for item in args.names.split(",") if item.strip()]
         download_icons(args.project, names)
