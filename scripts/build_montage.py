@@ -839,6 +839,39 @@ def make_spec(
     if presenter_items:
         tracks.append({"type":"video","name":"Presenter Explainer","items":presenter_items})
 
+    # Story-fact callouts are full-frame transparent PNG overlays created by the local project preprocessor.
+    # Their background remains transparent, so they form an independent CapCut track over the supplied artwork.
+    callout_items: list[dict[str, Any]] = []
+    for index, overlay in enumerate(settings.get("callout_overlays", []), start=1):
+        raw_path = str(overlay.get("path", "")).strip()
+        callout_path = Path(os.path.expandvars(raw_path)).expanduser()
+        if not callout_path.is_absolute():
+            callout_path = CONFIG_PATH.parent / callout_path
+        if not callout_path.is_file():
+            log("Story fact callout image not found; skipped: " + raw_path)
+            continue
+        try:
+            start = max(0.0, float(overlay.get("start_seconds", 0.0)))
+            requested_duration = max(0.25, float(overlay.get("duration", 1.15)))
+            if start >= duration:
+                continue
+            segment_duration = min(requested_duration, duration - start)
+            ref = "story_callout_%03d" % index
+            callout_items.append({
+                "type":"photo","path":str(callout_path.resolve()),"start":round(start, 3),
+                "duration":round(segment_duration, 3),"ref":ref,
+                "scale":1.0,"x":0.0,"y":0.0
+            })
+            entrance = min(0.18, segment_duration * 0.32)
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":0.965},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(entrance, 3),"value":1.0,"easing":"ease-out"},
+            ])
+        except (TypeError, ValueError):
+            log("Invalid story callout settings; skipped: " + repr(overlay))
+    if callout_items:
+        tracks.append({"type":"video","name":"Story Fact Callouts","items":callout_items})
+
     flash_items: list[dict[str, Any]] = []
     flash_path_raw = str(settings.get("flash_overlay_path", "")).strip()
     if flash_path_raw:
