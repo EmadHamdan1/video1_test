@@ -92,7 +92,7 @@ class MontageTimingTests(unittest.TestCase):
                 spec, scenes, presenters = BUILDER.make_spec(
                     config,
                     Path("voiceover.mp3"),
-                    [Path("scene_a.jpeg"), Path("scene_b.jpeg"), Path("scene_c.jpeg")],
+                    [Path("scene_a.jpeg"), Path("scene_clip.mp4"), Path("scene_c.jpeg")],
                     [Path("pose_1.jpeg"), Path("pose_2.jpeg"), Path("pose_3.jpeg")],
                     24.0,
                     [],
@@ -105,6 +105,7 @@ class MontageTimingTests(unittest.TestCase):
                 self.assertEqual(len(tracks["Scene Artwork"]["items"]), len(scenes))
                 self.assertTrue(all(item["scale"] < 0.7 for item in tracks["Scene Artwork"]["items"]))
                 self.assertTrue(all(item["x"] < 0 for item in tracks["Scene Artwork"]["items"]))
+                self.assertIn("video", {item["type"] for item in tracks["Scene Artwork"]["items"]})
                 board = Path(tracks["Whiteboard Background"]["items"][0]["path"])
                 first_card = Path(tracks["Whiteboard Scene Frames"]["items"][0]["path"])
                 self.assertTrue(board.is_file())
@@ -121,6 +122,75 @@ class MontageTimingTests(unittest.TestCase):
                     if operation.get("op") == "transition"
                 }
                 self.assertTrue(slugs.issubset({"dissolve", "horizontal-blur", "radial-blur"}))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
+    def test_timed_text_splits_long_cues_and_keeps_time(self):
+        chunks = BUILDER.split_timed_text(
+            2.0, 5.0, "The old machine began to glow", max_words=3, min_hold=0.8
+        )
+        self.assertEqual(len(chunks), 2)
+        self.assertAlmostEqual(chunks[0]["start"], 2.0)
+        self.assertAlmostEqual(chunks[-1]["end"], 5.0)
+        self.assertTrue(all(chunk["end"] > chunk["start"] for chunk in chunks))
+        self.assertEqual(chunks[0]["text"], "The old machine")
+
+    def test_transcript_creates_editable_animated_caption_track(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "Caption test",
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 3.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        "add_captions_when_transcribed": True,
+                        "caption_words_per_chunk": 4,
+                    },
+                }
+                spec, _, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0,
+                    [{"start": 0.0, "end": 3.0, "text": "The old machine began to glow"}],
+                    Path("captions.srt"),
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Animated Captions", tracks)
+                text_items = tracks["Animated Captions"]["items"]
+                self.assertGreaterEqual(len(text_items), 2)
+                self.assertTrue(all(item["ref"].startswith("caption_") for item in text_items))
+                operations = spec["operations"]
+                self.assertTrue(any(op.get("op") == "text-style" for op in operations))
+                self.assertTrue(any(op.get("op") == "keyframe" and op.get("property") == "opacity" for op in operations))
+                self.assertFalse(any(op.get("op") == "captions" for op in operations))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+    def test_scene_text_creates_callouts_without_whisper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "Callout test",
+                    "scene_texts": ["A strange machine appeared in the forest"],
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 4.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        "show_scene_text_without_transcript": True,
+                    },
+                }
+                spec, _, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0, [], None
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Animated Scene Callouts", tracks)
+                self.assertGreaterEqual(len(tracks["Animated Scene Callouts"]["items"]), 1)
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
 
