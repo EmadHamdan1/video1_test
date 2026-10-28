@@ -72,6 +72,118 @@ Check the first 10 seconds, one middle section, a presenter-pose change, and the
 
 Keep the original draft and media as backups. Before any MCP edit, close CapCut, clone the target draft, review planned changes, and inspect the saved project in CapCut before exporting.
 
+## Create a new video project (asset pipeline)
+
+The **system repository is shared**. Create one local folder per video under `projects/`; do not make a new GitHub repository for each episode unless you deliberately want a separate codebase. Projects and downloaded media are ignored by Git so they remain on your PC.
+
+### 1. Create a project and plan the story
+
+Run from the repository root in PowerShell:
+
+```powershell
+git pull origin feat/capcut-montage-pipeline
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\asset_tool.ps1 new-project --name "Horror Explainer Episode 01"
+```
+
+The command prints the actual project path. In that folder, replace the placeholder in `story.txt` with the narration script (one sentence or paragraph per visual beat works best), then run:
+
+```powershell
+.\asset_tool.ps1 plan --project projects\horror-explainer-episode-01
+```
+
+The planner writes `scene_plan.csv`, with one row per sentence, a segment ID, and a suggested search query. The query is a first draft: verify it, especially for Arabic stories where an English translation may yield more stock-media results.
+
+### 2. Search and review images or video
+
+```powershell
+.\asset_tool.ps1 search-plan --project projects\horror-explainer-episode-01 --kind image --max-scenes 8 --limit-per-scene 3
+Start-Process .\projects\horror-explainer-episode-01\media_gallery.html
+```
+
+Open `media_gallery.html` to compare previews, sources, creators, and license details. The search command does **not** download everything automatically. Choose candidate IDs from the gallery/manifest, then download only those IDs:
+
+```powershell
+.\asset_tool.ps1 download --project projects\horror-explainer-episode-01 --ids C0001,C0004,C0008
+```
+
+Search more scenes by increasing `--max-scenes` (up to 25). For video clips, use `--kind video`; those clips can be used as scene media just like images. For a hand-drawn explainer, download SVG icons with:
+
+```powershell
+.\asset_tool.ps1 icons --project projects\horror-explainer-episode-01 --names search,arrow-right,lightbulb,alert-triangle,check-circle,play
+```
+
+### 3. Configure optional API sources
+
+On first use, `asset_tool.ps1` creates a local `.env` file from `.env.example`. It is ignored by Git. Add API keys only there; **never paste keys into source code or commit `.env`**.
+
+- Openverse: works anonymously with rate limits; optional client credentials can be registered on its API site: https://api.openverse.org/v1/
+- Wikimedia Commons: no API key needed for normal search; review each file page and its actual license.
+- Pixabay: optional `PIXABAY_API_KEY` for photos/video: https://pixabay.com/api/docs/
+- Pexels: optional `PEXELS_API_KEY` for photos/video: https://www.pexels.com/api/documentation/. Key issuance may be paused at times; the pipeline works without it.
+- Freesound: optional `FREESOUND_API_KEY` for sound search: https://freesound.org/docs/api/. Search results may download an MP3 preview rather than the full-quality original.
+- Lucide: the `icons` command downloads SVGs and the ISC license file; those icons are marked reviewed because the included upstream license is explicit.
+
+The manifest records a source URL, creator, license text/URL, downloaded path/time, and whether you personally reviewed the license. A license label is not a legal guarantee. After checking the source and terms, record the review:
+
+```powershell
+.\asset_tool.ps1 review-license --project projects\horror-explainer-episode-01 --id C0001 --notes "Verified the license and recorded attribution requirements."
+```
+
+Do this for each media item before publication. The gallery visibly flags items that still need review.
+
+### 4. Search for sound effects
+
+```powershell
+.\asset_tool.ps1 search-plan --project projects\horror-explainer-episode-01 --kind audio --max-scenes 8 --limit-per-scene 2
+Start-Process .\projects\horror-explainer-episode-01\media_gallery.html
+```
+
+Choose the audio IDs and download them the same way as images. Then open `media_candidates.csv` in a spreadsheet editor and set `start_seconds` and `volume` for each chosen audio row (for example, a quiet whoosh at 6.4 seconds with volume 0.10). After setting the times, `apply --include-sfx` places those local files on the project's separate audio-effects track. Keep cues sparse and below the narration.
+
+### 5. Optional AI-generated illustration from Hugging Face
+
+This step is optional and **may consume paid inference credits**; availability and price depend on your HF account and selected provider/model. Check the model card and terms first.
+
+1. Create a Hugging Face token with Inference Providers permission and add it to local `.env` as `HF_TOKEN=...`. You can set `HF_IMAGE_MODEL` there too.
+2. Install the optional client once:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m pip install -r requirements-ai.txt
+   ```
+
+3. After running `plan`, generate a custom illustration for a selected story beat:
+
+   ```powershell
+   .\asset_tool.ps1 generate-image --project projects\horror-explainer-episode-01 --scene-id scene_001 --confirm-possible-cost
+   ```
+
+The script uses that scene's sentence as the prompt, stores the result locally, and records model/source information in the manifest. AI-generated output still needs a human check for accuracy, model terms, safety, and visual style. Hugging Face documents the API here: https://huggingface.co/docs/inference-providers/tasks/text-to-image.
+
+### 6. Apply chosen media and build the editable CapCut project
+
+After selecting/downloading scene media, pass the narration audio. The presenter folder is optional:
+
+```powershell
+.\asset_tool.ps1 apply --project projects\horror-explainer-episode-01 --audio "D:\Path\to\narration.mp3" --presenter-dir "C:\Path\to\presenter-poses" --include-sfx
+.\asset_tool.ps1 build --project projects\horror-explainer-episode-01
+```
+
+Remove `--presenter-dir` if the project has no presenter images, and omit `--include-sfx` if you did not set sound-effect times. The build reads that project's own `project.json`, writes reports/assets into its own `build/` folder, creates a dated editable CapCut draft, and attempts to register it. It does not upload local media to GitHub. For proper semantic alignment, review each scene against the narration; the script cannot infer image meaning from filenames alone.
+
+### 7. Reusable animation lab
+
+The `motion-lab/` folder contains editable Remotion source for a whiteboard card, animated word captions, and transition samples. Install and preview it once:
+
+```powershell
+cd .\motion-lab
+npm install
+npm run typecheck
+npm run studio
+```
+
+Render samples with `npm run render:whiteboard`, `npm run render:caption`, or `npm run render:transitions`. Outputs go to `motion-lab/out/` and are ignored by Git. They can be imported into CapCut as rendered clips; React elements do not turn into independent CapCut layers automatically. The main CapCut builder also applies smooth scale/position/opacity keyframes and phrase-level animated text when Whisper timings or project story text are present.
+
 ## Editing principles and sources
 
 - [CapCut: keyframes on PC](https://www.capcut.com/resource/how-to-add-keyframes-in-capcut) — animate position, scale, rotation, opacity, and adjust the timing.
