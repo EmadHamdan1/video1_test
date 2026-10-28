@@ -1,0 +1,22 @@
+name: Python syntax and timing tests
+
+on:
+  push:
+    branches: ["main", "feat/capcut-montage-pipeline"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python files
+        run: python -m compileall -q scripts tests
+      - name: Run timing unit tests
+        run: python -m unittest discover -s tests -v
