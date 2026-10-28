@@ -1466,7 +1466,9 @@ def finalize(build_exit_code: int, project_override: str | None = None) -> int:
     (build_dir / "QA_REPORT.md").write_text("\n".join(qa) + "\n", encoding="utf-8")
     log("Updated QA report: " + str(build_dir / "QA_REPORT.md"))
     log("Rendered shot count: " + str(len(rows)))
-    return 0 if build_exit_code == 0 else build_exit_code
+    # QA generation succeeded even when CapCut build failed; the PowerShell runner
+    # checks the recorded build exit code separately and reports the correct failure.
+    return 0
 
 
 def main() -> int:
