@@ -261,6 +261,52 @@ class MontageTimingTests(unittest.TestCase):
                 BUILDER.BUILD_DIR = previous_build_dir
 
 
+    def test_nutty_putty_scale_pop_is_keyframed_not_a_native_transition(self):
+        motion = BUILDER.load_motion_preset({"motion_preset": "nutty_putty_casefile"})
+        self.assertEqual(BUILDER.transition_for_scene(0, motion), ("cut", 0.0))
+        self.assertEqual(BUILDER.transition_for_scene(13, motion), ("scale-pop", 0.18))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            duration = 42.0
+            count = 14
+            boundaries = [round(duration * index / count, 3) for index in range(count + 1)]
+            try:
+                config = {
+                    "project_name": "Scale-pop test",
+                    "storyboard_boundaries": boundaries,
+                    "background_music": {},
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "motion_preset": "nutty_putty_casefile",
+                        "layout_mode": "full_frame",
+                        "use_storyboard_boundaries": True,
+                        "presenter_overlay": False,
+                        "show_scene_text_without_transcript": False,
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"),
+                    [Path("scene_%02d.jpg" % index) for index in range(count)],
+                    [], duration, [], None,
+                )
+                scene14_keys = [
+                    operation for operation in spec["operations"]
+                    if operation.get("op") == "keyframe"
+                    and operation.get("target") == "scene_014"
+                    and operation.get("property") == "uniform_scale"
+                ]
+                self.assertGreaterEqual(len(scene14_keys), 4)
+                self.assertGreater(scene14_keys[0]["value"], 1.0)
+                self.assertFalse(any(
+                    operation.get("op") == "transition" and operation.get("slug") == "scale-pop"
+                    for operation in spec["operations"]
+                ))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
     def test_icon_overlay_uses_separate_track_and_scene_relative_timing(self):
         with tempfile.TemporaryDirectory() as temporary:
             previous_build_dir = BUILDER.BUILD_DIR
