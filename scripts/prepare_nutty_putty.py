@@ -405,6 +405,26 @@ def make_music(path: Path, duration: float, shock_times: list[float]) -> None:
         wav.writeframes(samples.tobytes())
 
 
+def make_horror_overlay() -> Path:
+    """Create a brief transparent red-black tint/vignette used only on the most severe story beats."""
+    target = PROJECT / "assets" / "generated" / "red_horror_overlay.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    image = Image.new("RGBA", (1920, 1080), (72, 0, 0, 27))
+    draw = ImageDraw.Draw(image)
+    # Concentric black edge strokes create a restrained vignette. This image is placed only for
+    # a short interval at the rope-snap / no-pulse / death / sealing beats, never across the whole edit.
+    for index in range(18):
+        inset = (17 - index) * 25
+        alpha = int(4 + (index / 17) * 72)
+        draw.rectangle(
+            (inset, inset, 1919 - inset, 1079 - inset),
+            outline=(0, 0, 0, alpha),
+            width=26,
+        )
+    image.save(target, optimize=True)
+    return target.resolve()
+
+
 def make_sfx_files() -> dict[str, Path]:
     lengths = {
         "whoosh": 0.48, "pop": 0.22, "scratch": 0.42, "bass_drop": 0.80,
@@ -990,6 +1010,13 @@ def prepare(project_override: str | None = None) -> int:
             boundaries[0], boundaries[-1] = 0.0, round(duration, 3)
     flash_path = PROJECT / "assets" / "generated" / "white_flash.png"
     Image.new("RGB", (1920, 1080), (255, 255, 255)).save(flash_path, optimize=True)
+    horror_path = make_horror_overlay()
+    horror_phrases = ["HEAD FIRST", "NO PULSE", "ROPE SNAPPED", "DECLARED DEAD", "CONCRETE"]
+    horror_times = []
+    for phrase in horror_phrases:
+        match = find_phrase(tokens, phrase)
+        if match and 0 <= float(match[0]) < duration:
+            horror_times.append(round(float(match[0]), 3))
     config = {
         "project_name": "Nutty Putty Cave — Horror Story",
         "drafts_dir": "",
@@ -1014,7 +1041,9 @@ def prepare(project_override: str | None = None) -> int:
     config["settings"]["icon_overlays"] = overlays
     config["settings"]["callout_overlays"] = fact_overlays
     config["settings"]["flash_overlay_path"] = str(flash_path.resolve())
-    config["settings"]["flash_times"] = [round(time, 3) for time in shock_times]
+    config["settings"]["flash_times"] = [round(time, 3) for time in horror_times]
+    config["settings"]["horror_overlay_path"] = str(horror_path)
+    config["settings"]["horror_overlay_times"] = horror_times
     (PROJECT / "project.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (PROJECT / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -1040,6 +1069,8 @@ def prepare(project_override: str | None = None) -> int:
             catalog.append({"id": image.name, "path": str(image), "type": "host_avatar_pose", "problem": str(exc)})
     catalog.append(inventory_asset(source_copy, "voiceover_source", str(AUDIO_SOURCE)))
     catalog.append(inventory_asset(master_audio, "voiceover_master", str(AUDIO_SOURCE)))
+    catalog.append(inventory_asset(horror_path, "horror_tint_overlay"))
+    catalog.append(inventory_asset(flash_path.resolve(), "white_flash_overlay"))
     if intro_path and intro_path.is_file():
         catalog.append(inventory_asset(intro_path, "remotion_motion_graphic"))
     for path in sorted((PROJECT / "assets" / "audio" / "sfx").glob("*.wav")):
