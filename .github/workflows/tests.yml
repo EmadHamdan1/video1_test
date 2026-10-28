@@ -35,8 +35,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-          cache-dependency-path: motion-lab/package.json
       - name: Install Remotion dependencies
         run: npm install --no-audit --no-fund
       - name: Type-check reusable motion compositions
