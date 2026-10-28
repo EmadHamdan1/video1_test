@@ -42,6 +42,13 @@ py -m venv .venv
 .\.venv\Scripts\python.exe .\scripts\build_montage.py
 ~~~
 
+An easier option is to run the included Windows launcher. It creates the virtual environment, installs the small Python dependency, and installs capcut-cli through npm if needed:
+
+~~~powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\run_montage.ps1
+~~~
+
 The script reads paths from config.json. Update a path if it does not exist on your machine. The source images and MP3 remain local and are excluded from Git.
 
 Optional captions: install Whisper and its FFmpeg dependency separately, then verify that whisper --help works in the same terminal. Whisper is optional because its PyTorch download can be large.
