@@ -739,12 +739,9 @@ def make_spec(
         except (TypeError,ValueError):
             log("Invalid optional SFX entry skipped: " + str(item))
 
-    operations.append({
-        "op":"audio-fade","target":"voiceover",
-        "fadeIn":float(settings.get("voice_fade_in",0.16)),
-        "fadeOut":float(settings.get("voice_fade_out",0.7))
-    })
-
+    # capcut-cli compile currently validates audio-fade using CLI flag names rather than
+    # this spec's camelCase fields, causing the whole draft to fail before writing. Keep the
+    # narration unchanged in the compile spec; any fade can be applied as a post-build CLI edit.
     # Build editable phrase-level text clips. Timed Whisper cues take priority; otherwise
     # story sentences supplied by the per-video project become scene callouts.
     caption_items: list[dict[str, Any]] = []
