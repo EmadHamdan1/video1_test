@@ -114,25 +114,31 @@ Search more scenes by increasing `--max-scenes` (up to 25). For video clips, use
 .\asset_tool.ps1 icons --project projects\horror-explainer-episode-01 --names search,arrow-right,lightbulb,triangle-alert,circle-check,play
 ```
 
+If you downloaded multiple alternatives for the same story beat, choose the primary candidate explicitly. This marks one image/video as selected and deselects other visual alternatives for that same beat; audio choices are left alone:
+
+\`\`\`powershell
+.\asset_tool.ps1 choose --project projects\horror-explainer-episode-01 --id C0004
+\`\`\`
+
 ### 3. Choose the motion style
 
 Set a reusable motion preset for each video project before applying the assets/building:
 
-```powershell
+\`\`\`powershell
 # Calm whiteboard explainer: default
-.asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset whiteboard_smooth
+.\asset_tool.ps1 set-preset --project projects\horror-explainer-episode-01 --preset whiteboard_smooth
 
 # Faster beats and more energetic motion
-# .asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset energetic_explainer
+# .\asset_tool.ps1 set-preset --project projects\horror-explainer-episode-01 --preset energetic_explainer
 
 # Controlled horror/comedy accents
-# .asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset horror_comedy
+# .\asset_tool.ps1 set-preset --project projects\horror-explainer-episode-01 --preset horror_comedy
 
 # Slower documentary pacing
-# .asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset documentary_cinematic
-```
+# .\asset_tool.ps1 set-preset --project projects\horror-explainer-episode-01 --preset documentary_cinematic
+\`\`\`
 
-The profiles live in `presets/motion_presets.json`; typography recipes live in `presets/text_animation_presets.json`. Native CapCut text entrances and smooth position/scale keyframes are added by the builder. The Remotion motion-lab is an optional separate tool for more custom, rendered graphics.
+The profiles live in \`presets/motion_presets.json\`; typography recipes live in \`presets/text_animation_presets.json\`. Native CapCut text entrances and smooth position/scale keyframes are added by the builder. The Remotion motion-lab is an optional separate tool for more custom rendered graphics.
 
 ### 4. Configure optional API sources
 
