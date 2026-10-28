@@ -125,6 +125,31 @@
       },
       "text_preset": "kinetic_caption",
       "sfx_density": "medium"
+    },
+    "nutty_putty_casefile": {
+      "label": "Nutty Putty Cave — Full-frame Illustrated Horror",
+      "description": "Full-screen cartoon story art, hard-cut-first pacing, restrained push-ins, brief red/yellow emphasis, and a low suspense sound bed.",
+      "target_shot_seconds": 2.65,
+      "minimum_shot_seconds": 1.25,
+      "scene_zoom_start": 1,
+      "scene_zoom_end": 1.065,
+      "scene_pan_amount": 0.008,
+      "presenter_pose_seconds": 8,
+      "transitions": {
+        "default": {
+          "slug": "cut",
+          "duration": 0
+        },
+        "accents": [
+          {
+            "every": 14,
+            "slug": "dissolve",
+            "duration": 0.18
+          }
+        ]
+      },
+      "text_preset": "punch_caption",
+      "sfx_density": "medium"
     }
   }
 }
