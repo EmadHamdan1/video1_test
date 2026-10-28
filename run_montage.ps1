@@ -28,7 +28,7 @@ if (-not (Get-Command capcut -ErrorAction SilentlyContinue)) {
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 if (-not (Test-Path $Python)) {
     Write-Host "Creating a local Python environment..."
-    py -3 -m venv (Join-Path $RepoRoot ".venv")
+    py -3.13 -m venv (Join-Path $RepoRoot ".venv")
     if ($LASTEXITCODE -ne 0) {
         throw "Python 3 could not create the virtual environment."
     }
@@ -39,7 +39,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Could not install requirements.txt."
 }
 
-Write-Host "Building the editable CapCut draft. Close CapCut before continuing."
+Write-Host "Building the editable Whiteboard PRO CapCut draft. Close CapCut before continuing."
 & $Python (Join-Path $RepoRoot "scripts\build_montage.py")
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
