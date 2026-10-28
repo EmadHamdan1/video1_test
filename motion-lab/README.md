@@ -20,10 +20,11 @@ Remotion Studio opens a local preview. Inspect the compositions before rendering
 ```powershell
 npm run render:whiteboard
 npm run render:caption
+npm run render:caption:alpha
 npm run render:transitions
 ```
 
-Outputs are written to `motion-lab/out/`, which is intentionally ignored by Git. These demo renders have an opaque background and are meant as preview assets or scene clips. For a true transparent overlay, use a codec/container combination that preserves alpha and test it in the installed CapCut version before relying on it.
+Outputs are written to `motion-lab/out/`, which is intentionally ignored by Git. Whiteboard and transition samples are full-frame video clips. `render:caption:alpha` exports the caption layer as ProRes 4444 with an alpha channel, using Remotion's documented transparency settings: https://www.remotion.dev/docs/transparent-videos. Import that short MOV into CapCut and inspect the transparent area before relying on it; codec support can vary by CapCut build. ProRes files can be large, so render only the overlays you actually use.
 
 ## Reuse with a story
 
