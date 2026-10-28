@@ -28,8 +28,12 @@ class PresetIntegrityTests(unittest.TestCase):
                 self.assertIn(preset["text_preset"], text_names)
                 self.assertGreater(preset["target_shot_seconds"], preset["minimum_shot_seconds"])
                 transitions = preset["transitions"]
-                self.assertEqual(transitions["default"]["slug"], "dissolve")
-                self.assertGreater(transitions["default"]["duration"], 0)
+                if name == "nutty_putty_casefile":
+                    self.assertEqual(transitions["default"]["slug"], "cut")
+                    self.assertEqual(transitions["default"]["duration"], 0)
+                else:
+                    self.assertEqual(transitions["default"]["slug"], "dissolve")
+                    self.assertGreater(transitions["default"]["duration"], 0)
                 self.assertLessEqual(transitions["default"]["duration"], 0.5)
                 for accent in transitions["accents"]:
                     self.assertGreaterEqual(accent["every"], 2)
