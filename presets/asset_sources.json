@@ -67,6 +67,26 @@
       "api": null,
       "auth": "manual browser download",
       "policy": "No direct downloader in this pipeline. Respect the specific item-type license and never redistribute a sound-effect file by itself."
+    },
+    {
+      "id": "huggingface-inference",
+      "kind": [
+        "ai-image"
+      ],
+      "api": "https://huggingface.co/docs/inference-providers/tasks/text-to-image",
+      "auth": "HF_TOKEN in the local .env, with Inference Providers permission",
+      "policy": "Generation may consume provider credits; model licensing and output rights vary. The CLI requires an explicit --confirm-possible-cost flag, and the model card/terms must be reviewed before publication."
+    },
+    {
+      "id": "remotion",
+      "kind": [
+        "animation",
+        "text-overlay",
+        "transition-preview"
+      ],
+      "api": "https://www.remotion.dev/docs/",
+      "auth": "Local Node.js project; no asset API key",
+      "policy": "Renders are local video assets. Rendered clips import into CapCut as clips, not editable React layers. Review Remotion license before commercial use."
     }
   ],
   "policy": [
@@ -74,6 +94,7 @@
     "Only download IDs after a human reviews the result and license.",
     "Keep media and API keys local; never commit them to Git.",
     "The manifest records creator/source/license, but does not replace reading the full license.",
-    "If the license is unknown or there is no direct download URL, open the source page and review/download manually."
+    "If the license is unknown or there is no direct download URL, open the source page and review/download manually.",
+    "Generated images require explicit cost acknowledgement and model license review."
   ]
 }
