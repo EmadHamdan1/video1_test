@@ -1,5 +1,5 @@
 {
-  "project_name": "Video1 Test - Professional Montage",
+  "project_name": "Video1 Test - Whiteboard Explainer PRO",
   "drafts_dir": "",
   "audio": "D:\\Videos Chanel\\v2\\p1\\ElevenLabs_2026-06-03T09_19_08_Mark - Natural Conversations_pvc_sp100_s39_sb75_se0_b_m2.mp3",
   "scene_images": [
@@ -52,25 +52,29 @@
     "ratio": "16:9"
   },
   "settings": {
-    "target_shot_seconds": 4.2,
-    "minimum_shot_seconds": 1.6,
+    "target_shot_seconds": 3.9,
+    "minimum_shot_seconds": 1.8,
     "maximum_shot_seconds": 5.6,
     "transition_slug": "mix",
-    "transition_seconds": 0.34,
-    "scene_zoom_start": 1.0,
-    "scene_zoom_end": 1.10,
+    "transition_seconds": 0.24,
+    "scene_zoom_start": 0.485,
+    "scene_zoom_end": 0.505,
     "presenter_overlay": true,
     "presenter_smart_matte": true,
     "presenter_scale": 0.42,
-    "presenter_duration_seconds": 3.2,
-    "presenter_interval_seconds": 8.0,
     "voice_volume": 0.96,
-    "voice_fade_in": 0.12,
-    "voice_fade_out": 0.65,
+    "voice_fade_in": 0.16,
+    "voice_fade_out": 0.7,
     "transcribe_if_whisper_available": true,
     "whisper_model": "base",
     "add_captions_when_transcribed": true,
     "make_sfx_cue_sheet": true,
-    "sound_effects": []
+    "sound_effects": [],
+    "scene_image_scale": 0.5,
+    "scene_image_x": -0.25,
+    "scene_image_y": -0.02,
+    "presenter_x": 0.72,
+    "presenter_y": 0.18,
+    "presenter_pose_seconds": 9.5
   }
 }
