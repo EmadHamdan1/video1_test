@@ -1047,22 +1047,74 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
 
     if include_sfx:
         effects = []
+        plan_rows = read_csv(paths["plan"])
+        plan_order = {row["segment_id"]: index for index, row in enumerate(plan_rows)}
+        try:
+            target_interval = float(config.get("settings", {}).get("target_shot_seconds", 3.8))
+            if target_interval < 1.0:
+                target_interval = 3.8
+        except (TypeError, ValueError):
+            target_interval = 3.8
+
+        # Prefer real timings from an earlier build by mapping each story beat's scene image.
+        def path_key(raw: str) -> str:
+            try:
+                return str(Path(raw).expanduser().resolve()).casefold()
+            except (OSError, RuntimeError):
+                return str(raw).casefold()
+
+        media_by_segment = {}
         for row in rows:
-            if row.get("kind") != "audio" or not row.get("downloaded_path") or not Path(row["downloaded_path"]).is_file():
-                continue
-            start_raw = row.get("start_seconds", "").strip()
-            if not start_raw:
+            local = row.get("downloaded_path", "").strip()
+            segment = row.get("segment_id", "").strip()
+            if row.get("kind") in {"image", "video"} and segment and local and Path(local).is_file():
+                if row.get("selected", "yes").strip().lower() in {"yes", "true", "1", "selected"}:
+                    media_by_segment.setdefault(segment, local)
+
+        timeline_start_by_image = {}
+        for scene in read_csv(paths["build"] / "scene_timing.csv"):
+            image_path = scene.get("image", "").strip()
+            start_value = scene.get("start", "").strip()
+            if image_path and start_value:
+                try:
+                    timeline_start_by_image.setdefault(path_key(image_path), float(start_value))
+                except ValueError:
+                    pass
+
+        updated_sfx_rows = 0
+        for row in rows:
+            local = row.get("downloaded_path", "").strip()
+            if row.get("kind") != "audio" or not local or not Path(local).is_file():
                 continue
             try:
-                start = float(start_raw)
-                volume = float(row.get("volume", "0.12") or "0.12")
-            except ValueError:
-                continue
-            if start < 0 or volume < 0 or volume > 1:
-                continue
-            effects.append({"path": row["downloaded_path"], "start": start, "volume": volume, "duration": 0})
+                explicit_start = row.get("start_seconds", "").strip()
+                segment = row.get("segment_id", "").strip()
+                volume = float(row.get("volume", "0.10") or "0.10")
+                if explicit_start:
+                    start = float(explicit_start)
+                else:
+                    scene_image = media_by_segment.get(segment, "")
+                    start = timeline_start_by_image.get(path_key(scene_image)) if scene_image else None
+                    if start is None:
+                        beat_index = plan_order.get(segment)
+                        start = max(0.0, float(beat_index or 0) * target_interval + 0.18)
+                    row["start_seconds"] = str(round(start, 3))
+                    updated_sfx_rows += 1
+                if start < 0 or volume < 0 or volume > 1:
+                    log("Skipped invalid SFX timing/volume for " + row.get("id", "unknown"))
+                    continue
+                effects.append({
+                    "path": local, "start": round(start, 3),
+                    "volume": volume, "duration": 0
+                })
+            except (TypeError, ValueError):
+                log("Skipped invalid SFX manifest row " + row.get("id", "unknown"))
+
+        write_csv(paths["manifest"], rows)
         config.setdefault("settings", {})["sound_effects"] = effects
-        log("Added " + str(len(effects)) + " timed sound effect(s); set start_seconds in the CSV before running apply.")
+        log("Added " + str(len(effects)) + " local sound effect(s) to the separate CapCut track.")
+        if updated_sfx_rows:
+            log("Assigned approximate scene timings to " + str(updated_sfx_rows) + " SFX row(s) with no saved start_seconds. Review in media_candidates.csv / CapCut.")
 
     paths["config"].write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     log("Updated local project config: " + str(paths["config"]))
