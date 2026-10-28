@@ -280,11 +280,19 @@ def make_contact_sheet(images: list[Path], output: Path) -> None:
 
 
 def make_fullframe_versions(images: list[Path]) -> list[Path]:
-    result = []
-    for index, source in enumerate(images, start=1):
-        target = PROJECT / "assets" / "generated" / "fullframe_images" / ("%03d_fullframe.jpg" % index)
+    result: list[Path] = []
+    previous_digest = ""
+    for source in images:
+        # Omit only byte-identical consecutive images. Near-duplicates with different
+        # encodings are retained for human review rather than being guessed away.
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        if digest == previous_digest:
+            log("Skipping consecutive byte-identical still: " + source.name)
+            continue
+        target = PROJECT / "assets" / "generated" / "fullframe_images" / ("%03d_fullframe.jpg" % (len(result) + 1))
         fit_image_to_frame(source, target)
         result.append(target.resolve())
+        previous_digest = digest
     return result
 
 
