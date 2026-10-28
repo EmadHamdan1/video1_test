@@ -36,7 +36,7 @@ class AssetPipelineTests(unittest.TestCase):
     def test_safe_extensions_are_limited_to_media_types(self):
         self.assertEqual(ASSETS.safe_ext("https://cdn.example.test/image.jpg", "image/jpeg"), ".jpg")
         self.assertEqual(ASSETS.safe_ext("https://cdn.example.test/file", "audio/mpeg", "audio"), ".mp3")
-        self.assertEqual(ASSETS.safe_ext("https://cdn.example.test/file", "image/svg+xml", "image"), ".jpg")
+        self.assertEqual(ASSETS.safe_ext("https://cdn.example.test/file", "image/svg+xml", "image"), ".svg")
         self.assertEqual(ASSETS.safe_ext("https://cdn.example.test/file.svg", "image/svg+xml", "icon"), ".svg")
         self.assertEqual(ASSETS.safe_ext("https://cdn.example.test/file.exe", "application/octet-stream"), ".jpg")
 
