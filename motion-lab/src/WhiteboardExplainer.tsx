@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, Easing, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
 export type WhiteboardProps = {
   title: string;
@@ -38,7 +38,7 @@ export const WhiteboardExplainer: React.FC<WhiteboardProps> = ({ title, subtitle
           <div style={{ position: "absolute", left: 34, top: 29, width: 128, height: 8, borderRadius: 10, background: accent }} />
           <div style={{ position: "absolute", right: 24, top: 19, background: accent + "18", border: `1px solid ${accent}55`, color: accent, borderRadius: 14, padding: "11px 17px", fontSize: 17, fontWeight: 800 }}>{sceneNumber}</div>
           {imageUrl ? (
-            <Img src={imageUrl} style={{ position: "absolute", left: 30, top: 78, width: 949, height: 505, objectFit: "contain" }} />
+            <img src={imageUrl} alt="" style={{ position: "absolute", left: 30, top: 78, width: 949, height: 505, objectFit: "contain" }} />
           ) : (
             <div style={{ position: "absolute", left: 30, top: 78, width: 949, height: 505, background: "linear-gradient(135deg, #E7F4F0 0%, #F6F1E8 55%, #E9ECF8 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ width: 330, height: 250, borderRadius: "50% 50% 44% 44%", background: accent + "28", border: `7px solid ${accent}88`, display: "flex", alignItems: "center", justifyContent: "center", color: accent, fontSize: 30, fontWeight: 800 }}>SCENE ART</div>
