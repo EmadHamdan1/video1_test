@@ -901,6 +901,7 @@ def generate_hf_image(
     if scene is None:
         raise KeyError("Scene ID was not found in scene_plan.csv: " + scene_id)
     scene_text = scene.get("sentence", "").strip()
+    scene_visual_prompt = scene.get("visual_prompt", "").strip() or ("Create a clear, literal visual of: " + scene_text)
     if not scene_text and not prompt:
         raise ValueError("This scene has no text. Provide --prompt explicitly.")
     style = (
@@ -908,7 +909,7 @@ def generate_hf_image(
         "Clear focal subject, strong readable silhouette, coherent visual storytelling, uncluttered composition, "
         "professional lighting, clean edges, tasteful texture. No lettering, captions, watermarks, logos, or UI. "
     )
-    final_prompt = (prompt or ("Illustrate this story beat: " + scene_text)).strip()
+    final_prompt = (prompt or scene_visual_prompt).strip()
     final_prompt = style + final_prompt
     log("Calling Hugging Face Inference Providers. Provider availability, model access and cost depend on your account.")
 
