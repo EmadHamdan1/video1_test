@@ -977,6 +977,26 @@ def generate_hf_image(
     return target
 
 
+def set_project_preset(project: str, preset_name: str) -> Path:
+    """Select one reusable motion profile for this local video project."""
+    paths = project_paths(project)
+    if not paths["config"].is_file():
+        raise FileNotFoundError("Project config not found. Run new-project first.")
+    presets_path = ROOT / "presets" / "motion_presets.json"
+    payload = json.loads(presets_path.read_text(encoding="utf-8-sig"))
+    presets = payload.get("presets", {})
+    if preset_name not in presets:
+        raise ValueError(
+            "Unknown motion preset '" + preset_name + "'. Available: " + ", ".join(sorted(presets))
+        )
+    config = json.loads(paths["config"].read_text(encoding="utf-8-sig"))
+    config.setdefault("settings", {})["motion_preset"] = preset_name
+    paths["config"].write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    log("Selected motion preset '" + preset_name + "' for " + str(paths["root"]))
+    log("Preset profile: " + str(presets[preset_name].get("label", preset_name)))
+    return paths["config"]
+
+
 def apply_project(project: str, audio: str | None = None, presenter_dir: str | None = None, include_sfx: bool = False) -> Path:
     paths = project_paths(project)
     if not paths["config"].is_file():
@@ -1284,6 +1304,10 @@ def command_parser() -> argparse.ArgumentParser:
     gen.add_argument("--model", default=None, help="Model ID; defaults to HF_IMAGE_MODEL in .env, then black-forest-labs/FLUX.1-dev.")
     gen.add_argument("--confirm-possible-cost", action="store_true", help="Explicitly acknowledge that provider inference may cost credits.")
 
+    set_preset = sub.add_parser("set-preset", help="Choose the motion style for one video project.")
+    set_preset.add_argument("--project", required=True)
+    set_preset.add_argument("--preset", required=True, help="whiteboard_smooth, horror_comedy, documentary_cinematic, or energetic_explainer")
+
     apply = sub.add_parser("apply", help="Add downloaded images/audio and local voiceover to project.json.")
     apply.add_argument("--project", required=True)
     apply.add_argument("--audio", default=None, help="Local narration audio path.")
@@ -1323,6 +1347,8 @@ def main(argv: list[str] | None = None) -> int:
         download_icons(args.project, names)
     elif args.command == "generate-image":
         generate_hf_image(args.project, args.scene_id, args.prompt, args.model, args.confirm_possible_cost)
+    elif args.command == "set-preset":
+        set_project_preset(args.project, args.preset)
     elif args.command == "apply":
         apply_project(args.project, args.audio, args.presenter_dir, args.include_sfx)
     elif args.command == "preflight":
