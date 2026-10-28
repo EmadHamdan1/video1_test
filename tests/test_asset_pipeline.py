@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import tempfile
 import unittest
@@ -171,6 +172,40 @@ class AssetPipelineTests(unittest.TestCase):
             page = (project / "media_gallery.html").read_text(encoding="utf-8")
             self.assertNotIn('href="javascript:', page)
             self.assertNotIn('src="javascript:', page)
+
+    def test_scene_plan_includes_visual_prompts_and_sound_cue_queries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = ASSETS.new_project("Prompt plan", str(Path(temporary) / "prompt-plan"))
+            (project / "story.txt").write_text(
+                "A creepy shadow appeared in the corridor. Then everyone laughed at the silly robot.",
+                encoding="utf-8",
+            )
+            ASSETS.make_scene_plan(str(project))
+            plan = ASSETS.read_csv(project / "scene_plan.csv")
+            self.assertEqual(len(plan), 2)
+            self.assertIn("Illustrate this story beat", plan[0]["visual_prompt"])
+            self.assertIn("horror", plan[0]["sfx_search_query"])
+            self.assertIn("cartoon", plan[1]["sfx_search_query"])
+
+    def test_preflight_passes_only_when_audio_and_scene_media_exist(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = ASSETS.new_project("Preflight", str(Path(temporary) / "preflight"))
+            report = ASSETS.preflight_project(str(project))
+            self.assertFalse(report["ok"])
+            self.assertTrue((project / "build" / "preflight_report.json").is_file())
+
+            audio = project / "assets" / "audio" / "voice.wav"
+            image = project / "assets" / "images" / "scene.jpg"
+            audio.write_bytes(b"fake audio test file")
+            image.write_bytes(b"fake image test file")
+            config_path = project / "project.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["audio"] = str(audio)
+            config["scene_images"] = [str(image)]
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            report = ASSETS.preflight_project(str(project))
+            self.assertTrue(report["ok"])
+            self.assertEqual(report["asset_counts"]["scene_media_available"], 1)
 
 
 if __name__ == "__main__":
