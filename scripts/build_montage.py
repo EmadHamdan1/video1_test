@@ -235,210 +235,300 @@ def choose_scene_indices(image_count: int, shot_count: int) -> list[int]:
     return [index % image_count for index in range(shot_count)]
 
 
+
+def create_whiteboard_assets(
+    output_dir: Path, width: int, height: int, scene_count: int, presenter_count: int,
+    scene_x: float = -0.25, scene_y: float = -0.02,
+    presenter_x: float = 0.72, presenter_y: float = 0.18,
+) -> dict[str, Any]:
+    """Create local visual assets for a layered whiteboard/explainer edit."""
+    try:
+        from PIL import Image, ImageDraw, ImageFilter, ImageFont
+    except ImportError as exc:
+        raise RuntimeError("The whiteboard design needs Pillow; reinstall requirements.txt.") from exc
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    accents = [(16,145,135), (237,145,62), (81,109,208), (222,91,111), (115,143,85)]
+    paper = (250,249,245)
+    def font(size: int) -> Any:
+        for name in ("arial.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"):
+            try:
+                return ImageFont.truetype(name, size=size)
+            except OSError:
+                pass
+        return ImageFont.load_default()
+
+    board = Image.new("RGB", (width, height), paper)
+    bd = ImageDraw.Draw(board)
+    step = max(26, width // 60)
+    for yy in range(step, height, step):
+        for xx in range(step, width, step):
+            bd.ellipse((xx, yy, xx + 2, yy + 2), fill=(230,228,221))
+    bd.rounded_rectangle((52,40,322,92), radius=18, fill=(255,255,252), outline=(226,223,214), width=2)
+    bd.text((73,55), "VISUAL EXPLAINER", font=font(23), fill=(48,57,67))
+    bd.line((54,118,186,118), fill=accents[0], width=5)
+    bd.line((198,118,242,118), fill=accents[1], width=5)
+    bd.text((width-335,57), "WHITEBOARD / MOTION", font=font(17), fill=(137,139,136))
+    board_path = output_dir / "whiteboard_canvas.png"
+    board.save(board_path, optimize=True)
+
+    cx = round(width / 2 + scene_x * width / 2)
+    cy = round(height / 2 + scene_y * height / 2)
+    card_w, card_h = int(width * 0.548), int(height * 0.615)
+    left, top = cx-card_w//2, cy-card_h//2
+    right, bottom = left+card_w, top+card_h
+    cards: list[str] = []
+    for index in range(scene_count):
+        accent = accents[index % len(accents)]
+        overlay = Image.new("RGBA", (width,height), (0,0,0,0))
+        shadow = Image.new("RGBA", (width,height), (0,0,0,0))
+        ImageDraw.Draw(shadow).rounded_rectangle(
+            (left+9,top+13,right+9,bottom+13), radius=28, fill=(35,42,52,42)
+        )
+        overlay = Image.alpha_composite(overlay, shadow.filter(ImageFilter.GaussianBlur(15)))
+        draw = ImageDraw.Draw(overlay)
+        draw.rounded_rectangle(
+            (left,top,right,bottom), radius=26, fill=(255,254,250,255),
+            outline=(220,216,207,255), width=3
+        )
+        draw.rounded_rectangle((left+32,top+24,left+151,top+33), radius=5, fill=(*accent,255))
+        label = (right-146,top+18,right-24,top+59)
+        pale = tuple(round(c*0.18 + 255*0.82) for c in accent) + (255,)
+        draw.rounded_rectangle(label, radius=14, fill=pale, outline=(*accent,100), width=1)
+        draw.text((label[0]+13,label[1]+11), "NOTE %02d" % (index+1), font=font(16), fill=(*accent,255))
+        if index % 3 == 0:
+            y = cy + int(height*0.015*(1 if index%2 == 0 else -1))
+            x0, x1 = right+22, min(width-82,right+111)
+            draw.line((x0,y,x1,y-3), fill=(*accent,220), width=5)
+            draw.line((x1-17,y-16,x1,y-3), fill=(*accent,220), width=5)
+            draw.line((x1-17,y+10,x1,y-3), fill=(*accent,220), width=5)
+        tx, ty = min(width-45,right+20), max(140,top+120+(index%4)*25)
+        draw.line((tx,ty,tx+17,ty-7), fill=(*accent,165), width=3)
+        card_path = output_dir / ("scene_card_%03d.png" % (index+1))
+        overlay.save(card_path, optimize=True)
+        cards.append(str(card_path.resolve()))
+
+    plates: list[str] = []
+    pcx = round(width/2 + presenter_x*width/2)
+    pcy = round(height/2 + presenter_y*height/2)
+    pw, ph = int(width*0.195), int(height*0.56)
+    pl, pt = pcx-pw//2, pcy-ph//2
+    pr, pb = pl+pw, pt+ph
+    for index in range(presenter_count):
+        accent = accents[index % len(accents)]
+        plate = Image.new("RGBA", (width,height), (0,0,0,0))
+        draw = ImageDraw.Draw(plate)
+        draw.rounded_rectangle(
+            (pl,pt,pr,pb), radius=150, fill=(*accent,24), outline=(*accent,118), width=4
+        )
+        sx, sy = pl+30, pt+82
+        draw.line((sx-16,sy,sx+7,sy-3), fill=(*accent,190), width=4)
+        draw.line((sx-5,sy-17,sx+3,sy+3), fill=(*accent,190), width=4)
+        draw.ellipse((pr-29,pt+145,pr-17,pt+157), fill=(*accent,185))
+        plate_path = output_dir / ("presenter_backplate_%02d.png" % (index+1))
+        plate.save(plate_path, optimize=True)
+        plates.append(str(plate_path.resolve()))
+    return {"background": str(board_path.resolve()), "scene_cards": cards, "presenter_backplates": plates}
+
+
+def transition_for_scene(index: int) -> tuple[str, float]:
+    """Use restrained dissolves for continuity, with rare blur accents between beats."""
+    number = index + 1
+    if number % 11 == 0:
+        return "radial-blur", 0.28
+    if number % 7 == 0:
+        return "horizontal-blur", 0.26
+    return "dissolve", 0.24
+
+
+
 def make_spec(
-    config: dict[str, Any],
-    audio: Path,
-    images: list[Path],
-    presenters: list[Path],
-    duration: float,
-    captions: list[dict[str, Any]],
-    captions_path: Path | None,
+    config: dict[str, Any], audio: Path, images: list[Path], presenters: list[Path],
+    duration: float, captions: list[dict[str, Any]], captions_path: Path | None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     settings = config.get("settings", {})
-    target = max(1.0, float(settings.get("target_shot_seconds", 4.2)))
+    canvas = config.get("canvas", {})
+    width, height = int(canvas.get("width", 1920)), int(canvas.get("height", 1080))
+    target = max(1.0, float(settings.get("target_shot_seconds", 3.9)))
     minimum = max(0.75, float(settings.get("minimum_shot_seconds", 1.6)))
     shot_count = max(1, max(len(images), int(round(duration / target))))
     feasible = max(1, int(duration / minimum))
     if shot_count > feasible:
         shot_count = feasible
-        log(
-            "The narration is short relative to the number of scene images. "
-            + str(len(images) - min(len(images), shot_count))
-            + " image(s) will be omitted to avoid excessively fast cuts."
-        )
-    shot_count = min(shot_count, max(1, int(math.ceil(duration / 0.45))))
+        log("The narration is short relative to the available images. "
+            + str(len(images)-min(len(images),shot_count))
+            + " image(s) will be omitted to preserve readable shot lengths.")
+    shot_count = min(shot_count, max(1, int(math.ceil(duration/0.45))))
     boundaries = scene_boundaries(duration, shot_count, target, minimum, captions)
     indices = choose_scene_indices(len(images), shot_count)
+    scene_x = float(settings.get("scene_image_x", -0.25))
+    scene_y = float(settings.get("scene_image_y", -0.02))
+    presenter_x = float(settings.get("presenter_x", 0.72))
+    presenter_y = float(settings.get("presenter_y", 0.18))
+    assets = create_whiteboard_assets(
+        BUILD_DIR/"visuals", width, height, shot_count,
+        len(presenters) if settings.get("presenter_overlay", True) else 0,
+        scene_x=scene_x, scene_y=scene_y, presenter_x=presenter_x, presenter_y=presenter_y
+    )
 
-    video_items: list[dict[str, Any]] = []
+    scene_items: list[dict[str, Any]] = []
+    frame_items: list[dict[str, Any]] = []
     scene_rows: list[dict[str, Any]] = []
-    scene_refs: list[str] = []
     for index, image_index in enumerate(indices):
-        start = boundaries[index]
-        end = boundaries[index + 1]
-        shot_duration = max(0.25, end - start)
-        path = images[image_index]
-        ref = "scene_" + str(index + 1).zfill(3)
-        scene_refs.append(ref)
-        video_items.append({
-            "type": "photo",
-            "path": str(path),
-            "start": round(start, 3),
-            "duration": round(shot_duration, 3),
-            "ref": ref,
+        shot_start, shot_end = boundaries[index], boundaries[index+1]
+        shot_duration = max(0.25, shot_end-shot_start)
+        image_path = images[image_index]
+        ref, frame_ref = "scene_%03d" % (index+1), "frame_%03d" % (index+1)
+        scene_items.append({
+            "type":"photo", "path":str(image_path), "start":round(shot_start,3),
+            "duration":round(shot_duration,3), "ref":ref,
+            "scale":float(settings.get("scene_image_scale",0.50)),
+            "x":scene_x, "y":scene_y, "rotation":0
         })
-        contextual = ""
-        midpoint = (start + end) / 2
-        for cue in captions:
-            if float(cue["start"]) <= midpoint <= float(cue["end"]):
-                contextual = str(cue["text"])
-                break
+        frame_items.append({
+            "type":"photo", "path":assets["scene_cards"][index],
+            "start":round(shot_start,3), "duration":round(shot_duration,3),
+            "ref":frame_ref, "scale":1.0, "x":0.0, "y":0.0
+        })
+        midpoint = (shot_start+shot_end)/2
+        context = next((str(cue["text"]) for cue in captions
+                        if float(cue["start"]) <= midpoint <= float(cue["end"])), "")
         scene_rows.append({
-            "start": start,
-            "end": end,
-            "duration": shot_duration,
-            "image": str(path),
-            "caption_context": contextual,
-            "scene_ref": ref,
+            "start":shot_start, "end":shot_end, "duration":shot_duration,
+            "image":str(image_path), "caption_context":context, "scene_ref":ref,
+            "frame_ref":frame_ref, "layout":"whiteboard-card-left / presenter-right"
         })
 
     operations: list[dict[str, Any]] = []
-    zoom_start = float(settings.get("scene_zoom_start", 1.0))
-    zoom_end = float(settings.get("scene_zoom_end", 1.1))
-    transition_slug = str(settings.get("transition_slug", "mix"))
-    transition_duration = float(settings.get("transition_seconds", 0.34))
+    start_scale = float(settings.get("scene_zoom_start",0.485))
+    end_scale = float(settings.get("scene_zoom_end",0.505))
     for index, shot in enumerate(scene_rows):
-        ref = str(shot["scene_ref"])
-        seconds = round(float(shot["duration"]), 3)
-        # Subtle zoom plus a small pan. The direction alternates to avoid a mechanical loop.
-        pan_end = 0.035 if index % 2 == 0 else -0.035
-        zoom_finish = zoom_end if index % 3 != 2 else max(zoom_start, zoom_end - 0.025)
+        ref, frame_ref = str(shot["scene_ref"]), str(shot["frame_ref"])
+        seconds = round(float(shot["duration"]),3)
+        zoom_in = index%2 == 0
+        scale_a, scale_b = (start_scale,end_scale) if zoom_in else (end_scale,start_scale)
+        drift = 0.012 if index%2 == 0 else -0.012
+        x_a, x_b = scene_x-drift, scene_x+drift
+        y_a, y_b = scene_y+0.008, scene_y-0.008
+        # First point is linear; the next point supplies easing without spurious warnings.
         operations.extend([
-            {"op": "keyframe", "target": ref, "property": "uniform_scale", "time": 0.0,
-             "value": zoom_start, "easing": "ease-in-out"},
-            {"op": "keyframe", "target": ref, "property": "uniform_scale", "time": seconds,
-             "value": zoom_finish, "easing": "ease-in-out"},
-            {"op": "keyframe", "target": ref, "property": "position_x", "time": 0.0,
-             "value": -pan_end, "easing": "ease-in-out"},
-            {"op": "keyframe", "target": ref, "property": "position_x", "time": seconds,
-             "value": pan_end, "easing": "ease-in-out"},
+            {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":scale_a},
+            {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
+            {"op":"keyframe","target":ref,"property":"position_x","time":0.0,"value":x_a},
+            {"op":"keyframe","target":ref,"property":"position_x","time":seconds,"value":x_b,"easing":"ease-in-out"},
+            {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":y_a},
+            {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":y_b,"easing":"ease-in-out"},
         ])
-        if index < len(scene_rows) - 1 and transition_duration > 0:
-            operations.append({
-                "op": "transition",
-                "target": ref,
-                "slug": transition_slug,
-                "duration": transition_duration,
-            })
+        if index < len(scene_rows)-1:
+            slug, cut_duration = transition_for_scene(index)
+            operations.append({"op":"transition","target":ref,"slug":slug,"duration":cut_duration})
+            operations.append({"op":"transition","target":frame_ref,"slug":slug,"duration":cut_duration})
 
     presenter_items: list[dict[str, Any]] = []
+    plate_items: list[dict[str, Any]] = []
     presenter_rows: list[dict[str, Any]] = []
-    if presenters and settings.get("presenter_overlay", True) and duration >= 4.0:
-        interval = max(5.0, float(settings.get("presenter_interval_seconds", 8.0)))
-        count = min(len(presenters), max(1, int(duration // interval)))
-        appearance_duration = min(
-            float(settings.get("presenter_duration_seconds", 3.2)),
-            max(1.4, duration / max(1.0, count) * 0.62),
-            duration,
-        )
-        for index in range(count):
-            pose_index = round(index * (len(presenters) - 1) / max(1, count - 1))
-            path = presenters[pose_index]
-            start = duration * (index + 1) / (count + 1) - appearance_duration / 2
-            start = max(0.0, min(start, max(0.0, duration - appearance_duration)))
-            side = -1 if index % 2 == 0 else 1
-            x = side * 0.34
-            ref = "presenter_" + str(index + 1).zfill(2)
+    if presenters and settings.get("presenter_overlay",True) and duration >= 4.0:
+        pose_target = max(4.5,float(settings.get("presenter_pose_seconds",9.5)))
+        count = min(len(presenters),max(1,int(round(duration/pose_target))))
+        pose_indices = choose_scene_indices(len(presenters),count)
+        pose_boundaries = [round(duration*i/count,3) for i in range(count+1)]
+        presenter_scale = float(settings.get("presenter_scale",0.42))
+        for index, pose_index in enumerate(pose_indices):
+            pose_start, pose_end = pose_boundaries[index],pose_boundaries[index+1]
+            pose_duration = max(0.25,pose_end-pose_start)
+            ref, plate_ref = "presenter_%02d"%(index+1),"presenter_plate_%02d"%(index+1)
+            presenter_path = presenters[pose_index]
             presenter_items.append({
-                "type": "photo",
-                "path": str(path),
-                "start": round(start, 3),
-                "duration": round(appearance_duration, 3),
-                "ref": ref,
-                "scale": float(settings.get("presenter_scale", 0.42)),
-                "x": x,
-                "y": 0.22,
+                "type":"photo","path":str(presenter_path),"start":pose_start,
+                "duration":pose_duration,"ref":ref,"scale":presenter_scale,
+                "x":presenter_x,"y":presenter_y
+            })
+            plate_items.append({
+                "type":"photo","path":assets["presenter_backplates"][index],
+                "start":pose_start,"duration":pose_duration,"ref":plate_ref,
+                "scale":1.0,"x":0.0,"y":0.0
             })
             presenter_rows.append({
-                "start": start,
-                "end": start + appearance_duration,
-                "image": str(path),
-                "ref": ref,
-                "side": "left" if side < 0 else "right",
+                "start":pose_start,"end":pose_end,"image":str(presenter_path),
+                "ref":ref,"backplate_ref":plate_ref,"side":"right"
             })
+            mid = round(pose_duration/2,3)
             operations.extend([
-                {"op": "keyframe", "target": ref, "property": "uniform_scale",
-                 "time": 0.0, "value": float(settings.get("presenter_scale", 0.42)),
-                 "easing": "ease-in-out"},
-                {"op": "keyframe", "target": ref, "property": "uniform_scale",
-                 "time": round(appearance_duration, 3),
-                 "value": float(settings.get("presenter_scale", 0.42)) + 0.015,
-                 "easing": "ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":presenter_scale},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":mid,"value":presenter_scale+0.012,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(pose_duration,3),"value":presenter_scale,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":presenter_y+0.008},
+                {"op":"keyframe","target":ref,"property":"position_y","time":mid,"value":presenter_y-0.008,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(pose_duration,3),"value":presenter_y+0.008,"easing":"ease-in-out"},
             ])
+            if index < len(pose_indices)-1:
+                operations.append({"op":"transition","target":ref,"slug":"dissolve","duration":0.28})
+                operations.append({"op":"transition","target":plate_ref,"slug":"dissolve","duration":0.28})
 
-    audio_track_items = [{
-        "path": str(audio),
-        "start": 0.0,
-        "duration": round(duration, 3),
-        "volume": float(settings.get("voice_volume", 0.96)),
-        "ref": "voiceover",
+    audio_items = [{
+        "path":str(audio),"start":0.0,"duration":round(duration,3),
+        "volume":float(settings.get("voice_volume",0.96)),"ref":"voiceover"
     }]
     sfx_items: list[dict[str, Any]] = []
     for index, item in enumerate(settings.get("sound_effects", [])):
-        raw_path = item.get("path", "")
-        path = Path(os.path.expandvars(str(raw_path))).expanduser()
+        raw = item.get("path","")
+        path = Path(os.path.expandvars(str(raw))).expanduser()
         if not path.is_file():
-            log("Optional local SFX path was not found; skipped: " + str(raw_path))
+            log("Optional local SFX path was not found; skipped: " + str(raw))
             continue
         try:
-            start = max(0.0, float(item.get("start", 0.0)))
-            sound_duration = float(item.get("duration", 0.0))
+            start = max(0.0,float(item.get("start",0.0)))
+            sound_duration = float(item.get("duration",0.0))
             if sound_duration <= 0:
-                sound_duration = min(5.0, max(0.3, duration - start))
+                sound_duration = min(5.0,max(0.3,duration-start))
             if start >= duration:
                 continue
             sfx_items.append({
-                "path": str(path.resolve()),
-                "start": round(start, 3),
-                "duration": round(min(sound_duration, duration - start), 3),
-                "volume": float(item.get("volume", 0.16)),
-                "ref": "local_sfx_" + str(index + 1).zfill(2),
+                "path":str(path.resolve()),"start":round(start,3),
+                "duration":round(min(sound_duration,duration-start),3),
+                "volume":float(item.get("volume",0.16)),"ref":"local_sfx_%02d"%(index+1)
             })
-        except (TypeError, ValueError):
+        except (TypeError,ValueError):
             log("Invalid optional SFX entry skipped: " + str(item))
 
-    if settings.get("add_captions_when_transcribed", True) and captions_path and captions:
-        operations.append({
-            "op": "captions",
-            "path": captions_path.name,
-            "trackName": "Captions",
-            "timeOffset": 0.0,
-        })
-
+    if settings.get("add_captions_when_transcribed",True) and captions_path and captions:
+        operations.append({"op":"captions","path":captions_path.name,"trackName":"Captions","timeOffset":0.0})
     operations.append({
-        "op": "audio-fade",
-        "target": "voiceover",
-        "fadeIn": float(settings.get("voice_fade_in", 0.12)),
-        "fadeOut": float(settings.get("voice_fade_out", 0.65)),
+        "op":"audio-fade","target":"voiceover",
+        "fadeIn":float(settings.get("voice_fade_in",0.16)),
+        "fadeOut":float(settings.get("voice_fade_out",0.7))
     })
 
-    tracks: list[dict[str, Any]] = [
-        {"type": "video", "name": "Scene Images", "items": video_items},
-        {"type": "audio", "name": "Voiceover", "items": audio_track_items},
-    ]
-    if presenter_items:
-        tracks.insert(1, {"type": "video", "name": "Presenter Overlay", "items": presenter_items})
-    if sfx_items:
-        tracks.append({"type": "audio", "name": "Local Sound Effects", "items": sfx_items})
-
-    canvas = config.get("canvas", {})
-    spec: dict[str, Any] = {
-        "name": str(config.get("project_name", "Video1 Test - Professional Montage")),
-        "width": int(canvas.get("width", 1920)),
-        "height": int(canvas.get("height", 1080)),
-        "fps": int(canvas.get("fps", 30)),
-        "ratio": str(canvas.get("ratio", "16:9")),
-        "tracks": tracks,
-        "operations": operations,
+    bg_item = {
+        "type":"photo","path":assets["background"],"start":0.0,
+        "duration":round(duration,3),"ref":"whiteboard_background",
+        "scale":1.0,"x":0.0,"y":0.0
     }
-    return spec, scene_rows, presenter_rows
+    tracks: list[dict[str,Any]] = [
+        {"type":"video","name":"Whiteboard Background","items":[bg_item]},
+        {"type":"video","name":"Whiteboard Scene Frames","items":frame_items},
+        {"type":"video","name":"Scene Artwork","items":scene_items},
+    ]
+    if plate_items:
+        tracks.append({"type":"video","name":"Presenter Accent","items":plate_items})
+    if presenter_items:
+        tracks.append({"type":"video","name":"Presenter Explainer","items":presenter_items})
+    tracks.append({"type":"audio","name":"Narration","items":audio_items})
+    if sfx_items:
+        tracks.append({"type":"audio","name":"Local Sound Effects","items":sfx_items})
+    spec = {
+        "name":str(config.get("project_name","Video1 Test - Whiteboard Explainer PRO")),
+        "width":width,"height":height,"fps":int(canvas.get("fps",30)),
+        "ratio":str(canvas.get("ratio","16:9")),"tracks":tracks,"operations":operations
+    }
+    return spec,scene_rows,presenter_rows
 
 
 def write_scene_csv(path: Path, scenes: list[dict[str, Any]], presenters: list[dict[str, Any]]) -> None:
     with path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["start", "end", "duration", "image", "caption_context", "scene_ref", "presenter_ref"],
+            fieldnames=["start", "end", "duration", "image", "caption_context", "scene_ref", "layout", "presenter_ref"],
         )
         writer.writeheader()
         for scene in scenes:
@@ -549,7 +639,7 @@ def main() -> int:
     drafts_dir = discover_drafts_dir(str(config.get("drafts_dir", "")))
     drafts_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    folder_name = "Video1_Montage_" + stamp
+    folder_name = "Video1_Whiteboard_Pro_" + stamp
     out_dir = drafts_dir / folder_name
     env = os.environ.copy()
     env["CAPCUT_DRAFT_DIR"] = str(drafts_dir)
@@ -627,6 +717,45 @@ def main() -> int:
                 log("Presenter fade animation was not applied to " + str(presenter["ref"]) + ".")
             matting_results.append(entry)
 
+
+    # Only the opening image gets a zoom-out entrance; other cuts use the deliberate transitions above.
+    first_scene_id = refs.get("scene_001")
+    if first_scene_id:
+        intro_result = subprocess.run(
+            [capcut, "image-anim", str(draft_path), str(first_scene_id),
+             "--intro", "zoom-out", "--intro-duration", "0.55"],
+            text=True, capture_output=True, env=env, check=False,
+        )
+        if intro_result.returncode != 0:
+            log("Opening reveal animation unavailable; keyframed movement remains.")
+
+    if presenter_rows:
+        first_presenter_id = refs.get(str(presenter_rows[0]["ref"]))
+        last_presenter_id = refs.get(str(presenter_rows[-1]["ref"]))
+        if first_presenter_id:
+            subprocess.run(
+                [capcut, "image-anim", str(draft_path), str(first_presenter_id),
+                 "--intro", "fade-in", "--intro-duration", "0.55"],
+                text=True, capture_output=True, env=env, check=False,
+            )
+        if last_presenter_id:
+            subprocess.run(
+                [capcut, "image-anim", str(draft_path), str(last_presenter_id),
+                 "--outro", "fade-out", "--outro-duration", "0.55"],
+                text=True, capture_output=True, env=env, check=False,
+            )
+
+    register_result = subprocess.run(
+        [capcut, "register", str(draft_path), "--apply"],
+        text=True, capture_output=True, env=env, check=False,
+    )
+    registered = register_result.returncode == 0
+    if registered:
+        log("Registered the PRO draft in CapCut: " + spec["name"])
+    else:
+        detail = (register_result.stderr or register_result.stdout or "").strip()
+        log("Automatic registration did not complete; the draft was still created. " + detail[-400:])
+
     report = {
         "ok": True,
         "project_name": spec["name"],
@@ -640,6 +769,8 @@ def main() -> int:
         "presenter_images_missing": missing_presenters,
         "scene_segments": len(scenes),
         "presenter_segments": len(presenter_rows),
+        "registered_in_capcut": registered,
+        "visual_assets_dir": str((BUILD_DIR / "visuals").resolve()),
         "caption_cues": len(captions),
         "caption_file": str(captions_path) if captions_path else None,
         "matting": matting_results,
@@ -647,6 +778,7 @@ def main() -> int:
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "notes": [
             "This is an editable CapCut draft, not a rendered MP4.",
+            "The visual treatment uses a whiteboard canvas, framed scene cards, and a presenter track.",
             "Scene timing can snap to Whisper caption ends, but semantic image matching still needs human review.",
             "The sound-effects cue sheet contains suggestions only; it does not claim that library SFX were automatically inserted.",
         ],
@@ -657,6 +789,7 @@ def main() -> int:
 
     log("Draft creation finished.")
     log("Draft directory: " + str(draft_path))
+    log("Visual assets: " + str((BUILD_DIR / "visuals").resolve()))
     log("Shot plan: " + str(scene_csv))
     if settings.get("make_sfx_cue_sheet", True):
         log("Sound-effect cue sheet: " + str(BUILD_DIR / "SFX_Cue_Sheet.csv"))
