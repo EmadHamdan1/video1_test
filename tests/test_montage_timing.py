@@ -195,6 +195,59 @@ class MontageTimingTests(unittest.TestCase):
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
 
+    def test_full_frame_storyboard_uses_exact_boundaries_without_whiteboard_cards(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "Full-frame horror test",
+                    "story_beats": [
+                        {"start_s": 0.0, "end_s": 2.0, "text": "NUTTY PUTTY CAVE", "emotion": "tense", "shock_level": 1, "trigger_word": "CAVE"},
+                        {"start_s": 2.0, "end_s": 4.5, "text": "John went deeper", "emotion": "scary", "shock_level": 2, "trigger_word": "DEEPER"},
+                    ],
+                    "storyboard_boundaries": [0.0, 2.0, 4.5, 7.0],
+                    "background_music": {"path": str(Path(temporary) / "music.wav"), "start": 0.0, "duration": 7.0, "volume": 0.3},
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "layout_mode": "full_frame",
+                        "use_storyboard_boundaries": True,
+                        "scene_zoom_start": 1.0,
+                        "scene_zoom_end": 1.065,
+                        "target_shot_seconds": 2.5,
+                        "minimum_shot_seconds": 1.2,
+                        "presenter_overlay": False,
+                        "show_scene_text_without_transcript": False,
+                        "flash_overlay_path": str(Path(temporary) / "flash.png"),
+                        "flash_times": [4.5],
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config,
+                    Path("voice.mp3"),
+                    [Path("intro.mp4"), Path("scene_a.jpg"), Path("scene_b.jpg")],
+                    [],
+                    7.0,
+                    [],
+                    None,
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Scene Artwork", tracks)
+                self.assertNotIn("Whiteboard Background", tracks)
+                self.assertNotIn("Whiteboard Scene Frames", tracks)
+                self.assertEqual(len(tracks["Scene Artwork"]["items"]), 3)
+                self.assertAlmostEqual(scenes[0]["start"], 0.0)
+                self.assertAlmostEqual(scenes[0]["end"], 2.0)
+                self.assertAlmostEqual(scenes[1]["start"], 2.0)
+                self.assertIn("Shock Flash Hits", tracks)
+                self.assertTrue(any(
+                    operation.get("op") == "keyframe" and operation.get("property") == "rotation"
+                    for operation in spec["operations"]
+                ))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
     def test_icon_overlay_uses_separate_track_and_scene_relative_timing(self):
         with tempfile.TemporaryDirectory() as temporary:
             previous_build_dir = BUILDER.BUILD_DIR
