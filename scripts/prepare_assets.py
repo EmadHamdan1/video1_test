@@ -704,7 +704,7 @@ def download_candidate(project: str, candidate_id: str) -> Path:
                 existing["downloaded_path"] = str(target_path.resolve())
         write_csv(paths["manifest"], rows)
         write_gallery(paths)
-        (target_dir / "ASSET-SOURCE.txt").write_text(
+        target_path.with_suffix(target_path.suffix + ".source.txt").write_text(
             "Source page: " + row.get("source_page", "") + "\n"
             + "Creator: " + row.get("creator", "") + "\n"
             + "License: " + row.get("license", "") + "\n"
