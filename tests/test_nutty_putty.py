@@ -92,6 +92,26 @@ class NuttyPuttyPreparationTests(unittest.TestCase):
         finally:
             BUILDER.PROJECT = old_project
 
+    def test_arabic_subtitles_use_sentence_timing_and_write_srt(self):
+        rows = [
+            {"start_s": index * 3.0, "end_s": index * 3.0 + 2.8}
+            for index in range(len(BUILDER.STORY_AR))
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "captions_ar.srt"
+            cues = BUILDER.write_arabic_subtitles(path, rows)
+            contents = path.read_text(encoding="utf-8-sig")
+        self.assertTrue(path.is_file())
+        self.assertGreater(len(cues), len(BUILDER.STORY_AR))
+        self.assertIn("جون", contents)
+        self.assertIn(" --> ", contents)
+        self.assertTrue(all(item["end"] > item["start"] for item in cues))
+        self.assertTrue(all(
+            right["start"] >= left["end"] - 0.001
+            for left, right in zip(cues, cues[1:])
+        ))
+        self.assertEqual(cues[0]["text"], "كهف نوتي بوتي —")
+
     def test_caption_chunks_never_exceed_three_words(self):
         tokens = BUILDER.tokenise_story(["One two three four five six seven."])
         for index, token in enumerate(tokens):
