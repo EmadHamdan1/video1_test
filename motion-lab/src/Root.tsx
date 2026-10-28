@@ -3,6 +3,7 @@ import { Composition } from "remotion";
 import { WhiteboardExplainer, type WhiteboardProps } from "./WhiteboardExplainer";
 import { KineticCaption, type CaptionProps } from "./KineticCaption";
 import { TransitionShowcase } from "./TransitionShowcase";
+import { NuttyPuttyTitle } from "./NuttyPuttyTitle";
 
 export const Root: React.FC = () => (
   <>
@@ -38,6 +39,14 @@ export const Root: React.FC = () => (
       id="TransitionShowcase"
       component={TransitionShowcase}
       durationInFrames={195}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="NuttyPuttyTitle"
+      component={NuttyPuttyTitle}
+      durationInFrames={60}
       fps={30}
       width={1920}
       height={1080}
