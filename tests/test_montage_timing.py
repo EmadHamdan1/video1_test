@@ -200,6 +200,8 @@ class MontageTimingTests(unittest.TestCase):
             previous_build_dir = BUILDER.BUILD_DIR
             BUILDER.BUILD_DIR = Path(temporary) / "build"
             try:
+                flash = Path(temporary) / "flash.png"
+                flash.write_bytes(b"test fixture placeholder")
                 config = {
                     "project_name": "Full-frame horror test",
                     "story_beats": [
@@ -218,7 +220,7 @@ class MontageTimingTests(unittest.TestCase):
                         "minimum_shot_seconds": 1.2,
                         "presenter_overlay": False,
                         "show_scene_text_without_transcript": False,
-                        "flash_overlay_path": str(Path(temporary) / "flash.png"),
+                        "flash_overlay_path": str(flash),
                         "flash_times": [4.5],
                     },
                 }
