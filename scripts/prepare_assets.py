@@ -1017,9 +1017,14 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
         )
     if chosen:
         config["scene_images"] = [str(path) for path in chosen]
-        config["scene_texts"] = [
-            sentence_by_segment.get(row.get("segment_id", ""), "") for row in chosen_rows
-        ] if chosen_rows else []
+        if chosen_rows:
+            config["scene_texts"] = [
+                sentence_by_segment.get(row.get("segment_id", ""), "") for row in chosen_rows
+            ]
+        else:
+            # Manually placed files in assets/images and assets/videos have no manifest segment IDs.
+            # Pair them with story beats by filename order as a useful fallback, while keeping review required.
+            config["scene_texts"] = [row.get("sentence", "") for row in plan_rows[:len(chosen)]]
         log("Added " + str(len(chosen)) + " local scene image/video asset(s) and story labels to project.json.")
     else:
         log("No downloaded images found. Search and download candidate IDs before building.")
