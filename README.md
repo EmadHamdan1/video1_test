@@ -53,6 +53,25 @@ The launcher creates a new dated `Video1_Whiteboard_Pro_YYYYMMDD_HHMMSS` draft a
 
 Check the first 10 seconds, one middle section, a presenter-pose change, and the final 5 seconds. Confirm the presenter cutout, scene framing, transitions, and voice track. If the images do not match the narration at a particular point, move the image segments using `build/scene_timing.csv` as a guide. The project has not been visually verified on this PC until that playback review is done.
 
+## Recommended toolchain for future edits
+
+- **FFmpeg + FFprobe:** local media inspection, proxy previews, audio/video filters, and duration checks. Install on Windows with `winget install -e --id Gyan.FFmpeg`. Reopen PowerShell afterwards, then verify `ffmpeg -version` and `ffprobe -version`.
+- **Arkeonix CapCut MCP (optional local MCP server):** adds tools for inspecting local CapCut drafts and applying keyframes, transitions, filters, masks, and text. Its repository documents backups and advises not to write while CapCut is open: https://github.com/daviilpzDev/arkeonix-capcut-mcp. Install separately from this repository:
+
+  ```powershell
+  cd C:\Users\EmQr
+  git clone https://github.com/daviilpzDev/arkeonix-capcut-mcp.git
+  cd .\arkeonix-capcut-mcp
+  npm install
+  npm test
+  ```
+
+  Then connect `src/server.js` to a compatible local MCP host, such as VS Code Copilot. Installing it alone does not connect it to the ChatGPT web session.
+- **Remotion (optional motion-graphics lab):** a separate React-based workspace for custom animated callouts, kinetic typography, hand-drawn/paper-style motion, and transition previews. Short renders can be imported into CapCut; the rendered clip itself is not editable as separate React layers inside CapCut. Start guide: https://www.remotion.dev/docs/. Remotion's free license covers individuals and companies up to three people, subject to its terms: https://www.remotion.dev/docs/license/pricing.
+- **Whisper (optional transcription):** can create time-coded captions and candidate narration edit points; it does not decide which image semantically matches each sentence. Install FFmpeg first. From this repository, use `..venvScriptspython.exe -m pip install -U openai-whisper`. The package pulls PyTorch and can be a large installation, so skip it until timed captions are needed.
+
+Keep the original draft and media as backups. Before any MCP edit, close CapCut, clone the target draft, review planned changes, and inspect the saved project in CapCut before exporting.
+
 ## Editing principles and sources
 
 - [CapCut: keyframes on PC](https://www.capcut.com/resource/how-to-add-keyframes-in-capcut) — animate position, scale, rotation, opacity, and adjust the timing.
