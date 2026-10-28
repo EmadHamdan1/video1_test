@@ -148,6 +148,30 @@ class AssetPipelineTests(unittest.TestCase):
             self.assertEqual(updated[0]["license_reviewed"], "yes")
             self.assertIn("attribution", updated[0]["review_notes"].lower())
 
+    def test_gallery_rejects_javascript_urls(self):
+        self.assertEqual(ASSETS.safe_web_url("javascript:alert(1)"), "")
+        self.assertEqual(ASSETS.safe_web_url("data:text/html,evil"), "")
+        self.assertEqual(ASSETS.safe_web_url("https://example.test/image.jpg"), "https://example.test/image.jpg")
+        self.assertEqual(ASSETS.safe_web_url("file:///C:/private/image.jpg"), "")
+        self.assertEqual(
+            ASSETS.safe_web_url("file:///C:/project/assets/image.jpg", allow_file=True),
+            "file:///C:/project/assets/image.jpg",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            project = ASSETS.new_project("Safe Gallery", str(Path(temporary) / "safe-gallery"))
+            row = ASSETS.normalize_candidate({
+                "provider": "Test",
+                "title": "No unsafe link",
+                "license": "Unknown",
+                "source_page": "javascript:alert(1)",
+                "preview_url": "javascript:alert(2)",
+                "download_url": "https://example.test/image.jpg",
+            }, "image", "safe gallery", "")
+            ASSETS.append_candidates(str(project), [row])
+            page = (project / "media_gallery.html").read_text(encoding="utf-8")
+            self.assertNotIn('href="javascript:', page)
+            self.assertNotIn('src="javascript:', page)
+
 
 if __name__ == "__main__":
     unittest.main()
