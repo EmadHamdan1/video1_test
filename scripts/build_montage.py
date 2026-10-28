@@ -832,6 +832,32 @@ def make_spec(
             {"type":"video","name":"Whiteboard Scene Frames","items":frame_items},
         ])
     tracks.append({"type":"video","name":"Scene Artwork","items":scene_items})
+
+    horror_items: list[dict[str, Any]] = []
+    horror_path_raw = str(settings.get("horror_overlay_path", "")).strip()
+    if horror_path_raw:
+        horror_path = Path(os.path.expandvars(horror_path_raw)).expanduser()
+        if not horror_path.is_absolute():
+            horror_path = CONFIG_PATH.parent / horror_path
+        if horror_path.is_file():
+            for index, raw_start in enumerate(settings.get("horror_overlay_times", []), start=1):
+                try:
+                    start = max(0.0, float(raw_start))
+                    overlay_duration = min(0.72, max(0.25, float(settings.get("horror_overlay_duration", 0.62))))
+                    if start >= duration:
+                        continue
+                    horror_items.append({
+                        "type":"photo","path":str(horror_path.resolve()),"start":round(start, 3),
+                        "duration":round(min(overlay_duration, duration - start), 3),
+                        "ref":"horror_tint_%02d" % index,"scale":1.0,"x":0.0,"y":0.0
+                    })
+                except (TypeError, ValueError):
+                    log("Invalid horror tint time skipped: " + repr(raw_start))
+        else:
+            log("Horror tint overlay was not found; skipped: " + horror_path_raw)
+    if horror_items:
+        tracks.append({"type":"video","name":"Critical Horror Tint","items":horror_items})
+
     if icon_items:
         tracks.append({"type":"video","name":"Icon Overlays","items":icon_items})
     if plate_items and settings.get("presenter_backplate", True):
