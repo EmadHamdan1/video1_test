@@ -101,8 +101,8 @@ class NuttyPuttyPreparationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "captions_ar.srt"
             cues = BUILDER.write_arabic_subtitles(path, rows)
+            self.assertTrue(path.is_file())
             contents = path.read_text(encoding="utf-8-sig")
-        self.assertTrue(path.is_file())
         self.assertGreater(len(cues), len(BUILDER.STORY_AR))
         self.assertIn("جون", contents)
         self.assertIn(" --> ", contents)
