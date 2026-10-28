@@ -183,7 +183,7 @@ class AssetPipelineTests(unittest.TestCase):
             ASSETS.make_scene_plan(str(project))
             plan = ASSETS.read_csv(project / "scene_plan.csv")
             self.assertEqual(len(plan), 2)
-            self.assertIn("Illustrate this story beat", plan[0]["visual_prompt"])
+            self.assertIn("Create a clear, literal visual of", plan[0]["visual_prompt"])
             self.assertIn("horror", plan[0]["sfx_search_query"])
             self.assertIn("cartoon", plan[1]["sfx_search_query"])
 
