@@ -550,43 +550,62 @@ def make_spec(
     presenter_items: list[dict[str, Any]] = []
     plate_items: list[dict[str, Any]] = []
     presenter_rows: list[dict[str, Any]] = []
-    if presenters and settings.get("presenter_overlay",True) and duration >= 4.0:
-        pose_target = max(4.5,float(settings.get("presenter_pose_seconds",motion.get("presenter_pose_seconds",9.5))))
-        count = min(len(presenters),max(1,int(round(duration/pose_target))))
-        pose_indices = choose_scene_indices(len(presenters),count)
-        pose_boundaries = [round(duration*i/count,3) for i in range(count+1)]
-        presenter_scale = float(settings.get("presenter_scale",0.42))
-        for index, pose_index in enumerate(pose_indices):
-            pose_start, pose_end = pose_boundaries[index],pose_boundaries[index+1]
-            pose_duration = max(0.25,pose_end-pose_start)
-            ref, plate_ref = "presenter_%02d"%(index+1),"presenter_plate_%02d"%(index+1)
+    if presenters and settings.get("presenter_overlay", True) and duration >= 4.0:
+        presenter_scale = float(settings.get("presenter_scale", 0.42))
+        presenter_mode = str(settings.get("presenter_mode", "persistent")).strip().lower()
+        if presenter_mode == "reset":
+            # Brief host returns, rather than an avatar covering the story art continuously.
+            cadence = max(30.0, float(settings.get("presenter_pose_seconds", 35.0)))
+            hold = min(3.0, max(1.0, float(settings.get("presenter_reset_duration", 2.2))))
+            starts = [float(value) for value in range(0, max(1, int(duration)), int(cadence))]
+            pose_plan = [
+                (start, min(duration, start + hold), index % len(presenters))
+                for index, start in enumerate(starts) if start < duration
+            ]
+        else:
+            pose_target = max(4.5, float(settings.get("presenter_pose_seconds", motion.get("presenter_pose_seconds", 9.5))))
+            count = min(len(presenters), max(1, int(round(duration / pose_target))))
+            pose_indices = choose_scene_indices(len(presenters), count)
+            pose_boundaries = [round(duration * i / count, 3) for i in range(count + 1)]
+            pose_plan = [
+                (pose_boundaries[index], pose_boundaries[index + 1], pose_index)
+                for index, pose_index in enumerate(pose_indices)
+            ]
+
+        for index, (pose_start, pose_end, pose_index) in enumerate(pose_plan, start=1):
+            pose_duration = max(0.25, pose_end - pose_start)
+            ref, plate_ref = "presenter_%02d" % index, "presenter_plate_%02d" % index
             presenter_path = presenters[pose_index]
             presenter_items.append({
-                "type":"photo","path":str(presenter_path),"start":pose_start,
-                "duration":pose_duration,"ref":ref,"scale":presenter_scale,
+                "type":"photo","path":str(presenter_path),"start":round(pose_start, 3),
+                "duration":round(pose_duration, 3),"ref":ref,"scale":presenter_scale,
                 "x":presenter_x,"y":presenter_y
             })
-            plate_items.append({
-                "type":"photo","path":assets["presenter_backplates"][index],
-                "start":pose_start,"duration":pose_duration,"ref":plate_ref,
-                "scale":1.0,"x":0.0,"y":0.0
-            })
+            plate_index = min(pose_index, len(assets["presenter_backplates"]) - 1) if assets["presenter_backplates"] else -1
+            if plate_index >= 0:
+                plate_items.append({
+                    "type":"photo","path":assets["presenter_backplates"][plate_index],
+                    "start":round(pose_start, 3),"duration":round(pose_duration, 3),"ref":plate_ref,
+                    "scale":1.0,"x":0.0,"y":0.0
+                })
             presenter_rows.append({
                 "start":pose_start,"end":pose_end,"image":str(presenter_path),
-                "ref":ref,"backplate_ref":plate_ref,"side":"right"
+                "ref":ref,"backplate_ref":plate_ref,
+                "side":"left" if presenter_x < 0 else "right"
             })
-            mid = round(pose_duration/2,3)
+            mid = round(pose_duration / 2, 3)
             operations.extend([
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":presenter_scale},
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":mid,"value":presenter_scale+0.012,"easing":"ease-in-out"},
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(pose_duration,3),"value":presenter_scale,"easing":"ease-in-out"},
-                {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":presenter_y+0.008},
-                {"op":"keyframe","target":ref,"property":"position_y","time":mid,"value":presenter_y-0.008,"easing":"ease-in-out"},
-                {"op":"keyframe","target":ref,"property":"position_y","time":round(pose_duration,3),"value":presenter_y+0.008,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":presenter_scale * 0.97 if presenter_mode == "reset" else presenter_scale},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":min(0.18, mid),"value":presenter_scale,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(pose_duration, 3),"value":presenter_scale,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":presenter_y + (0.035 if presenter_mode == "reset" else 0.008)},
+                {"op":"keyframe","target":ref,"property":"position_y","time":min(0.22, mid),"value":presenter_y,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(pose_duration, 3),"value":presenter_y + 0.008,"easing":"ease-in-out"},
             ])
-            if index < len(pose_indices)-1:
+            if index < len(pose_plan) and presenter_mode != "reset":
                 operations.append({"op":"transition","target":ref,"slug":"dissolve","duration":0.28})
-                operations.append({"op":"transition","target":plate_ref,"slug":"dissolve","duration":0.28})
+                if settings.get("presenter_backplate", True) and plate_index >= 0:
+                    operations.append({"op":"transition","target":plate_ref,"slug":"dissolve","duration":0.28})
 
     icon_items: list[dict[str, Any]] = []
     for index, overlay in enumerate(settings.get("icon_overlays", []), start=1):
@@ -785,8 +804,36 @@ def make_spec(
         tracks.append({"type":"video","name":"Presenter Accent","items":plate_items})
     if presenter_items:
         tracks.append({"type":"video","name":"Presenter Explainer","items":presenter_items})
+
+    flash_items: list[dict[str, Any]] = []
+    flash_path_raw = str(settings.get("flash_overlay_path", "")).strip()
+    if flash_path_raw:
+        flash_path = Path(os.path.expandvars(flash_path_raw)).expanduser()
+        if not flash_path.is_absolute():
+            flash_path = CONFIG_PATH.parent / flash_path
+        if flash_path.is_file():
+            for index, raw_start in enumerate(settings.get("flash_times", []), start=1):
+                try:
+                    flash_start = max(0.0, float(raw_start))
+                    flash_duration = min(0.09, max(0.05, float(settings.get("flash_duration", 0.067))))
+                    if flash_start >= duration:
+                        continue
+                    flash_items.append({
+                        "type":"photo","path":str(flash_path.resolve()),
+                        "start":round(flash_start, 3),
+                        "duration":round(min(flash_duration, duration - flash_start), 3),
+                        "ref":"shock_flash_%02d" % index,
+                        "scale":1.0,"x":0.0,"y":0.0
+                    })
+                except (TypeError, ValueError):
+                    log("Invalid shock flash time skipped: " + repr(raw_start))
+        else:
+            log("Configured flash image not found; flash overlays skipped: " + str(flash_path))
+    if flash_items:
+        tracks.append({"type":"video","name":"Shock Flash Hits","items":flash_items})
     if caption_items:
-        tracks.append({"type":"text","name":caption_track_name,"items":caption_items})
+        tracks.append({"type":"text","name":caption_track_name,"items":caption_items}
+        )
 
     # Optional continuous music/ambience is kept on its own audio track below narration.
     music_config = config.get("background_music", {})
