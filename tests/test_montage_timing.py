@@ -1,3 +1,4 @@
+import csv
 import importlib.util
 import tempfile
 import unittest
@@ -44,6 +45,23 @@ class MontageTimingTests(unittest.TestCase):
     def test_scene_indices_cover_range_or_loop_when_needed(self):
         self.assertEqual(BUILDER.choose_scene_indices(10, 4), [0, 3, 6, 9])
         self.assertEqual(BUILDER.choose_scene_indices(2, 5), [0, 1, 0, 1, 0])
+
+    def test_scene_csv_includes_scene_ref_column(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "scene_timing.csv"
+            scenes = [{
+                "start": 0.0,
+                "end": 2.0,
+                "duration": 2.0,
+                "image": "scene.jpeg",
+                "caption_context": "",
+                "scene_ref": "scene_001",
+            }]
+            BUILDER.write_scene_csv(path, scenes, [])
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+        self.assertEqual(rows[0]["scene_ref"], "scene_001")
+        self.assertEqual(rows[0]["presenter_ref"], "")
 
 
 if __name__ == "__main__":
