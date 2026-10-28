@@ -977,6 +977,28 @@ def generate_hf_image(
     return target
 
 
+def choose_candidate(project: str, candidate_id: str) -> None:
+    """Mark one visual as primary for a story beat without deselecting audio cues."""
+    paths = project_paths(project)
+    rows = read_csv(paths["manifest"])
+    target = next((row for row in rows if row.get("id", "").upper() == candidate_id.upper()), None)
+    if target is None:
+        raise KeyError("Candidate ID not found: " + candidate_id)
+    kind = target.get("kind", "")
+    segment_id = target.get("segment_id", "").strip()
+    if kind in {"image", "video"} and segment_id:
+        for row in rows:
+            if row.get("kind") in {"image", "video"} and row.get("segment_id", "").strip() == segment_id:
+                row["selected"] = "yes" if row.get("id") == target.get("id") else "no"
+    else:
+        target["selected"] = "yes"
+    write_csv(paths["manifest"], rows)
+    write_gallery(paths)
+    log("Selected " + candidate_id + " as the primary asset.")
+    if kind in {"image", "video"} and segment_id:
+        log("Other image/video candidates for " + segment_id + " were deselected; audio choices are unchanged.")
+
+
 def set_project_preset(project: str, preset_name: str) -> Path:
     """Select one reusable motion profile for this local video project."""
     paths = project_paths(project)
@@ -1304,6 +1326,10 @@ def command_parser() -> argparse.ArgumentParser:
     gen.add_argument("--model", default=None, help="Model ID; defaults to HF_IMAGE_MODEL in .env, then black-forest-labs/FLUX.1-dev.")
     gen.add_argument("--confirm-possible-cost", action="store_true", help="Explicitly acknowledge that provider inference may cost credits.")
 
+    choose = sub.add_parser("choose", help="Choose the primary image or video for a story beat.")
+    choose.add_argument("--project", required=True)
+    choose.add_argument("--id", required=True, help="Candidate ID from media_candidates.csv/gallery.")
+
     set_preset = sub.add_parser("set-preset", help="Choose the motion style for one video project.")
     set_preset.add_argument("--project", required=True)
     set_preset.add_argument("--preset", required=True, help="whiteboard_smooth, horror_comedy, documentary_cinematic, or energetic_explainer")
@@ -1347,6 +1373,8 @@ def main(argv: list[str] | None = None) -> int:
         download_icons(args.project, names)
     elif args.command == "generate-image":
         generate_hf_image(args.project, args.scene_id, args.prompt, args.model, args.confirm_possible_cost)
+    elif args.command == "choose":
+        choose_candidate(args.project, args.id)
     elif args.command == "set-preset":
         set_project_preset(args.project, args.preset)
     elif args.command == "apply":
