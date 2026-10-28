@@ -1035,7 +1035,40 @@ def prepare(project_override: str | None = None) -> int:
             "duration": round(length, 3), "volume": gain,
             "volume_db": round(20 * math.log10(gain), 1),
         })
+    # Brief whooshes support the host-avatar reset entrances (not every cut gets a noisy effect).
+    presenter_cadence = 35
+    for presenter_start in range(presenter_cadence, max(1, int(duration)), presenter_cadence):
+        if any(abs(float(event["start"]) - presenter_start) <= 0.14 for event in sfx_events):
+            continue
+        kind = "whoosh"
+        path = sound_paths[kind]
+        length = min(ffprobe_duration(path), max(0.08, duration - presenter_start))
+        gain = 0.105
+        sfx_events.append({
+            "label": "Presenter reset entrance", "file": kind, "path": str(path),
+            "start": round(float(presenter_start), 3), "duration": round(length, 3), "volume": gain,
+            "volume_db": round(20 * math.log10(gain), 1),
+        })
+
+    # Ensure the same sample is not used twice in succession. Keep the event time and swap
+    # to a related alternate transient instead of moving a sound away from its spoken trigger.
     sfx_events.sort(key=lambda item: item["start"])
+    alternates = {
+        "whoosh": "scratch", "scratch": "whoosh",
+        "pop": "soft_click", "soft_click": "pop",
+        "low_hit": "concrete_thud", "concrete_thud": "low_hit",
+        "bass_drop": "low_hit", "heartbeat": "soft_click",
+        "air_gasp": "whoosh", "rope_snap": "scratch",
+    }
+    for index in range(1, len(sfx_events)):
+        previous, current = sfx_events[index - 1], sfx_events[index]
+        if current["file"] == previous["file"]:
+            alternate = alternates.get(str(current["file"]), "soft_click")
+            current["file"] = alternate
+            current["path"] = str(sound_paths[alternate])
+            current["duration"] = round(min(
+                ffprobe_duration(sound_paths[alternate]), max(0.08, duration - float(current["start"]))
+            ), 3)
     settings["sound_effects"] = [
         {"path": item["path"], "start": item["start"], "duration": item["duration"], "volume": item["volume"]}
         for item in sfx_events
@@ -1062,6 +1095,8 @@ def prepare(project_override: str | None = None) -> int:
         match = find_phrase(tokens, phrase)
         if match and 0 <= float(match[0]) < duration:
             horror_times.append(round(float(match[0]), 3))
+    death_match = find_phrase(tokens, "DECLARED DEAD")
+    flash_times = [round(float(death_match[0]), 3)] if death_match and float(death_match[0]) < duration else []
     config = {
         "project_name": "Nutty Putty Cave — Horror Story",
         "drafts_dir": "",
@@ -1086,7 +1121,7 @@ def prepare(project_override: str | None = None) -> int:
     config["settings"]["icon_overlays"] = overlays
     config["settings"]["callout_overlays"] = fact_overlays
     config["settings"]["flash_overlay_path"] = str(flash_path.resolve())
-    config["settings"]["flash_times"] = [round(time, 3) for time in horror_times]
+    config["settings"]["flash_times"] = flash_times
     config["settings"]["horror_overlay_path"] = str(horror_path)
     config["settings"]["horror_overlay_times"] = horror_times
     (PROJECT / "project.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -1157,6 +1192,8 @@ def prepare(project_override: str | None = None) -> int:
     timeline["arabic_subtitle_file"] = str((PROJECT / "build" / "captions_ar.srt").resolve())
     timeline["icon_overlays"] = overlays
     timeline["callout_overlays"] = fact_overlays
+    timeline["critical_horror_tint_times_s"] = horror_times
+    timeline["white_flash_times_s"] = flash_times
     timeline["source_image_count"] = len(source_images)
     (PROJECT / "build" / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     with (PROJECT / "build" / "SFX_Cue_Sheet.csv").open("w", encoding="utf-8-sig", newline="") as handle:
@@ -1262,6 +1299,9 @@ def finalize(build_exit_code: int, project_override: str | None = None) -> int:
         "- Timed English caption cues: " + str(timeline.get("caption_count", "not recorded")),
         "- Arabic subtitle cues (separate SRT): " + str(timeline.get("arabic_subtitle_count", "not recorded")),
         "- Chapter titles: " + str(len(config.get("chapter_titles", []))),
+        "- Story fact callouts: " + str(len(config.get("settings", {}).get("callout_overlays", []))),
+        "- Critical horror tint moments: " + str(len(config.get("settings", {}).get("horror_overlay_times", []))),
+        "- White flash hits (kept rare): " + str(len(config.get("settings", {}).get("flash_times", []))),
         "- Local sound effects on timeline: " + str(len(config.get("settings", {}).get("sound_effects", []))),
         "- Chapter icons on timeline: " + str(len(config.get("settings", {}).get("icon_overlays", []))),
         "- Music bed: original synthesized low suspense bed with brief pre-shock dips.",
