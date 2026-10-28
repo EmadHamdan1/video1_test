@@ -581,7 +581,8 @@ def make_spec(
             # Brief host returns, rather than an avatar covering the story art continuously.
             cadence = max(30.0, float(settings.get("presenter_pose_seconds", 35.0)))
             hold = min(3.0, max(1.0, float(settings.get("presenter_reset_duration", 2.2))))
-            starts = [float(value) for value in range(0, max(1, int(duration)), int(cadence))]
+            # Let the opening establish the subject first; presenter resets begin after one cadence.
+            starts = [float(value) for value in range(int(cadence), max(1, int(duration)), int(cadence))]
             pose_plan = [
                 (start, min(duration, start + hold), index % len(presenters))
                 for index, start in enumerate(starts) if start < duration
