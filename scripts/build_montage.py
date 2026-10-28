@@ -551,6 +551,56 @@ def make_spec(
                 operations.append({"op":"transition","target":ref,"slug":"dissolve","duration":0.28})
                 operations.append({"op":"transition","target":plate_ref,"slug":"dissolve","duration":0.28})
 
+    icon_items: list[dict[str, Any]] = []
+    for index, overlay in enumerate(settings.get("icon_overlays", []), start=1):
+        raw_icon_path = str(overlay.get("path", "")).strip()
+        icon_path = Path(os.path.expandvars(raw_icon_path)).expanduser()
+        if not icon_path.is_absolute():
+            icon_path = CONFIG_PATH.parent / icon_path
+        if not icon_path.is_file():
+            log("Configured icon overlay is missing; skipped: " + raw_icon_path)
+            continue
+        scene_id = str(overlay.get("scene_id", "")).strip()
+        scene = next((row for row in scene_rows if row.get("scene_ref") == scene_id), None)
+        if scene is None:
+            log("Icon overlay references an unknown scene; skipped: " + scene_id)
+            continue
+        try:
+            offset = max(0.0, float(overlay.get("offset", 0.35)))
+            requested_duration = max(0.25, float(overlay.get("duration", 1.4)))
+            icon_start = float(scene["start"]) + offset
+            icon_end = min(float(scene["end"]), icon_start + requested_duration)
+            icon_scale = float(overlay.get("scale", 0.16))
+            icon_x = float(overlay.get("x", -0.56))
+            icon_y = float(overlay.get("y", -0.42))
+            if icon_start >= float(scene["end"]) or icon_end - icon_start < 0.25:
+                log("Icon offset leaves too little room in " + scene_id + "; skipped.")
+                continue
+            if not (0.03 <= icon_scale <= 1.0 and -1.0 <= icon_x <= 1.0 and -1.0 <= icon_y <= 1.0):
+                log("Invalid icon transform for " + scene_id + "; skipped.")
+                continue
+            ref = "icon_%03d" % index
+            segment_duration = round(icon_end - icon_start, 3)
+            icon_items.append({
+                "type": "photo",
+                "path": str(icon_path.resolve()),
+                "start": round(icon_start, 3),
+                "duration": segment_duration,
+                "ref": ref,
+                "scale": icon_scale * 0.88,
+                "x": icon_x,
+                "y": icon_y + 0.035,
+            })
+            enter_duration = min(0.18, segment_duration * 0.35)
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":icon_scale * 0.88},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(enter_duration,3),"value":icon_scale,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":icon_y + 0.035},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(enter_duration,3),"value":icon_y,"easing":"ease-out"},
+            ])
+        except (TypeError, ValueError):
+            log("Invalid icon overlay settings; skipped: " + repr(overlay))
+
     audio_items = [{
         "path":str(audio),"start":0.0,"duration":round(duration,3),
         "volume":float(settings.get("voice_volume",0.96)),"ref":"voiceover"
@@ -670,6 +720,8 @@ def make_spec(
         {"type":"video","name":"Whiteboard Scene Frames","items":frame_items},
         {"type":"video","name":"Scene Artwork","items":scene_items},
     ]
+    if icon_items:
+        tracks.append({"type":"video","name":"Icon Overlays","items":icon_items})
     if plate_items:
         tracks.append({"type":"video","name":"Presenter Accent","items":plate_items})
     if presenter_items:
@@ -970,6 +1022,7 @@ def main(argv: list[str] | None = None) -> int:
         "presenter_images_missing": missing_presenters,
         "scene_segments": len(scenes),
         "presenter_segments": len(presenter_rows),
+        "icon_overlay_segments": sum(len(track.get("items", [])) for track in spec["tracks"] if track.get("name") == "Icon Overlays"),
         "registered_in_capcut": registered,
         "visual_assets_dir": str(Path(spec["tracks"][0]["items"][0]["path"]).parent),
         "caption_cues": sum(len(track["items"]) for track in spec["tracks"] if track.get("type") == "text"),
