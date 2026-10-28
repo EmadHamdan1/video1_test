@@ -18,3 +18,11 @@ __pycache__/
 *.ass
 .env
 config.local.json
+
+# Local per-video projects and downloaded third-party assets stay on this PC
+projects/*
+!projects/.gitkeep
+motion-lab/node_modules/
+motion-lab/out/
+motion-lab/.remotion/
+*.svg
