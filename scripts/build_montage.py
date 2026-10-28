@@ -116,6 +116,17 @@ def find_whisper_command() -> str | None:
 
 
 def transcribe_if_available(audio: Path, settings: dict[str, Any]) -> tuple[list[dict[str, Any]], Path | None]:
+    # A project-specific precomputed SRT (for example, generated from word-level alignment)
+    # takes precedence over Whisper CLI. This keeps the core builder compatible with lighter
+    # transcription pipelines and avoids replacing a verified transcript.
+    captions_path = BUILD_DIR / "captions.srt"
+    if settings.get("use_precomputed_captions", False) and captions_path.is_file():
+        cues = read_srt(captions_path)
+        if cues:
+            log("Using " + str(len(cues)) + " precomputed caption cues from " + str(captions_path))
+            return cues, captions_path
+        log("Precomputed captions file was empty or unreadable; trying Whisper if available.")
+
     if not settings.get("transcribe_if_whisper_available", True):
         log("Whisper transcription is disabled in config.json.")
         return [], None
@@ -431,6 +442,8 @@ def make_spec(
     settings = config.get("settings", {})
     motion = load_motion_preset(settings)
     canvas = config.get("canvas", {})
+    layout_mode = str(settings.get("layout_mode", "whiteboard_card")).strip().lower()
+    full_frame = layout_mode in {"full_frame", "full-frame", "fullframe"}
     width, height = int(canvas.get("width", 1920)), int(canvas.get("height", 1080))
     target = max(1.0, float(settings.get("target_shot_seconds", motion.get("target_shot_seconds", 3.8))))
     minimum = max(0.75, float(settings.get("minimum_shot_seconds", motion.get("minimum_shot_seconds", 1.8))))
@@ -467,8 +480,10 @@ def make_spec(
         scene_items.append({
             "type":media_type, "path":str(image_path), "start":round(shot_start,3),
             "duration":round(shot_duration,3), "ref":ref,
-            "scale":float(settings.get("scene_image_scale",0.50)),
-            "x":scene_x, "y":scene_y, "rotation":0
+            "scale":float(settings.get("scene_image_scale", 1.0 if full_frame else 0.50)),
+            "x":0.0 if full_frame else scene_x,
+            "y":0.0 if full_frame else scene_y,
+            "rotation":0
         })
         frame_items.append({
             "type":"photo", "path":assets["scene_cards"][index],
@@ -478,15 +493,24 @@ def make_spec(
         midpoint = (shot_start+shot_end)/2
         context = next((str(cue["text"]) for cue in captions
                         if float(cue["start"]) <= midpoint <= float(cue["end"])), "")
+        beat = next((item for item in config.get("story_beats", [])
+                     if float(item.get("start_s", 0.0)) <= midpoint <= float(item.get("end_s", duration))),
+                    {})
+        if not context:
+            context = str(beat.get("text", ""))
         scene_rows.append({
             "start":shot_start, "end":shot_end, "duration":shot_duration,
             "image":str(image_path), "caption_context":context, "scene_ref":ref,
-            "frame_ref":frame_ref, "layout":"whiteboard-card-left / presenter-right"
+            "frame_ref":frame_ref,
+            "layout":"full-frame-illustration" if full_frame else "whiteboard-card-left / presenter-right",
+            "emotion":str(beat.get("emotion", "tense" if full_frame else "calm")),
+            "shock_level":int(beat.get("shock_level", 0) or 0),
+            "trigger_word":str(beat.get("trigger_word", "")),
         })
 
     operations: list[dict[str, Any]] = []
-    start_scale = float(settings.get("scene_zoom_start", motion.get("scene_zoom_start", 0.485)))
-    end_scale = float(settings.get("scene_zoom_end", motion.get("scene_zoom_end", 0.505)))
+    start_scale = float(settings.get("scene_zoom_start", 1.0 if full_frame else motion.get("scene_zoom_start", 0.485)))
+    end_scale = float(settings.get("scene_zoom_end", 1.06 if full_frame else motion.get("scene_zoom_end", 0.505)))
     pan_amount = float(settings.get("scene_pan_amount", motion.get("scene_pan_amount", 0.012)))
     for index, shot in enumerate(scene_rows):
         ref, frame_ref = str(shot["scene_ref"]), str(shot["frame_ref"])
@@ -505,10 +529,23 @@ def make_spec(
             {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":y_a},
             {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":y_b,"easing":"ease-in-out"},
         ])
+        if int(shot.get("shock_level", 0) or 0) >= 3:
+            # Restrained camera jolt only for the rare level-3 event beats.
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"rotation","time":0.0,"value":0.0},
+                {"op":"keyframe","target":ref,"property":"rotation","time":0.06,"value":1.0},
+                {"op":"keyframe","target":ref,"property":"rotation","time":0.12,"value":-1.15},
+                {"op":"keyframe","target":ref,"property":"rotation","time":0.19,"value":0.65},
+                {"op":"keyframe","target":ref,"property":"rotation","time":0.27,"value":-0.25},
+                {"op":"keyframe","target":ref,"property":"rotation","time":0.36,"value":0.0},
+            ])
         if index < len(scene_rows)-1:
             slug, cut_duration = transition_for_scene(index, motion)
-            operations.append({"op":"transition","target":ref,"slug":slug,"duration":cut_duration})
-            operations.append({"op":"transition","target":frame_ref,"slug":slug,"duration":cut_duration})
+            # "cut" is deliberately represented by the absence of a transition operation.
+            if slug.strip().lower() not in {"", "cut", "hard-cut", "none"} and cut_duration > 0:
+                operations.append({"op":"transition","target":ref,"slug":slug,"duration":cut_duration})
+                if not full_frame:
+                    operations.append({"op":"transition","target":frame_ref,"slug":slug,"duration":cut_duration})
 
     presenter_items: list[dict[str, Any]] = []
     plate_items: list[dict[str, Any]] = []
@@ -674,18 +711,35 @@ def make_spec(
     elif text_preset_name == "side_callout":
         default_x, default_y = -0.36, float(settings.get("caption_y", 0.22))
     font_size = int(settings.get("caption_font_size", font_sizes.get(text_preset_name, 18)))
-    text_color = str(settings.get("caption_color", "#24313B"))
+    text_color = str(settings.get("caption_color", "#FFFFFF"))
+    danger_words = {str(word).lower() for word in settings.get("caption_danger_words", [
+        "stuck", "corkscrew", "uncharted", "head first", "gravity", "trapped",
+        "hallucinating", "oxygen", "screamed", "snapped", "no pulse", "deeper",
+        "dead", "sealed", "concrete", "upside down"
+    ])}
+    action_words = {str(word).lower() for word in settings.get("caption_action_words", [
+        "six feet", "two hundred", "eighteen inches", "fourteen hours",
+        "twelve hours", "twenty-seven hours", "4 a.m.", "11:56 p.m.", "24 hours"
+    ])}
     for index, cue in enumerate(caption_sources, start=1):
         clip_duration = round(float(cue["end"]) - float(cue["start"]), 3)
         if clip_duration < 0.25:
             continue
+        cue_text = str(cue["text"])
+        normalized_text = re.sub(r"[^a-z0-9:'. ]+", " ", cue_text.lower())
+        if any(phrase in normalized_text for phrase in danger_words):
+            cue_color = str(settings.get("caption_danger_color", "#FF3030"))
+        elif any(phrase in normalized_text for phrase in action_words):
+            cue_color = str(settings.get("caption_action_color", "#FFD447"))
+        else:
+            cue_color = text_color
         ref = "caption_%04d" % index
         text_item = {
-            "text": str(cue["text"]),
+            "text": cue_text,
             "start": round(float(cue["start"]), 3),
             "duration": clip_duration,
             "fontSize": font_size,
-            "color": text_color,
+            "color": cue_color,
             "x": float(settings.get("caption_x", default_x)),
             "y": default_y + 0.025,
             "ref": ref,
@@ -696,10 +750,13 @@ def make_spec(
             "target": ref,
             "style": {
                 "shadow": True,
-                "shadowAlpha": 0.22,
-                "shadowColor": "#FFFFFF",
+                "shadowAlpha": 0.42,
+                "shadowColor": "#000000",
                 "shadowDistance": 2,
-                "shadowSmoothing": 3,
+                "shadowSmoothing": 2,
+                "borderWidth": float(settings.get("caption_outline_width", 4.0)),
+                "borderColor": str(settings.get("caption_outline_color", "#000000")),
+                "borderAlpha": float(settings.get("caption_outline_alpha", 1.0)),
             },
         })
         entrance_time = min(0.16, clip_duration * 0.24)
@@ -715,19 +772,84 @@ def make_spec(
         "duration":round(duration,3),"ref":"whiteboard_background",
         "scale":1.0,"x":0.0,"y":0.0
     }
-    tracks: list[dict[str,Any]] = [
-        {"type":"video","name":"Whiteboard Background","items":[bg_item]},
-        {"type":"video","name":"Whiteboard Scene Frames","items":frame_items},
-        {"type":"video","name":"Scene Artwork","items":scene_items},
-    ]
+    tracks: list[dict[str,Any]] = []
+    if not full_frame:
+        tracks.extend([
+            {"type":"video","name":"Whiteboard Background","items":[bg_item]},
+            {"type":"video","name":"Whiteboard Scene Frames","items":frame_items},
+        ])
+    tracks.append({"type":"video","name":"Scene Artwork","items":scene_items})
     if icon_items:
         tracks.append({"type":"video","name":"Icon Overlays","items":icon_items})
-    if plate_items:
+    if plate_items and settings.get("presenter_backplate", True):
         tracks.append({"type":"video","name":"Presenter Accent","items":plate_items})
     if presenter_items:
         tracks.append({"type":"video","name":"Presenter Explainer","items":presenter_items})
     if caption_items:
         tracks.append({"type":"text","name":caption_track_name,"items":caption_items})
+
+    # Optional continuous music/ambience is kept on its own audio track below narration.
+    music_config = config.get("background_music", {})
+    if isinstance(music_config, str):
+        music_config = {"path": music_config}
+    music_path_raw = str(music_config.get("path", "")).strip() if isinstance(music_config, dict) else ""
+    music_items: list[dict[str, Any]] = []
+    if music_path_raw:
+        music_path = Path(os.path.expandvars(music_path_raw)).expanduser()
+        if not music_path.is_absolute():
+            music_path = CONFIG_PATH.parent / music_path
+        if music_path.is_file():
+            music_start = max(0.0, float(music_config.get("start", 0.0)))
+            music_length = float(music_config.get("duration", duration))
+            music_end = min(duration, music_start + max(0.0, music_length))
+            if music_end > music_start:
+                music_items.append({
+                    "path": str(music_path.resolve()), "start": round(music_start, 3),
+                    "duration": round(music_end - music_start, 3),
+                    "volume": max(0.0, min(1.0, float(music_config.get("volume", 0.22)))),
+                    "ref": "background_suspense_bed",
+                })
+        else:
+            log("Configured background music was not found; skipped: " + str(music_path))
+    if music_items:
+        tracks.append({"type":"audio","name":"Suspense Music / Ambience","items":music_items})
+
+    # Chapter titles use a dedicated text track at the top safe area.
+    chapter_items: list[dict[str, Any]] = []
+    for index, chapter in enumerate(config.get("chapter_titles", []), start=1):
+        try:
+            chapter_start = max(0.0, float(chapter.get("start_s", 0.0)))
+            chapter_length = min(4.5, max(0.7, float(chapter.get("duration_s", 1.8))))
+            chapter_end = min(duration, chapter_start + chapter_length)
+            title = str(chapter.get("title", "")).strip()
+            if not title or chapter_end <= chapter_start:
+                continue
+            ref = "chapter_title_%02d" % index
+            chapter_items.append({
+                "text": title, "start": round(chapter_start, 3),
+                "duration": round(chapter_end - chapter_start, 3),
+                "fontSize": int(chapter.get("font_size", 32)),
+                "color": str(chapter.get("color", "#FFFFFF")),
+                "x": float(chapter.get("x", 0.0)),
+                "y": float(chapter.get("y", -0.78)),
+                "ref": ref,
+            })
+            operations.append({
+                "op":"text-style","target":ref,"style":{
+                    "shadow":True,"shadowAlpha":0.55,"shadowColor":"#000000",
+                    "shadowDistance":3,"shadowSmoothing":2,
+                    "borderWidth":3.0,"borderColor":"#000000","borderAlpha":1.0,
+                }
+            })
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":float(chapter.get("y",-0.78))+0.03},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.16,"value":float(chapter.get("y",-0.78)),"easing":"ease-out"},
+            ])
+        except (TypeError, ValueError):
+            log("Invalid chapter title record skipped: " + repr(chapter))
+    if chapter_items:
+        tracks.append({"type":"text","name":"Chapter Titles","items":chapter_items})
+
     tracks.append({"type":"audio","name":"Narration","items":audio_items})
     if sfx_items:
         tracks.append({"type":"audio","name":"Local Sound Effects","items":sfx_items})
