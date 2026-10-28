@@ -528,7 +528,7 @@ def write_scene_csv(path: Path, scenes: list[dict[str, Any]], presenters: list[d
     with path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["start", "end", "duration", "image", "caption_context", "scene_ref", "layout", "presenter_ref"],
+            fieldnames=["start", "end", "duration", "image", "caption_context", "scene_ref", "frame_ref", "layout", "presenter_ref"],
         )
         writer.writeheader()
         for scene in scenes:
@@ -704,17 +704,6 @@ def main() -> int:
             else:
                 entry["matting"] = "disabled in config"
 
-            animation = subprocess.run(
-                [
-                    capcut, "image-anim", str(draft_path), str(segment_id),
-                    "--intro", "fade-in", "--outro", "fade-out",
-                ],
-                text=True, capture_output=True, env=env, check=False,
-            )
-            entry["fade_animation"] = "applied" if animation.returncode == 0 else "not applied"
-            if animation.returncode != 0:
-                entry["animation_detail"] = (animation.stderr or animation.stdout or "").strip()[-500:]
-                log("Presenter fade animation was not applied to " + str(presenter["ref"]) + ".")
             matting_results.append(entry)
 
 
