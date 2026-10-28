@@ -1059,7 +1059,7 @@ def place_icon(
         "scale": round(scale, 3),
         "color": color,
     })
-    paths["config"].write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    paths["config"].write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     candidate["selected"] = "yes"
     candidate["segment_id"] = scene_id
     candidate["notes"] = (
