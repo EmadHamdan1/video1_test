@@ -554,8 +554,11 @@ def make_spec(
             {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":y_b,"easing":"ease-in-out"},
         ])
         if int(shot.get("shock_level", 0) or 0) >= 3:
-            # Restrained camera jolt only for the rare level-3 event beats.
+            # Snap zoom (0.06 s in, settle by 0.18 s) and a short, decaying jolt only on level-3 beats.
+            snap_peak = min(1.25, max(scale_a * 1.12, scale_a + 0.06))
             operations.extend([
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.06,"value":snap_peak,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.18,"value":scale_a,"easing":"ease-out"},
                 {"op":"keyframe","target":ref,"property":"rotation","time":0.0,"value":0.0},
                 {"op":"keyframe","target":ref,"property":"rotation","time":0.06,"value":1.0},
                 {"op":"keyframe","target":ref,"property":"rotation","time":0.12,"value":-1.15},
