@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import math
@@ -22,8 +23,9 @@ def log(message: str) -> None:
     print("[montage] " + message, flush=True)
 
 
-def load_config() -> dict[str, Any]:
-    with CONFIG_PATH.open("r", encoding="utf-8-sig") as handle:
+def load_config(path: Path | None = None) -> dict[str, Any]:
+    config_path = path or CONFIG_PATH
+    with config_path.open("r", encoding="utf-8-sig") as handle:
         return json.load(handle)
 
 
@@ -351,14 +353,33 @@ def create_whiteboard_assets(
     return {"background": str(board_path.resolve()), "scene_cards": cards, "presenter_backplates": plates}
 
 
-def transition_for_scene(index: int) -> tuple[str, float]:
-    """Use restrained dissolves for continuity, with rare blur accents between beats."""
+def load_motion_preset(settings: dict[str, Any]) -> dict[str, Any]:
+    """Load a named motion profile from presets/motion_presets.json."""
+    presets_path = ROOT / "presets" / "motion_presets.json"
+    try:
+        data = json.loads(presets_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    presets = data.get("presets", {}) if isinstance(data, dict) else {}
+    name = str(settings.get("motion_preset", "whiteboard_smooth"))
+    preset = presets.get(name)
+    if not isinstance(preset, dict):
+        log("Unknown motion preset '" + name + "'; using whiteboard_smooth.")
+        preset = presets.get("whiteboard_smooth", {})
+    return dict(preset)
+
+
+def transition_for_scene(index: int, motion: dict[str, Any] | None = None) -> tuple[str, float]:
+    """Apply a preset's calm default transition and sparse, purposeful accent transitions."""
+    motion = motion or {}
+    rules = motion.get("transitions", {})
+    default = rules.get("default", {"slug": "dissolve", "duration": 0.24})
     number = index + 1
-    if number % 11 == 0:
-        return "radial-blur", 0.28
-    if number % 7 == 0:
-        return "horizontal-blur", 0.26
-    return "dissolve", 0.24
+    for rule in rules.get("accents", []):
+        every = int(rule.get("every", 0) or 0)
+        if every > 0 and number % every == 0:
+            return str(rule.get("slug", default.get("slug", "dissolve"))), float(rule.get("duration", default.get("duration", 0.24))
+    return str(default.get("slug", "dissolve")), float(default.get("duration", 0.24))
 
 
 
@@ -367,10 +388,11 @@ def make_spec(
     duration: float, captions: list[dict[str, Any]], captions_path: Path | None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     settings = config.get("settings", {})
+    motion = load_motion_preset(settings)
     canvas = config.get("canvas", {})
     width, height = int(canvas.get("width", 1920)), int(canvas.get("height", 1080))
-    target = max(1.0, float(settings.get("target_shot_seconds", 3.9)))
-    minimum = max(0.75, float(settings.get("minimum_shot_seconds", 1.6)))
+    target = max(1.0, float(settings.get("target_shot_seconds", motion.get("target_shot_seconds", 3.8))))
+    minimum = max(0.75, float(settings.get("minimum_shot_seconds", motion.get("minimum_shot_seconds", 1.8))))
     shot_count = max(1, max(len(images), int(round(duration / target))))
     feasible = max(1, int(duration / minimum))
     if shot_count > feasible:
@@ -421,14 +443,15 @@ def make_spec(
         })
 
     operations: list[dict[str, Any]] = []
-    start_scale = float(settings.get("scene_zoom_start",0.485))
-    end_scale = float(settings.get("scene_zoom_end",0.505))
+    start_scale = float(settings.get("scene_zoom_start", motion.get("scene_zoom_start", 0.485)))
+    end_scale = float(settings.get("scene_zoom_end", motion.get("scene_zoom_end", 0.505)))
+    pan_amount = float(settings.get("scene_pan_amount", motion.get("scene_pan_amount", 0.012)))
     for index, shot in enumerate(scene_rows):
         ref, frame_ref = str(shot["scene_ref"]), str(shot["frame_ref"])
         seconds = round(float(shot["duration"]),3)
         zoom_in = index%2 == 0
         scale_a, scale_b = (start_scale,end_scale) if zoom_in else (end_scale,start_scale)
-        drift = 0.012 if index%2 == 0 else -0.012
+        drift = pan_amount if index%2 == 0 else -pan_amount
         x_a, x_b = scene_x-drift, scene_x+drift
         y_a, y_b = scene_y+0.008, scene_y-0.008
         # First point is linear; the next point supplies easing without spurious warnings.
@@ -441,7 +464,7 @@ def make_spec(
             {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":y_b,"easing":"ease-in-out"},
         ])
         if index < len(scene_rows)-1:
-            slug, cut_duration = transition_for_scene(index)
+            slug, cut_duration = transition_for_scene(index, motion)
             operations.append({"op":"transition","target":ref,"slug":slug,"duration":cut_duration})
             operations.append({"op":"transition","target":frame_ref,"slug":slug,"duration":cut_duration})
 
@@ -449,7 +472,7 @@ def make_spec(
     plate_items: list[dict[str, Any]] = []
     presenter_rows: list[dict[str, Any]] = []
     if presenters and settings.get("presenter_overlay",True) and duration >= 4.0:
-        pose_target = max(4.5,float(settings.get("presenter_pose_seconds",9.5)))
+        pose_target = max(4.5,float(settings.get("presenter_pose_seconds",motion.get("presenter_pose_seconds",9.5))))
         count = min(len(presenters),max(1,int(round(duration/pose_target))))
         pose_indices = choose_scene_indices(len(presenters),count)
         pose_boundaries = [round(duration*i/count,3) for i in range(count+1)]
@@ -615,9 +638,16 @@ def write_sfx_cues(path: Path, duration: float, scenes: list[dict[str, Any]], ca
             ])
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    global CONFIG_PATH, BUILD_DIR
+    parser = argparse.ArgumentParser(description="Build an editable local CapCut draft.")
+    parser.add_argument("--config", default=str(ROOT / "config.json"), help="Project JSON config path.")
+    parser.add_argument("--build-dir", default=None, help="Project-local build output directory.")
+    args = parser.parse_args(argv)
+    CONFIG_PATH = Path(args.config).expanduser().resolve()
+    BUILD_DIR = Path(args.build_dir).expanduser().resolve() if args.build_dir else CONFIG_PATH.parent / "build"
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    config = load_config()
+    config = load_config(CONFIG_PATH)
     settings = config.get("settings", {})
 
     audio_raw = str(config.get("audio", "")).strip()
