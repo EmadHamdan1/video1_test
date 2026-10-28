@@ -246,6 +246,7 @@ class MontageTimingTests(unittest.TestCase):
                     None,
                 )
                 tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertFalse(any(operation.get("op") == "audio-fade" for operation in spec["operations"]))
                 self.assertIn("Scene Artwork", tracks)
                 self.assertNotIn("Whiteboard Background", tracks)
                 self.assertNotIn("Whiteboard Scene Frames", tracks)
