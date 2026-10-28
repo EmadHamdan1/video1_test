@@ -1331,6 +1331,18 @@ def preflight_project(project: str) -> dict[str, Any]:
     elif config.get("presenter_images") and len(presenter_paths) < len(config.get("presenter_images", [])):
         warnings.append("Some presenter paths are missing; the builder will skip them.")
 
+    configured_icons = config.get("settings", {}).get("icon_overlays", [])
+    icon_paths = []
+    for item in configured_icons:
+        icon_path = Path(os.path.expandvars(str(item.get("path", "")))).expanduser()
+        if not icon_path.is_absolute():
+            icon_path = paths["root"] / icon_path
+        if icon_path.is_file():
+            icon_paths.append(icon_path.resolve())
+    report["asset_counts"]["icon_overlays_available"] = len(icon_paths)
+    if configured_icons and len(icon_paths) < len(configured_icons):
+        warnings.append("Some configured icon overlays are missing and will be skipped by the builder.")
+
     preset_name = str(config.get("settings", {}).get("motion_preset", "whiteboard_smooth"))
     preset_path = ROOT / "presets" / "motion_presets.json"
     try:
