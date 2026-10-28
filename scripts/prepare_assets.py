@@ -805,7 +805,7 @@ def download_icons(project: str, names: list[str]) -> list[Path]:
 
 
 def generate_hf_image(
-    project: str, scene_id: str, prompt: str | None, model: str, confirm_possible_cost: bool,
+    project: str, scene_id: str, prompt: str | None, model: str | None, confirm_possible_cost: bool,
 ) -> Path:
     """Generate one story illustration through Hugging Face Inference Providers."""
     load_env_file()
@@ -815,6 +815,7 @@ def generate_hf_image(
             "only after reviewing your HF account/provider pricing."
         )
     token = os.environ.get("HF_TOKEN", "").strip()
+    model = (model or os.environ.get("HF_IMAGE_MODEL", "black-forest-labs/FLUX.1-dev")).strip()
     if not token:
         raise ValueError("HF_TOKEN is missing. Add a Hugging Face token with Inference Providers permission to the local .env.")
     try:
@@ -1033,7 +1034,7 @@ def command_parser() -> argparse.ArgumentParser:
     gen.add_argument("--project", required=True)
     gen.add_argument("--scene-id", required=True, help="Scene ID from scene_plan.csv.")
     gen.add_argument("--prompt", default=None, help="Optional more detailed prompt; otherwise use the scene sentence.")
-    gen.add_argument("--model", default="black-forest-labs/FLUX.1-dev", help="Model ID; availability and pricing vary by account/provider.")
+    gen.add_argument("--model", default=None, help="Model ID; defaults to HF_IMAGE_MODEL in .env, then black-forest-labs/FLUX.1-dev.")
     gen.add_argument("--confirm-possible-cost", action="store_true", help="Explicitly acknowledge that provider inference may cost credits.")
 
     apply = sub.add_parser("apply", help="Add downloaded images/audio and local voiceover to project.json.")
