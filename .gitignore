@@ -1,0 +1,20 @@
+# Local media and generated drafts must not be committed
+build/
+dist/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.mp3
+*.wav
+*.m4a
+*.mp4
+*.mov
+*.jpeg
+*.jpg
+*.png
+*.webp
+*.srt
+*.ass
+.env
+config.local.json
