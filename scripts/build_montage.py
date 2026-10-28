@@ -422,8 +422,9 @@ def make_spec(
         shot_duration = max(0.25, shot_end-shot_start)
         image_path = images[image_index]
         ref, frame_ref = "scene_%03d" % (index+1), "frame_%03d" % (index+1)
+        media_type = "video" if image_path.suffix.lower() in {".mp4", ".mov", ".webm", ".m4v"} else "photo"
         scene_items.append({
-            "type":"photo", "path":str(image_path), "start":round(shot_start,3),
+            "type":media_type, "path":str(image_path), "start":round(shot_start,3),
             "duration":round(shot_duration,3), "ref":ref,
             "scale":float(settings.get("scene_image_scale",0.50)),
             "x":scene_x, "y":scene_y, "rotation":0
