@@ -593,24 +593,39 @@ def main() -> int:
     draft_path = Path(str(payload.get("draft_path", out_dir))).resolve()
     refs = payload.get("refs", {}) if isinstance(payload.get("refs", {}), dict) else {}
     matting_results: list[dict[str, str]] = []
-    if settings.get("presenter_smart_matte", True) and presenter_rows:
+    if presenter_rows:
         for presenter in presenter_rows:
             segment_id = refs.get(str(presenter["ref"]))
             if not segment_id:
                 matting_results.append({"ref": str(presenter["ref"]), "status": "missing segment id"})
                 continue
-            matte = subprocess.run(
-                [capcut, "matting", str(draft_path), str(segment_id)],
+
+            entry: dict[str, str] = {"ref": str(presenter["ref"])}
+            if settings.get("presenter_smart_matte", True):
+                matte = subprocess.run(
+                    [capcut, "matting", str(draft_path), str(segment_id)],
+                    text=True, capture_output=True, env=env, check=False,
+                )
+                okay = matte.returncode == 0
+                entry["matting"] = "applied" if okay else "not applied"
+                if not okay:
+                    entry["matting_detail"] = (matte.stderr or matte.stdout or "").strip()[-500:]
+                    log("Smart matting did not apply to " + str(presenter["ref"]) + "; check this pose in CapCut.")
+            else:
+                entry["matting"] = "disabled in config"
+
+            animation = subprocess.run(
+                [
+                    capcut, "image-anim", str(draft_path), str(segment_id),
+                    "--intro", "fade-in", "--outro", "fade-out",
+                ],
                 text=True, capture_output=True, env=env, check=False,
             )
-            okay = matte.returncode == 0
-            matting_results.append({
-                "ref": str(presenter["ref"]),
-                "status": "applied" if okay else "not applied",
-                "detail": (matte.stderr or matte.stdout or "").strip()[-500:],
-            })
-            if not okay:
-                log("Smart matting did not apply to " + str(presenter["ref"]) + "; check this pose in CapCut.")
+            entry["fade_animation"] = "applied" if animation.returncode == 0 else "not applied"
+            if animation.returncode != 0:
+                entry["animation_detail"] = (animation.stderr or animation.stdout or "").strip()[-500:]
+                log("Presenter fade animation was not applied to " + str(presenter["ref"]) + ".")
+            matting_results.append(entry)
 
     report = {
         "ok": True,
