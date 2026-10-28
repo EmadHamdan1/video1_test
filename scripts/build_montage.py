@@ -383,7 +383,7 @@ def load_motion_preset(settings: dict[str, Any]) -> dict[str, Any]:
 
 
 def transition_for_scene(index: int, motion: dict[str, Any] | None = None) -> tuple[str, float]:
-    """Apply a preset's calm default transition and sparse, purposeful accent transitions."""
+    """Return a hard cut or a sparse, purposeful transition from the selected motion profile."""
     motion = motion or {}
     rules = motion.get("transitions", {})
     default = rules.get("default", {"slug": "dissolve", "duration": 0.24})
