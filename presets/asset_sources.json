@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "search_providers": [
+    {
+      "id": "openverse",
+      "kind": [
+        "image",
+        "audio"
+      ],
+      "api": "https://api.openverse.org/v1/",
+      "auth": "anonymous or optional OAuth client credentials",
+      "policy": "Read the source record and license URL. Keep attribution and do not bulk scrape."
+    },
+    {
+      "id": "wikimedia-commons",
+      "kind": [
+        "image"
+      ],
+      "api": "https://commons.wikimedia.org/w/api.php",
+      "auth": "no API key for normal queries",
+      "policy": "Inspect each file page; metadata can contain HTML and attribution requirements. Check third-party/publicity rights."
+    },
+    {
+      "id": "pixabay",
+      "kind": [
+        "image",
+        "video"
+      ],
+      "api": "https://pixabay.com/api/",
+      "auth": "PIXABAY_API_KEY in local .env",
+      "policy": "Content License; do not redistribute source content as standalone media. Check trademarks and identifiable people."
+    },
+    {
+      "id": "pexels",
+      "kind": [
+        "image",
+        "video"
+      ],
+      "api": "https://api.pexels.com/v1/",
+      "auth": "PEXELS_API_KEY in local .env if available",
+      "policy": "Current API access may have key-issuance limits. Follow API attribution/linking requirements."
+    },
+    {
+      "id": "freesound",
+      "kind": [
+        "audio"
+      ],
+      "api": "https://freesound.org/apiv2/",
+      "auth": "FREESOUND_API_KEY in local .env",
+      "policy": "Check each recording's license; downloaded API URLs may be preview audio, not the original file."
+    },
+    {
+      "id": "lucide",
+      "kind": [
+        "icon"
+      ],
+      "api": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/",
+      "auth": "none",
+      "policy": "Lucide SVG icons are ISC-licensed; preserve LUCIDE-LICENSE.txt when redistributing source icons."
+    },
+    {
+      "id": "mixkit",
+      "kind": [
+        "audio",
+        "video"
+      ],
+      "api": null,
+      "auth": "manual browser download",
+      "policy": "No direct downloader in this pipeline. Respect the specific item-type license and never redistribute a sound-effect file by itself."
+    }
+  ],
+  "policy": [
+    "Searching never downloads media automatically.",
+    "Only download IDs after a human reviews the result and license.",
+    "Keep media and API keys local; never commit them to Git.",
+    "The manifest records creator/source/license, but does not replace reading the full license.",
+    "If the license is unknown or there is no direct download URL, open the source page and review/download manually."
+  ]
+}
