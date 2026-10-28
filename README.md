@@ -114,7 +114,27 @@ Search more scenes by increasing `--max-scenes` (up to 25). For video clips, use
 .\asset_tool.ps1 icons --project projects\horror-explainer-episode-01 --names search,arrow-right,lightbulb,triangle-alert,circle-check,play
 ```
 
-### 3. Configure optional API sources
+### 3. Choose the motion style
+
+Set a reusable motion preset for each video project before applying the assets/building:
+
+```powershell
+# Calm whiteboard explainer: default
+.asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset whiteboard_smooth
+
+# Faster beats and more energetic motion
+# .asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset energetic_explainer
+
+# Controlled horror/comedy accents
+# .asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset horror_comedy
+
+# Slower documentary pacing
+# .asset_tool.ps1 set-preset --project projectshorror-explainer-episode-01 --preset documentary_cinematic
+```
+
+The profiles live in `presets/motion_presets.json`; typography recipes live in `presets/text_animation_presets.json`. Native CapCut text entrances and smooth position/scale keyframes are added by the builder. The Remotion motion-lab is an optional separate tool for more custom, rendered graphics.
+
+### 4. Configure optional API sources
 
 On first use, `asset_tool.ps1` creates a local `.env` file from `.env.example`. It is ignored by Git. Add API keys only there; **never paste keys into source code or commit `.env`**.
 
@@ -133,7 +153,7 @@ The manifest records a source URL, creator, license text/URL, downloaded path/ti
 
 Do this for each media item before publication. The gallery visibly flags items that still need review.
 
-### 4. Search for sound effects
+### 5. Search for sound effects
 
 ```powershell
 .\asset_tool.ps1 search-plan --project projects\horror-explainer-episode-01 --kind audio --max-scenes 8 --limit-per-scene 2
@@ -142,7 +162,7 @@ Start-Process .\projects\horror-explainer-episode-01\media_gallery.html
 
 Choose the audio IDs and download them the same way as images. Then open `media_candidates.csv` in a spreadsheet editor and set `start_seconds` and `volume` for each chosen audio row (for example, a quiet whoosh at 6.4 seconds with volume 0.10). After setting the times, `apply --include-sfx` places those local files on the project's separate audio-effects track. Keep cues sparse and below the narration.
 
-### 5. Optional AI-generated illustration from Hugging Face
+### 6. Optional AI-generated illustration from Hugging Face
 
 This step is optional and **may consume paid inference credits**; availability and price depend on your HF account and selected provider/model. Check the model card and terms first.
 
@@ -161,7 +181,7 @@ This step is optional and **may consume paid inference credits**; availability a
 
 The script uses that scene's sentence as the prompt, stores the result locally, and records model/source information in the manifest. AI-generated output still needs a human check for accuracy, model terms, safety, and visual style. Hugging Face documents the API here: https://huggingface.co/docs/inference-providers/tasks/text-to-image.
 
-### 6. Apply chosen media and build the editable CapCut project
+### 7. Apply chosen media and build the editable CapCut project
 
 After selecting/downloading scene media, pass the narration audio. The presenter folder is optional:
 
@@ -173,7 +193,7 @@ After selecting/downloading scene media, pass the narration audio. The presenter
 
 Remove `--presenter-dir` if the project has no presenter images, and omit `--include-sfx` if you did not set sound-effect times. The build reads that project's own `project.json`, writes reports/assets into its own `build/` folder, creates a dated editable CapCut draft, and attempts to register it. It does not upload local media to GitHub. For proper semantic alignment, review each scene against the narration; the script cannot infer image meaning from filenames alone.
 
-### 7. Reusable animation lab
+### 8. Reusable animation lab
 
 The `motion-lab/` folder contains editable Remotion source for a whiteboard card, animated word captions, and transition samples. Install and preview it once:
 
@@ -184,7 +204,7 @@ npm run typecheck
 npm run studio
 ```
 
-Render samples with `npm run render:whiteboard`, `npm run render:caption`, or `npm run render:transitions`. Outputs go to `motion-lab/out/` and are ignored by Git. They can be imported into CapCut as rendered clips; React elements do not turn into independent CapCut layers automatically. The main CapCut builder also applies smooth scale/position/opacity keyframes and phrase-level animated text when Whisper timings or project story text are present.
+Render samples with `npm run render:whiteboard`, `npm run render:caption`, or `npm run render:transitions`. Outputs go to `motion-lab/out/` and are ignored by Git. They can be imported into CapCut as rendered clips; React elements do not turn into independent CapCut layers automatically. The main CapCut builder also applies smooth scale/position keyframes and phrase-level text with native entrance animations when Whisper timings or project story text are present. For text, the pipeline deliberately does not rely on alpha-keyframe fades because capcut-cli documents that CapCut may ignore those at render time: https://github.com/renezander030/capcut-cli/blob/master/docs/draft-schema/03-keyframes-and-animations.md.
 
 ## Editing principles and sources
 
