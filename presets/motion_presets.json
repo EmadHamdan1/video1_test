@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "notes": [
+    "Transitions are kept consistent and intentionally sparse. More effects do not automatically make a more professional edit.",
+    "Only transition IDs known to the local capcut-cli profile are used by default. Verify presets in the installed CapCut build.",
+    "Per-project settings can override target_shot_seconds, minimum_shot_seconds, scene_zoom_start/end, scene_pan_amount and presenter_pose_seconds."
+  ],
+  "presets": {
+    "whiteboard_smooth": {
+      "label": "Whiteboard Explainer — Smooth",
+      "description": "Calm paper canvas, readable framed scene cards, persistent presenter, subtle drift.",
+      "target_shot_seconds": 3.8,
+      "minimum_shot_seconds": 1.8,
+      "scene_zoom_start": 0.485,
+      "scene_zoom_end": 0.505,
+      "scene_pan_amount": 0.012,
+      "presenter_pose_seconds": 9.5,
+      "transitions": {
+        "default": {
+          "slug": "dissolve",
+          "duration": 0.24
+        },
+        "accents": [
+          {
+            "every": 7,
+            "slug": "horizontal-blur",
+            "duration": 0.26
+          },
+          {
+            "every": 11,
+            "slug": "radial-blur",
+            "duration": 0.28
+          }
+        ]
+      },
+      "text_preset": "marker_caption",
+      "sfx_density": "low"
+    },
+    "horror_comedy": {
+      "label": "Horror Comedy — Controlled Punch",
+      "description": "Mostly clean cuts and dissolves; occasional motion blur for a reveal; keep sound effects selective.",
+      "target_shot_seconds": 3.2,
+      "minimum_shot_seconds": 1.5,
+      "scene_zoom_start": 0.485,
+      "scene_zoom_end": 0.525,
+      "scene_pan_amount": 0.016,
+      "presenter_pose_seconds": 7.5,
+      "transitions": {
+        "default": {
+          "slug": "dissolve",
+          "duration": 0.2
+        },
+        "accents": [
+          {
+            "every": 5,
+            "slug": "horizontal-blur",
+            "duration": 0.22
+          },
+          {
+            "every": 9,
+            "slug": "radial-blur",
+            "duration": 0.25
+          }
+        ]
+      },
+      "text_preset": "punch_caption",
+      "sfx_density": "medium"
+    },
+    "documentary_cinematic": {
+      "label": "Documentary — Gentle Cinematic",
+      "description": "Longer holds, low amplitude movement, quiet dissolves and rare chapter accents.",
+      "target_shot_seconds": 5,
+      "minimum_shot_seconds": 2.4,
+      "scene_zoom_start": 0.49,
+      "scene_zoom_end": 0.515,
+      "scene_pan_amount": 0.008,
+      "presenter_pose_seconds": 12,
+      "transitions": {
+        "default": {
+          "slug": "dissolve",
+          "duration": 0.32
+        },
+        "accents": [
+          {
+            "every": 9,
+            "slug": "horizontal-blur",
+            "duration": 0.24
+          },
+          {
+            "every": 15,
+            "slug": "radial-blur",
+            "duration": 0.28
+          }
+        ]
+      },
+      "text_preset": "lower_third",
+      "sfx_density": "very_low"
+    },
+    "energetic_explainer": {
+      "label": "Energetic Explainer — Snappy",
+      "description": "Shorter beats, larger but still restrained movement, dynamic section transitions.",
+      "target_shot_seconds": 2.9,
+      "minimum_shot_seconds": 1.35,
+      "scene_zoom_start": 0.48,
+      "scene_zoom_end": 0.525,
+      "scene_pan_amount": 0.018,
+      "presenter_pose_seconds": 7,
+      "transitions": {
+        "default": {
+          "slug": "dissolve",
+          "duration": 0.2
+        },
+        "accents": [
+          {
+            "every": 5,
+            "slug": "horizontal-blur",
+            "duration": 0.23
+          },
+          {
+            "every": 12,
+            "slug": "radial-blur",
+            "duration": 0.26
+          }
+        ]
+      },
+      "text_preset": "kinetic_caption",
+      "sfx_density": "medium"
+    }
+  }
+}
