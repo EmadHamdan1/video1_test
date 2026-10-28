@@ -108,11 +108,24 @@ Open `media_gallery.html` to compare previews, sources, creators, and license de
 .\asset_tool.ps1 download --project projects\horror-explainer-episode-01 --ids C0001,C0004,C0008
 ```
 
-Search more scenes by increasing `--max-scenes` (up to 25). For video clips, use `--kind video`; those clips can be used as scene media just like images. For a hand-drawn explainer, download SVG icons with:
+Search more scenes by increasing `--max-scenes` (up to 25). For video clips, use `--kind video`; those clips can be used as scene media just like images. For a hand-drawn explainer, first install the optional SVG renderer once:
+
+```powershell
+cd .\motion-lab
+npm install
+cd ..
+```
+
+Then download icons and place the ones needed for particular scenes:
 
 ```powershell
 .\asset_tool.ps1 icons --project projects\horror-explainer-episode-01 --names search,arrow-right,lightbulb,triangle-alert,circle-check,play
+Start-Process .\projects\horror-explainer-episode-01\media_gallery.html
+# After reviewing, use the icon candidate ID listed in media_candidates.csv
+.\asset_tool.ps1 place-icon --project projects\horror-explainer-episode-01 --id C0007 --scene-id scene_003 --offset 0.35 --duration 1.4 --x -0.56 --y -0.42 --scale 0.16 --color "#159A90"
 ```
+
+`place-icon` converts the SVG into a transparent PNG, then places it on a separate editable CapCut track with a small scale/position entrance. The icon's offset is relative to the chosen scene. Use the actual `C` ID for the selected icon from the project manifest; `C0007` is only an example.
 
 If you downloaded multiple alternatives for the same story beat, choose the primary candidate explicitly. This marks one image/video as selected and deselects other visual alternatives for that same beat; audio choices are left alone:
 
