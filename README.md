@@ -239,14 +239,14 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\run_nutty_putty.ps1
 ```
 
-The runner checks the local source paths, prepares a normalized voice master with FFmpeg, attempts word-level English timing with faster-whisper, renders the two-second flat-vector Remotion title, creates 16:9 padded versions of supplied images, downloads Lucide chapter icons and license when the network is available, synthesizes original one-shot effects and a low suspense music bed, then builds and registers an editable CapCut draft using capcut-cli. If faster-whisper cannot install or download its model, the workflow logs that limitation and falls back to estimated word timing.
+The runner checks the local source paths, prepares a normalized voice master with FFmpeg, attempts word-level English timing with faster-whisper, renders the two-second flat-vector Remotion title, fits supplied images into 16:9 without cropping their content, writes a separate Arabic subtitle SRT, downloads Lucide chapter icons and license when the network is available, synthesizes original one-shot effects and a low suspense music bed, then builds and registers an editable CapCut draft using capcut-cli. If faster-whisper cannot install or download its model, the workflow logs that limitation and falls back to estimated word timing.
 
 Generated local deliverables include:
 
 - `projects/nutty-putty-cave/build/ASSET_CATALOG.json` — source paths, sizes, image dimensions, media durations where readable, hashes and duplicate candidates.
 - `projects/nutty-putty-cave/build/ASSET_CONTACT_SHEET.jpg` — contact sheet to visually check story-art order.
 - `projects/nutty-putty-cave/build/timeline.json` — word timing, story beats, camera notes, chapter titles, and sound-effect timing.
-- `projects/nutty-putty-cave/build/captions.srt` and `SFX_Cue_Sheet.csv`.
+- `projects/nutty-putty-cave/build/captions.srt`, `captions_ar.srt` (optional Arabic subtitles), and `SFX_Cue_Sheet.csv`.
 - `projects/nutty-putty-cave/build/MISSING_ASSETS.json` and `QA_REPORT.md`.
 
 Important limits: the supplied source images are assigned in the order provided, not claimed to be semantically recognized from their file names. Check the contact sheet and review the opening, Corkscrew, rope-snap/no-pulse moments, sealed-cave ending and final teaser in CapCut before exporting. The pipeline creates an editable CapCut draft; it does not claim that a final MP4 was exported. Arkeonix MCP is a separate optional VS Code MCP server and is not required by this build runner.
