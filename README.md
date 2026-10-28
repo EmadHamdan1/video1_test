@@ -74,7 +74,7 @@ Keep the original draft and media as backups. Before any MCP edit, close CapCut,
 
 ## Create a new video project (asset pipeline)
 
-The **system repository is shared**. Create one local folder per video under `projects/`; do not make a new GitHub repository for each episode unless you deliberately want a separate codebase. Projects and downloaded media are ignored by Git so they remain on your PC.
+The **system repository is shared**. Create one local folder per video under `projects/`; do not make a new GitHub repository for each episode unless you deliberately want a separate codebase. Projects and downloaded media are ignored by Git so they remain on your PC. Run `check_tools.ps1` after pulling updates to see which core tools, optional providers and animation components are available; the report is saved to `build/tool_check_report.json` and never prints API secret values.
 
 ### 1. Create a project and plan the story
 
@@ -83,6 +83,7 @@ Run from the repository root in PowerShell:
 ```powershell
 git pull origin feat/capcut-montage-pipeline
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\check_tools.ps1
 .\asset_tool.ps1 new-project --name "Horror Explainer Episode 01"
 ```
 
