@@ -935,6 +935,46 @@ def prepare(project_override: str | None = None) -> int:
     }
     chapters = make_chapters(rows, duration, 2.0 if intro_path else 0.0)
     overlays, icon_license = download_icons(chapters)
+    fact_overlays = make_fact_callouts(tokens, duration)
+
+    # Give each visible callout and chapter-badge entrance a light, time-aligned audio cue.
+    # Avoid piling a small click over an existing major story impact at the same timestamp.
+    for index, item in enumerate(fact_overlays):
+        start = float(item["start_seconds"])
+        if any(abs(float(event["start"]) - start) <= 0.12 for event in sfx_events):
+            continue
+        kind = "pop" if item["mood"] == "danger" else "soft_click"
+        path = sound_paths[kind]
+        length = min(ffprobe_duration(path), max(0.08, duration - start))
+        if length <= 0:
+            continue
+        gain = 0.13 if item["mood"] == "danger" else 0.10
+        sfx_events.append({
+            "label": "Callout entrance — " + item["label"], "file": kind, "path": str(path),
+            "start": round(start, 3), "duration": round(length, 3), "volume": gain,
+            "volume_db": round(20 * math.log10(gain), 1),
+        })
+    for index, chapter in enumerate(chapters):
+        start = min(duration - 0.08, float(chapter["start_s"]) + 0.15)
+        if start < 0 or any(abs(float(event["start"]) - start) <= 0.12 for event in sfx_events):
+            continue
+        kind = "soft_click" if index % 2 == 0 else "pop"
+        path = sound_paths[kind]
+        length = min(ffprobe_duration(path), max(0.08, duration - start))
+        if length <= 0:
+            continue
+        gain = 0.095
+        sfx_events.append({
+            "label": "Chapter icon entrance — " + str(chapter["title"]),
+            "file": kind, "path": str(path), "start": round(start, 3),
+            "duration": round(length, 3), "volume": gain,
+            "volume_db": round(20 * math.log10(gain), 1),
+        })
+    sfx_events.sort(key=lambda item: item["start"])
+    settings["sound_effects"] = [
+        {"path": item["path"], "start": item["start"], "duration": item["duration"], "volume": item["volume"]}
+        for item in sfx_events
+    ]
 
     scene_images = ([intro_path] if intro_path else []) + fullframe_images
     fallback_texts = STORY_EN + [STORY_EN[-1]] * max(0, len(fullframe_images) - len(STORY_EN))
@@ -972,6 +1012,7 @@ def prepare(project_override: str | None = None) -> int:
         "settings": settings,
     }
     config["settings"]["icon_overlays"] = overlays
+    config["settings"]["callout_overlays"] = fact_overlays
     config["settings"]["flash_overlay_path"] = str(flash_path.resolve())
     config["settings"]["flash_times"] = [round(time, 3) for time in shock_times]
     (PROJECT / "project.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -997,13 +1038,24 @@ def prepare(project_override: str | None = None) -> int:
             catalog.append(item)
         except Exception as exc:
             catalog.append({"id": image.name, "path": str(image), "type": "host_avatar_pose", "problem": str(exc)})
-    catalog.append(inventory_asset(master_audio, "voiceover", str(AUDIO_SOURCE)))
+    catalog.append(inventory_asset(source_copy, "voiceover_source", str(AUDIO_SOURCE)))
+    catalog.append(inventory_asset(master_audio, "voiceover_master", str(AUDIO_SOURCE)))
     if intro_path and intro_path.is_file():
         catalog.append(inventory_asset(intro_path, "remotion_motion_graphic"))
     for path in sorted((PROJECT / "assets" / "audio" / "sfx").glob("*.wav")):
         catalog.append(inventory_asset(path, "music" if path.name == "suspense_bed.wav" else "sfx"))
     for path in sorted((PROJECT / "assets" / "generated" / "icons").glob("*.png")):
         catalog.append(inventory_asset(path, "lucide_icon_overlay"))
+    for path in sorted((PROJECT / "assets" / "generated" / "callouts").glob("*.png")):
+        catalog.append(inventory_asset(path, "story_fact_callout"))
+    for path in sorted((PROJECT / "assets" / "icons").glob("*.svg")):
+        catalog.append({
+            "id": path.stem, "path": str(path.resolve()), "type": "lucide_icon_source",
+            "size_bytes": path.stat().st_size, "dimensions": None, "duration_s": None,
+            "alpha_channel": True, "tags": ["Lucide SVG", "ISC license in assets/icons/LUCIDE-LICENSE.txt"],
+            "description": "SVG source for a chapter badge", "confidence": "high",
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        })
     hashes: dict[str, list[str]] = {}
     for item in catalog:
         if item.get("sha256"):
@@ -1026,6 +1078,7 @@ def prepare(project_override: str | None = None) -> int:
     timeline["asset_count"] = len(catalog)
     timeline["caption_count"] = len(captions)
     timeline["icon_overlays"] = overlays
+    timeline["callout_overlays"] = fact_overlays
     timeline["source_image_count"] = len(source_images)
     (PROJECT / "build" / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     with (PROJECT / "build" / "SFX_Cue_Sheet.csv").open("w", encoding="utf-8-sig", newline="") as handle:
@@ -1056,6 +1109,7 @@ def prepare(project_override: str | None = None) -> int:
         "- Original synthesized SFX: " + str(len(sound_paths)),
         "- Suspense music beds: 1",
         "- Lucide overlays rendered: " + str(len(overlays)),
+        "- Animated fact callouts generated: " + str(len(fact_overlays)),
         "- Remotion title clip rendered: " + ("yes" if intro_path else "no"),
         "- Exact duplicate groups detected by SHA-256: " + str(len(duplicates)),
         "- Unreadable media files: " + str(len(unreadable)),
