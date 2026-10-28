@@ -935,6 +935,11 @@ def generate_hf_image(
     image.save(target, format="PNG")
 
     manifest = read_csv(paths["manifest"])
+    # Make the generated image the primary visual for this beat. Other provider results
+    # remain in the manifest but are not accidentally chosen ahead of the generated result.
+    for item in manifest:
+        if item.get("kind") in {"image", "video"} and item.get("segment_id", "").strip() == scene_id:
+            item["selected"] = "no"
     candidate_id = next_candidate_id(manifest)
     model_page = "https://huggingface.co/" + model
     manifest.append({
