@@ -246,9 +246,14 @@ def fit_image_to_frame(source: Path, target: Path) -> None:
             (0, 0), (image.width - 1, 0), (0, image.height - 1), (image.width - 1, image.height - 1)
         )]
         background = tuple(round(sum(color[channel] for color in corners) / len(corners)) for channel in range(3))
-        fitted = ImageOps.pad(image, (1920, 1080), method=Image.Resampling.LANCZOS, color=background, centering=(0.5, 0.5))
+        # Contain the complete drawing on a 16:9 canvas. ImageOps.pad crops to fill and
+        # can cut off illustrated faces or props, so we deliberately avoid that here.
+        contained = ImageOps.contain(image, (1920, 1080), method=Image.Resampling.LANCZOS)
+        canvas = Image.new("RGB", (1920, 1080), background)
+        offset = ((1920 - contained.width) // 2, (1080 - contained.height) // 2)
+        canvas.paste(contained, offset)
         target.parent.mkdir(parents=True, exist_ok=True)
-        fitted.save(target, "JPEG", quality=94, optimize=True, progressive=True)
+        canvas.save(target, "JPEG", quality=94, optimize=True, progressive=True)
 
 
 def make_contact_sheet(images: list[Path], output: Path) -> None:
@@ -702,6 +707,45 @@ def write_captions(tokens: list[dict[str, Any]], lines: list[str]) -> list[dict[
     return cues
 
 
+def write_arabic_subtitles(path: Path, rows: list[dict[str, Any]], max_words: int = 4) -> list[dict[str, Any]]:
+    """Write a separate Arabic SRT using the aligned English sentence time windows."""
+    cues: list[dict[str, Any]] = []
+    previous_end = 0.0
+    for index, translation in enumerate(STORY_AR):
+        if index >= len(rows):
+            break
+        words = [word for word in str(translation).strip().split() if word]
+        if not words:
+            continue
+        sentence_start = max(previous_end, float(rows[index]["start_s"]))
+        sentence_end = max(sentence_start + 0.3, float(rows[index]["end_s"]))
+        chunk_size = max(2, int(max_words))
+        while math.ceil(len(words) / chunk_size) > 1 and (sentence_end - sentence_start) / math.ceil(len(words) / chunk_size) < 0.72:
+            chunk_size += 1
+        chunks = [words[offset:offset + chunk_size] for offset in range(0, len(words), chunk_size)]
+        weights = [sum(max(1, len(re.sub(r"[،؛.!؟:]+$", "", word))) for word in chunk) for chunk in chunks]
+        total_weight = max(1, sum(weights))
+        cursor, accumulated = sentence_start, 0
+        for chunk_index, chunk in enumerate(chunks):
+            accumulated += weights[chunk_index]
+            if chunk_index == len(chunks) - 1:
+                end = sentence_end
+            else:
+                end = sentence_start + (sentence_end - sentence_start) * accumulated / total_weight
+            end = min(float(rows[-1]["end_s"]), max(cursor + 0.25, end))
+            cues.append({"start": round(cursor, 3), "end": round(end, 3),
+                         "text": " ".join(chunk), "line_index": index})
+            cursor = end
+        previous_end = sentence_end
+    path.parent.mkdir(parents=True, exist_ok=True)
+    blocks = [
+        str(index) + "\n" + srt_time(cue["start"]) + " --> " + srt_time(cue["end"]) + "\n" + cue["text"]
+        for index, cue in enumerate(cues, start=1)
+    ]
+    path.write_text("\n\n".join(blocks) + ("\n" if blocks else ""), encoding="utf-8-sig")
+    return cues
+
+
 def fit_storyboard_boundaries(rows: list[dict[str, Any]], tokens: list[dict[str, Any]], duration: float,
                               target_count: int, intro_duration: float) -> list[float]:
     anchors = [0.0]
@@ -888,6 +932,7 @@ def prepare(project_override: str | None = None) -> int:
         timing_mode = mode + "; script-weighted timing"
     rows = line_timing(STORY_EN, tokens)
     captions = write_captions(tokens, STORY_EN)
+    arabic_captions = write_arabic_subtitles(PROJECT / "build" / "captions_ar.srt", rows)
     (PROJECT / "build" / "word_timestamps.json").write_text(
         json.dumps({"source": timing_mode, "alignment_ratio": round(match_ratio, 3),
                     "words": tokens, "sentences": rows}, ensure_ascii=False, indent=2) + "\n",
@@ -1108,6 +1153,8 @@ def prepare(project_override: str | None = None) -> int:
     timeline = create_story_timeline(STORY_EN, rows, tokens, scene_images, boundaries, chapters, duration, timing_mode, sfx_events)
     timeline["asset_count"] = len(catalog)
     timeline["caption_count"] = len(captions)
+    timeline["arabic_subtitle_count"] = len(arabic_captions)
+    timeline["arabic_subtitle_file"] = str((PROJECT / "build" / "captions_ar.srt").resolve())
     timeline["icon_overlays"] = overlays
     timeline["callout_overlays"] = fact_overlays
     timeline["source_image_count"] = len(source_images)
@@ -1212,7 +1259,8 @@ def finalize(build_exit_code: int, project_override: str | None = None) -> int:
         "- Rendered timeline shots: " + str(len(rows)),
         "- Longest rendered shot: " + (str(round(max(durations), 2)) + " seconds" if durations else "not available"),
         "- Presenter poses: " + str(len([a for a in catalog["assets"] if a.get("type") == "host_avatar_pose"])),
-        "- Timed caption cues: " + str(timeline.get("caption_count", "not recorded")),
+        "- Timed English caption cues: " + str(timeline.get("caption_count", "not recorded")),
+        "- Arabic subtitle cues (separate SRT): " + str(timeline.get("arabic_subtitle_count", "not recorded")),
         "- Chapter titles: " + str(len(config.get("chapter_titles", []))),
         "- Local sound effects on timeline: " + str(len(config.get("settings", {}).get("sound_effects", []))),
         "- Chapter icons on timeline: " + str(len(config.get("settings", {}).get("icon_overlays", []))),
