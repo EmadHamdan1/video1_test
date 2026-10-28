@@ -544,10 +544,26 @@ def make_spec(
         drift = pan_amount if index%2 == 0 else -pan_amount
         x_a, x_b = scene_x-drift, scene_x+drift
         y_a, y_b = scene_y+0.008, scene_y-0.008
-        # First point is linear; the next point supplies easing without spurious warnings.
+        entrance_slug, entrance_duration = transition_for_scene(index, motion)
+        scale_pop = entrance_slug.strip().lower() in {"scale-pop", "scale_pop", "scalepop"}
+        # A few story cuts use an entrance scale-pop instead of a native transition:
+        # begin slightly enlarged (never shrink below frame coverage), overshoot, then settle.
+        if scale_pop:
+            pop_peak_time = min(0.085, max(0.06, seconds * 0.08))
+            pop_settle_time = min(max(pop_peak_time + 0.06, entrance_duration), max(0.14, seconds * 0.20))
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":scale_a * 1.025},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(pop_peak_time,3),"value":min(1.22, scale_a * 1.075),"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(pop_settle_time,3),"value":scale_a,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
+            ])
+        else:
+            # Slow Ken Burns movement remains the default for all ordinary hard cuts.
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":scale_a},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
+            ])
         operations.extend([
-            {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":scale_a},
-            {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
             {"op":"keyframe","target":ref,"property":"position_x","time":0.0,"value":x_a},
             {"op":"keyframe","target":ref,"property":"position_x","time":seconds,"value":x_b,"easing":"ease-in-out"},
             {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":y_a},
@@ -569,7 +585,10 @@ def make_spec(
         if index < len(scene_rows)-1:
             slug, cut_duration = transition_for_scene(index, motion)
             # "cut" is deliberately represented by the absence of a transition operation.
-            if slug.strip().lower() not in {"", "cut", "hard-cut", "none"} and cut_duration > 0:
+            if slug.strip().lower() in {"scale-pop", "scale_pop", "scalepop"}:
+                # Already handled as a keyframed entrance at the start of this clip.
+                pass
+            elif slug.strip().lower() not in {"", "cut", "hard-cut", "none"} and cut_duration > 0:
                 operations.append({"op":"transition","target":ref,"slug":slug,"duration":cut_duration})
                 if not full_frame:
                     operations.append({"op":"transition","target":frame_ref,"slug":slug,"duration":cut_duration})
