@@ -438,7 +438,7 @@ def write_scene_csv(path: Path, scenes: list[dict[str, Any]], presenters: list[d
     with path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["start", "end", "duration", "image", "caption_context", "presenter_ref"],
+            fieldnames=["start", "end", "duration", "image", "caption_context", "scene_ref", "presenter_ref"],
         )
         writer.writeheader()
         for scene in scenes:
