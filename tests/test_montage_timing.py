@@ -164,7 +164,8 @@ class MontageTimingTests(unittest.TestCase):
                 self.assertTrue(all(item["ref"].startswith("caption_") for item in text_items))
                 operations = spec["operations"]
                 self.assertTrue(any(op.get("op") == "text-style" for op in operations))
-                self.assertTrue(any(op.get("op") == "keyframe" and op.get("property") == "opacity" for op in operations))
+                self.assertTrue(any(op.get("op") == "keyframe" and op.get("property") == "position_y" for op in operations))
+                self.assertFalse(any(op.get("op") == "keyframe" and op.get("property") == "opacity" for op in operations))
                 self.assertFalse(any(op.get("op") == "captions" for op in operations))
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
