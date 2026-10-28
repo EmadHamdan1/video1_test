@@ -111,8 +111,12 @@ def safe_ext(url: str, content_type: str = "", kind: str = "image") -> str:
         "audio/wav": ".wav", "audio/ogg": ".ogg", "audio/flac": ".flac", "audio/mp4": ".m4a",
     }
     mapped = mapping.get(content_type, "")
-    if mapped in allowed.get(kind, set()):
+    if mapped:
+        # Preserve the actual response media type. The downloader subsequently rejects
+        # unsupported kind/type combinations rather than disguising SVG as a JPEG.
         return mapped
+    if extension in allowed.get(kind, set()):
+        return extension
     fallback = {"image": ".jpg", "video": ".mp4", "audio": ".mp3", "icon": ".svg"}
     return fallback.get(kind, ".bin")
 
