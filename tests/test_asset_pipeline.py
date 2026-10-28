@@ -209,6 +209,49 @@ class AssetPipelineTests(unittest.TestCase):
             self.assertTrue(report["ok"])
             self.assertEqual(report["asset_counts"]["scene_media_available"], 1)
 
+    def test_apply_assigns_default_sfx_timing_from_story_beat(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = ASSETS.new_project("Auto SFX", str(Path(temporary) / "auto-sfx"))
+            (project / "story.txt").write_text(
+                "A strange shadow appears. A loud crash shakes the room.",
+                encoding="utf-8",
+            )
+            ASSETS.make_scene_plan(str(project))
+            scene_image = project / "assets" / "images" / "scene2.jpg"
+            sound_file = project / "assets" / "audio" / "impact.mp3"
+            scene_image.write_bytes(b"fake image")
+            sound_file.write_bytes(b"fake audio")
+            rows = [
+                {
+                    "id": "C0001", "kind": "image", "segment_id": "scene_002",
+                    "query": "crash", "title": "Crash image", "creator": "", "source": "test",
+                    "license": "CC0", "license_url": "", "source_page": "https://example.test/image",
+                    "preview_url": "", "download_url": "", "selected": "yes",
+                    "downloaded_path": str(scene_image), "downloaded_at": "",
+                    "license_reviewed": "yes", "review_notes": "Test asset",
+                    "start_seconds": "", "volume": "", "notes": "",
+                },
+                {
+                    "id": "C0002", "kind": "audio", "segment_id": "scene_002",
+                    "query": "impact", "title": "Impact sound", "creator": "", "source": "test",
+                    "license": "CC0", "license_url": "", "source_page": "https://example.test/sound",
+                    "preview_url": "", "download_url": "", "selected": "yes",
+                    "downloaded_path": str(sound_file), "downloaded_at": "",
+                    "license_reviewed": "yes", "review_notes": "Test asset",
+                    "start_seconds": "", "volume": "0.08", "notes": "",
+                },
+            ]
+            ASSETS.write_csv(project / "media_candidates.csv", rows)
+            ASSETS.apply_project(str(project), include_sfx=True)
+            config = json.loads((project / "project.json").read_text(encoding="utf-8"))
+            effects = config["settings"]["sound_effects"]
+            self.assertEqual(len(effects), 1)
+            self.assertAlmostEqual(effects[0]["start"], 3.98, places=2)
+            self.assertAlmostEqual(effects[0]["volume"], 0.08, places=2)
+            manifest = ASSETS.read_csv(project / "media_candidates.csv")
+            sound_row = next(row for row in manifest if row["id"] == "C0002")
+            self.assertEqual(sound_row["start_seconds"], "3.98")
+
 
 if __name__ == "__main__":
     unittest.main()
