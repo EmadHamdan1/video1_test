@@ -19,6 +19,31 @@ class NuttyPuttyPreparationTests(unittest.TestCase):
         self.assertEqual(len(BUILDER.STORY_EN), 26)
         self.assertEqual(len(BUILDER.STORY_AR), 26)
 
+    def test_image_fitting_preserves_16x9_and_skips_exact_consecutive_duplicates(self):
+        from PIL import Image
+
+        old_project = BUILDER.PROJECT
+        try:
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source_a = root / "a.png"
+                source_duplicate = root / "a-copy.png"
+                source_b = root / "b.png"
+                Image.new("RGB", (64, 48), (220, 35, 35)).save(source_a)
+                source_duplicate.write_bytes(source_a.read_bytes())
+                Image.new("RGB", (64, 48), (35, 35, 220)).save(source_b)
+                BUILDER.PROJECT = root / "project"
+                outputs = BUILDER.make_fullframe_versions([source_a, source_duplicate, source_b])
+                self.assertEqual(len(outputs), 2)
+                for output in outputs:
+                    with Image.open(output) as image:
+                        self.assertEqual(image.size, (1920, 1080))
+                with Image.open(outputs[0]) as image:
+                    # The fitted art is contained, not stretched or cropped to fill.
+                    self.assertEqual(image.getpixel((10, 10)), image.getpixel((1900, 10)))
+        finally:
+            BUILDER.PROJECT = old_project
+
     def test_script_word_alignment_uses_reference_text_and_keeps_monotonic_time(self):
         tokens = BUILDER.tokenise_story(BUILDER.STORY_EN[:2])
         heard = []
