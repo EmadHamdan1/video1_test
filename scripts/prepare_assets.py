@@ -451,6 +451,7 @@ def new_project(name: str, project_dir: str | None = None) -> Path:
         "drafts_dir": "",
         "audio": "",
         "scene_images": [],
+        "scene_texts": [],
         "presenter_images": [],
         "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
         "settings": {
@@ -870,12 +871,14 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
             if row.get("selected", "yes").strip().lower() not in {"yes", "true", "1", "selected"}:
                 continue
             images.append(row)
-    # One image per scene segment, in story order. If no segment is associated, preserve selection order.
-    segment_order = {}
-    for line, row in enumerate(read_csv(paths["plan"]), start=1):
-        segment_order[row["segment_id"]] = line
+    # One selected asset per story beat, in story order. Multiple candidates can be reviewed
+    # in the CSV; set selected=no on alternatives before applying if more than one was downloaded.
+    plan_rows = read_csv(paths["plan"])
+    segment_order = {row["segment_id"]: line for line, row in enumerate(plan_rows, start=1)}
+    sentence_by_segment = {row["segment_id"]: row.get("sentence", "") for row in plan_rows}
     images.sort(key=lambda row: (segment_order.get(row.get("segment_id", ""), 100000), row.get("id", "")))
-    chosen = []
+    chosen_rows: list[dict[str, str]] = []
+    chosen: list[Path] = []
     seen_segments: set[str] = set()
     for row in images:
         seg = row.get("segment_id", "")
@@ -883,6 +886,7 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
             continue
         if seg:
             seen_segments.add(seg)
+        chosen_rows.append(row)
         chosen.append(Path(row["downloaded_path"]).resolve())
 
     if not chosen:
@@ -894,7 +898,10 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
         )
     if chosen:
         config["scene_images"] = [str(path) for path in chosen]
-        log("Added " + str(len(chosen)) + " local scene image(s) to project.json.")
+        config["scene_texts"] = [
+            sentence_by_segment.get(row.get("segment_id", ""), "") for row in chosen_rows
+        ] if chosen_rows else []
+        log("Added " + str(len(chosen)) + " local scene image/video asset(s) and story labels to project.json.")
     else:
         log("No downloaded images found. Search and download candidate IDs before building.")
     if audio:
