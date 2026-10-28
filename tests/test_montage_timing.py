@@ -64,5 +64,62 @@ class MontageTimingTests(unittest.TestCase):
         self.assertEqual(rows[0]["presenter_ref"], "")
 
 
+    def test_whiteboard_spec_uses_framed_images_and_persistent_presenter(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "Whiteboard test",
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 3.9,
+                        "minimum_shot_seconds": 1.8,
+                        "presenter_overlay": True,
+                        "presenter_pose_seconds": 9.5,
+                        "scene_image_scale": 0.50,
+                        "scene_image_x": -0.25,
+                        "scene_image_y": -0.02,
+                        "presenter_scale": 0.42,
+                        "presenter_x": 0.72,
+                        "presenter_y": 0.18,
+                    },
+                }
+                spec, scenes, presenters = BUILDER.make_spec(
+                    config,
+                    Path("voiceover.mp3"),
+                    [Path("scene_a.jpeg"), Path("scene_b.jpeg"), Path("scene_c.jpeg")],
+                    [Path("pose_1.jpeg"), Path("pose_2.jpeg"), Path("pose_3.jpeg")],
+                    24.0,
+                    [],
+                    None,
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Whiteboard Background", tracks)
+                self.assertIn("Whiteboard Scene Frames", tracks)
+                self.assertIn("Presenter Explainer", tracks)
+                self.assertEqual(len(tracks["Scene Artwork"]["items"]), len(scenes))
+                self.assertTrue(all(item["scale"] < 0.7 for item in tracks["Scene Artwork"]["items"]))
+                self.assertTrue(all(item["x"] < 0 for item in tracks["Scene Artwork"]["items"]))
+                board = Path(tracks["Whiteboard Background"]["items"][0]["path"])
+                first_card = Path(tracks["Whiteboard Scene Frames"]["items"][0]["path"])
+                self.assertTrue(board.is_file())
+                self.assertTrue(first_card.is_file())
+                self.assertEqual(len(presenters), 3)
+                self.assertAlmostEqual(presenters[0]["start"], 0.0)
+                self.assertAlmostEqual(presenters[-1]["end"], 24.0)
+                self.assertTrue(all(row["side"] == "right" for row in presenters))
+                self.assertTrue(all(row["layout"] == "whiteboard-card-left / presenter-right" for row in scenes))
+                for left, right in zip(presenters, presenters[1:]):
+                    self.assertAlmostEqual(left["end"], right["start"], places=2)
+                slugs = {
+                    operation["slug"] for operation in spec["operations"]
+                    if operation.get("op") == "transition"
+                }
+                self.assertTrue(slugs.issubset({"dissolve", "horizontal-blur", "radial-blur"}))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
 if __name__ == "__main__":
     unittest.main()
