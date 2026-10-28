@@ -419,6 +419,85 @@ def make_sfx_files() -> dict[str, Path]:
     return results
 
 
+
+FACT_CALLOUTS = [
+    ("TWENTY SIX YEARS OLD", "26 YEARS OLD", "neutral"),
+    ("ELEVEN PEOPLE", "11 PEOPLE", "action"),
+    ("CORKSCREW", "CORKSCREW", "danger"),
+    ("FOURTEEN HOURS", "14 HOURS", "danger"),
+    ("TWO HUNDRED", "200 LB", "action"),
+    ("UNCHARTED", "UNCHARTED", "danger"),
+    ("EIGHTEEN INCHES", "18 × 10 IN", "danger"),
+    ("TWELVE HOURS", "12 HOURS", "danger"),
+    ("4 A M", "4:00 AM", "danger"),
+    ("NO PULSE", "NO PULSE", "danger"),
+    ("ROPE SNAPPED", "ROPE SNAPPED", "danger"),
+    ("TWENTY SEVEN HOURS", "27 HOURS", "danger"),
+    ("SEALED WITH CONCRETE", "SEALED FOREVER", "danger"),
+    ("TWENTY FOUR HOURS", "24 HOURS", "action"),
+]
+
+
+def make_fact_callouts(tokens: list[dict[str, Any]], duration: float) -> list[dict[str, Any]]:
+    output: list[dict[str, Any]] = []
+    target_dir = PROJECT / "assets" / "generated" / "callouts"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    font_path_candidates = [
+        Path(r"C:\Windows\Fonts\arialbd.ttf"),
+        Path(r"C:\Windows\Fonts\Arial.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+    ]
+    font_path = next((candidate for candidate in font_path_candidates if candidate.is_file()), None)
+    for index, (phrase, label, mood) in enumerate(FACT_CALLOUTS, start=1):
+        found = find_phrase(tokens, phrase)
+        if not found:
+            continue
+        start = float(found[0])
+        if start >= duration:
+            continue
+        width, height = 1920, 1080
+        image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        x0, y0, x1, y1 = 1350, 220, 1835, 365
+        if mood == "danger":
+            fill, accent, ink = (240, 68, 68, 248), (255, 255, 255, 255), (20, 20, 20, 255)
+        elif mood == "action":
+            fill, accent, ink = (246, 207, 69, 250), (240, 68, 68, 255), (20, 20, 20, 255)
+        else:
+            fill, accent, ink = (250, 249, 245, 248), (21, 168, 156, 255), (20, 20, 20, 255)
+        # Tiny offset shadow and bold black stroke keep the callout readable over detailed art.
+        draw.rounded_rectangle((x0 + 7, y0 + 8, x1 + 7, y1 + 8), radius=22, fill=(0, 0, 0, 65))
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=22, fill=fill, outline=ink, width=6)
+        draw.rounded_rectangle((x0 + 18, y0 + 18, x0 + 30, y1 - 18), radius=6, fill=accent)
+        font_size = 44 if len(label) < 15 else 36
+        try:
+            font = ImageFont.truetype(str(font_path), font_size) if font_path else ImageFont.load_default()
+        except OSError:
+            font = ImageFont.load_default()
+        # Keep callouts short; wrap only if a platform font has an unexpectedly large glyph width.
+        text_box = draw.textbbox((0, 0), label, font=font, stroke_width=1)
+        text_width, text_height = text_box[2] - text_box[0], text_box[3] - text_box[1]
+        if text_width > x1 - x0 - 62:
+            font_size = max(28, font_size - 8)
+            try:
+                font = ImageFont.truetype(str(font_path), font_size) if font_path else ImageFont.load_default()
+            except OSError:
+                font = ImageFont.load_default()
+            text_box = draw.textbbox((0, 0), label, font=font, stroke_width=1)
+            text_width, text_height = text_box[2] - text_box[0], text_box[3] - text_box[1]
+        tx = x0 + 38 + max(0, (x1 - x0 - 56 - text_width) // 2)
+        ty = y0 + (y1 - y0 - text_height) // 2 - 4
+        draw.text((tx, ty), label, font=font, fill=ink, stroke_width=1, stroke_fill=ink)
+        path = target_dir / ("%02d_%s.png" % (index, re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")))
+        image.save(path, optimize=True)
+        output.append({
+            "label": label, "path": str(path.resolve()), "start_seconds": round(start, 3),
+            "duration": min(1.25, max(0.75, duration - start)), "mood": mood,
+            "trigger_phrase": phrase,
+        })
+    return output
+
+
 def tokenise_story(lines: list[str]) -> list[dict[str, Any]]:
     tokens = []
     for line_index, line in enumerate(lines):
