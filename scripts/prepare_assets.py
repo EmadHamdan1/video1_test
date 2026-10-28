@@ -1048,10 +1048,117 @@ def apply_project(project: str, audio: str | None = None, presenter_dir: str | N
     return paths["config"]
 
 
+def preflight_project(project: str) -> dict[str, Any]:
+    """Check local project paths, settings and license-review reminders before building."""
+    paths = project_paths(project)
+    errors: list[str] = []
+    warnings: list[str] = []
+    report: dict[str, Any] = {
+        "project": str(paths["root"]),
+        "checked_at": datetime.now().isoformat(timespec="seconds"),
+        "errors": errors,
+        "warnings": warnings,
+        "asset_counts": {},
+    }
+    if not paths["config"].is_file():
+        errors.append("Missing project.json. Run new-project first.")
+        report["ok"] = False
+        paths["build"].mkdir(parents=True, exist_ok=True)
+        (paths["build"] / "preflight_report.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        log("Preflight failed: " + errors[0])
+        return report
+
+    try:
+        config = json.loads(paths["config"].read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append("Could not read project.json: " + str(exc))
+        config = {}
+
+    audio_raw = str(config.get("audio", "") or "").strip()
+    if not audio_raw:
+        errors.append("Narration path is empty. Run apply --audio <absolute-path>.")
+    else:
+        audio_path = Path(os.path.expandvars(audio_raw)).expanduser()
+        if not audio_path.is_absolute():
+            audio_path = paths["root"] / audio_path
+        if not audio_path.is_file():
+            errors.append("Narration file does not exist: " + str(audio_path))
+
+    scene_media = []
+    missing_scene_media = []
+    for raw in config.get("scene_images", []):
+        media_path = Path(os.path.expandvars(str(raw))).expanduser()
+        if not media_path.is_absolute():
+            media_path = paths["root"] / media_path
+        if media_path.is_file():
+            scene_media.append(media_path.resolve())
+        else:
+            missing_scene_media.append(str(media_path))
+    if not scene_media:
+        errors.append("No usable scene media is configured. Search/download assets, then run apply.")
+    if missing_scene_media:
+        warnings.append(str(len(missing_scene_media)) + " configured scene media path(s) are missing.")
+    report["asset_counts"]["scene_media_available"] = len(scene_media)
+    report["asset_counts"]["scene_media_missing"] = len(missing_scene_media)
+
+    scene_texts = config.get("scene_texts", [])
+    if scene_texts and len(scene_texts) != len(config.get("scene_images", [])):
+        warnings.append("scene_texts count differs from scene_images. Scene callouts may not match every clip.")
+
+    presenter_paths = []
+    for raw in config.get("presenter_images", []):
+        media_path = Path(os.path.expandvars(str(raw))).expanduser()
+        if not media_path.is_absolute():
+            media_path = paths["root"] / media_path
+        if media_path.is_file():
+            presenter_paths.append(media_path.resolve())
+    report["asset_counts"]["presenter_images_available"] = len(presenter_paths)
+    if config.get("presenter_images") and not presenter_paths:
+        warnings.append("Presenter images are configured but none exist. The draft will be built without the presenter.")
+    elif config.get("presenter_images") and len(presenter_paths) < len(config.get("presenter_images", [])):
+        warnings.append("Some presenter paths are missing; the builder will skip them.")
+
+    preset_name = str(config.get("settings", {}).get("motion_preset", "whiteboard_smooth"))
+    preset_path = ROOT / "presets" / "motion_presets.json"
+    try:
+        presets = json.loads(preset_path.read_text(encoding="utf-8-sig")).get("presets", {})
+        if preset_name not in presets:
+            warnings.append("Unknown motion preset '" + preset_name + "'. The builder falls back to whiteboard_smooth.")
+        else:
+            report["motion_preset"] = preset_name
+    except (OSError, json.JSONDecodeError):
+        warnings.append("Motion preset library could not be loaded.")
+
+    manifest = read_csv(paths["manifest"])
+    downloaded_rows = [row for row in manifest if row.get("downloaded_path", "").strip()]
+    unreviewed = [row for row in downloaded_rows if row.get("license_reviewed", "no").strip().lower() not in {"yes", "true", "1"}]
+    report["asset_counts"]["downloaded_assets"] = len(downloaded_rows)
+    report["asset_counts"]["downloaded_assets_needing_license_review"] = len(unreviewed)
+    if unreviewed:
+        warnings.append(
+            str(len(unreviewed)) + " downloaded asset(s) still need license review. "
+            "Review the manifest/gallery and record decisions before public or commercial release."
+        )
+
+    report["ok"] = len(errors) == 0
+    paths["build"].mkdir(parents=True, exist_ok=True)
+    report_path = paths["build"] / "preflight_report.json"
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    for error in errors:
+        log("ERROR: " + error)
+    for warning in warnings:
+        log("WARNING: " + warning)
+    log(("Preflight passed" if report["ok"] else "Preflight failed") + ". Report: " + str(report_path))
+    return report
+
+
 def build_project(project: str, python_executable: str | None = None) -> int:
     paths = project_paths(project)
-    if not paths["config"].is_file():
-        raise FileNotFoundError("Project config not found. Run new-project first.")
+    report = preflight_project(project)
+    if not report.get("ok"):
+        raise RuntimeError("Preflight failed. Fix the errors above, then run the build command again.")
     if python_executable:
         python = python_executable
     else:
@@ -1109,6 +1216,8 @@ def command_parser() -> argparse.ArgumentParser:
     apply.add_argument("--audio", default=None, help="Local narration audio path.")
     apply.add_argument("--presenter-dir", default=None, help="Folder containing presenter pose images.")
     apply.add_argument("--include-sfx", action="store_true", help="Include downloaded audio with a numeric start_seconds in the manifest.")
+    preflight = sub.add_parser("preflight", help="Check files and settings before building CapCut.")
+    preflight.add_argument("--project", required=True)
     build = sub.add_parser("build", help="Create and register the editable CapCut draft for the project.")
     build.add_argument("--project", required=True)
     build.add_argument("--python", default=None, help="Optional path to the system repository's virtualenv Python.")
@@ -1143,6 +1252,9 @@ def main(argv: list[str] | None = None) -> int:
         generate_hf_image(args.project, args.scene_id, args.prompt, args.model, args.confirm_possible_cost)
     elif args.command == "apply":
         apply_project(args.project, args.audio, args.presenter_dir, args.include_sfx)
+    elif args.command == "preflight":
+        report = preflight_project(args.project)
+        return 0 if report.get("ok") else 2
     elif args.command == "build":
         return build_project(args.project, args.python)
     return 0
