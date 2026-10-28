@@ -15,7 +15,8 @@
     "@remotion/transitions": "4.0.539",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "remotion": "4.0.539"
+    "remotion": "4.0.539",
+    "@resvg/resvg-js": "2.6.2"
   },
   "devDependencies": {
     "@remotion/cli": "4.0.539",
