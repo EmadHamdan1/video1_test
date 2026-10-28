@@ -1,0 +1,25 @@
+{
+  "name": "video1-motion-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reusable whiteboard explainer scenes, kinetic captions, and smooth transition tests for CapCut overlays.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render:whiteboard": "remotion render src/index.ts WhiteboardExplainer out/whiteboard-explainer.mp4 --codec h264",
+    "render:caption": "remotion render src/index.ts KineticCaption out/kinetic-caption.mp4 --codec h264",
+    "render:transitions": "remotion render src/index.ts TransitionShowcase out/transition-showcase.mp4 --codec h264",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/transitions": "4.0.59",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.59"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.59",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
