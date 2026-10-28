@@ -287,6 +287,60 @@ class AssetPipelineTests(unittest.TestCase):
             config = json.loads((project / "project.json").read_text(encoding="utf-8"))
             self.assertEqual(config["settings"]["motion_preset"], "horror_comedy")
 
+    def test_place_icon_converts_and_records_scene_overlay(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = Path(temporary)
+            project = ASSETS.new_project("Place icon", str(temp_root / "project"))
+            (project / "story.txt").write_text("A strange light appears in the forest.", encoding="utf-8")
+            ASSETS.make_scene_plan(str(project))
+            svg = project / "assets" / "icons" / "lightbulb.svg"
+            svg.write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2v4"/></svg>',
+                encoding="utf-8",
+            )
+            candidate = {
+                "id": "C0001", "kind": "icon", "segment_id": "",
+                "query": "lightbulb", "title": "lightbulb", "creator": "Lucide contributors",
+                "source": "Lucide", "license": "ISC", "license_url": "https://example.test/license",
+                "source_page": "https://example.test/lightbulb", "preview_url": "",
+                "download_url": "https://example.test/lightbulb.svg", "selected": "yes",
+                "downloaded_path": str(svg), "downloaded_at": "", "license_reviewed": "yes",
+                "review_notes": "Lucide license included", "start_seconds": "", "volume": "", "notes": "",
+            }
+            ASSETS.write_csv(project / "media_candidates.csv", [candidate])
+
+            mock_root = temp_root / "repo"
+            renderer = mock_root / "motion-lab" / "scripts" / "render-svg.mjs"
+            module_dir = mock_root / "motion-lab" / "node_modules" / "@resvg" / "resvg-js"
+            renderer.parent.mkdir(parents=True)
+            renderer.write_text("// mocked renderer path", encoding="utf-8")
+            module_dir.mkdir(parents=True)
+
+            def fake_run(command, **kwargs):
+                output_path = Path(command[3])
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(b"mock-png-data")
+                return ASSETS.subprocess.CompletedProcess(command, 0, stdout='{"ok":true}', stderr="")
+
+            with patch.object(ASSETS, "ROOT", mock_root):
+                with patch.object(ASSETS.shutil, "which", return_value="node"):
+                    with patch.object(ASSETS.subprocess, "run", side_effect=fake_run):
+                        output = ASSETS.place_icon(
+                            str(project), "C0001", "scene_001",
+                            offset=0.4, duration=1.2, x=-0.5, y=-0.3, scale=0.15, color="#159A90"
+                        )
+
+            self.assertTrue(output.is_file())
+            config = json.loads((project / "project.json").read_text(encoding="utf-8"))
+            overlays = config["settings"]["icon_overlays"]
+            self.assertEqual(len(overlays), 1)
+            self.assertEqual(overlays[0]["scene_id"], "scene_001")
+            self.assertAlmostEqual(overlays[0]["offset"], 0.4)
+            self.assertEqual(overlays[0]["path"], str(output.resolve()))
+            updated = ASSETS.read_csv(project / "media_candidates.csv")[0]
+            self.assertEqual(updated["segment_id"], "scene_001")
+            self.assertIn("rendered PNG", updated["notes"])
+
 
 if __name__ == "__main__":
     unittest.main()
