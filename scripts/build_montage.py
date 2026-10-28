@@ -447,16 +447,39 @@ def make_spec(
     width, height = int(canvas.get("width", 1920)), int(canvas.get("height", 1080))
     target = max(1.0, float(settings.get("target_shot_seconds", motion.get("target_shot_seconds", 3.8))))
     minimum = max(0.75, float(settings.get("minimum_shot_seconds", motion.get("minimum_shot_seconds", 1.8))))
-    shot_count = max(1, max(len(images), int(round(duration / target))))
-    feasible = max(1, int(duration / minimum))
-    if shot_count > feasible:
-        shot_count = feasible
-        log("The narration is short relative to the available images. "
-            + str(len(images)-min(len(images),shot_count))
-            + " image(s) will be omitted to preserve readable shot lengths.")
-    shot_count = min(shot_count, max(1, int(math.ceil(duration/0.45))))
-    boundaries = scene_boundaries(duration, shot_count, target, minimum, captions)
-    indices = choose_scene_indices(len(images), shot_count)
+    configured_boundaries = config.get("storyboard_boundaries", [])
+    use_custom_boundaries = bool(settings.get("use_storyboard_boundaries", False))
+    custom_boundaries: list[float] = []
+    if use_custom_boundaries and isinstance(configured_boundaries, list):
+        try:
+            custom_boundaries = [float(value) for value in configured_boundaries]
+            valid = (
+                len(custom_boundaries) == len(images) + 1
+                and abs(custom_boundaries[0]) <= 0.05
+                and abs(custom_boundaries[-1] - duration) <= 0.15
+                and all(right > left for left, right in zip(custom_boundaries, custom_boundaries[1:]))
+            )
+        except (TypeError, ValueError):
+            valid = False
+        if valid:
+            shot_count = len(images)
+            boundaries = custom_boundaries
+            indices = list(range(len(images)))
+            log("Using " + str(shot_count) + " story-aligned storyboard segments.")
+        else:
+            log("Configured storyboard boundaries did not match the scene images/audio; using automatic timing instead.")
+            use_custom_boundaries = False
+    if not use_custom_boundaries:
+        shot_count = max(1, max(len(images), int(round(duration / target))))
+        feasible = max(1, int(duration / minimum))
+        if shot_count > feasible:
+            shot_count = feasible
+            log("The narration is short relative to the available images. "
+                + str(len(images)-min(len(images),shot_count))
+                + " image(s) will be omitted to preserve readable shot lengths.")
+        shot_count = min(shot_count, max(1, int(math.ceil(duration/0.45))))
+        boundaries = scene_boundaries(duration, shot_count, target, minimum, captions)
+        indices = choose_scene_indices(len(images), shot_count)
     scene_x = float(settings.get("scene_image_x", -0.25))
     scene_y = float(settings.get("scene_image_y", -0.02))
     presenter_x = float(settings.get("presenter_x", 0.72))
@@ -876,7 +899,7 @@ def make_spec(
     for index, chapter in enumerate(config.get("chapter_titles", []), start=1):
         try:
             chapter_start = max(0.0, float(chapter.get("start_s", 0.0)))
-            chapter_length = min(4.5, max(0.7, float(chapter.get("duration_s", 1.8))))
+            chapter_length = max(0.7, float(chapter.get("duration_s", 1.8)))
             chapter_end = min(duration, chapter_start + chapter_length)
             title = str(chapter.get("title", "")).strip()
             if not title or chapter_end <= chapter_start:
