@@ -163,6 +163,8 @@ def usable_paths(raw_paths: list[str], description: str) -> tuple[list[Path], li
     missing: list[str] = []
     for raw in raw_paths:
         path = Path(os.path.expandvars(raw)).expanduser()
+        if not path.is_absolute():
+            path = CONFIG_PATH.parent / path
         if path.is_file():
             good.append(path.resolve())
         else:
@@ -781,6 +783,8 @@ def main(argv: list[str] | None = None) -> int:
 
     audio_raw = str(config.get("audio", "")).strip()
     audio = Path(os.path.expandvars(audio_raw)).expanduser()
+    if not audio.is_absolute():
+        audio = CONFIG_PATH.parent / audio
     if not audio.is_file():
         raise RuntimeError(
             "The narration file was not found: " + audio_raw
