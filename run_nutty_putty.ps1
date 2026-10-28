@@ -1,3 +1,5 @@
+param([switch]$FullStyle)
+
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $RepoRoot
@@ -26,8 +28,13 @@ if ($CapCutProcess) {
 }
 
 Write-Host ""
-Write-Host "=== Phase 1: prepare full style, audio, captions and motion assets ===" -ForegroundColor Cyan
-& $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project
+if ($FullStyle) {
+    Write-Host "=== Phase 1: full-style prepare (Remotion, optional Whisper, generated SFX/music) ===" -ForegroundColor Cyan
+    & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project
+} else {
+    Write-Host "=== Phase 1: BASIC CapCut prepare (no title card, no Whisper, no music/SFX) ===" -ForegroundColor Cyan
+    & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project --simple
+}
 if ($LASTEXITCODE -ne 0) { throw "Asset preparation failed. Read the error above; no draft was built." }
 
 Write-Host ""
@@ -55,5 +62,9 @@ Write-Host "QA report: $(Join-Path $BuildDir 'QA_REPORT.md')"
 Write-Host "Contact sheet: $(Join-Path $BuildDir 'ASSET_CONTACT_SHEET.jpg')"
 Write-Host ""
 Write-Host "Open CapCut Desktop and look for the newly registered Nutty Putty Cave draft."
-Write-Host "Full-style build includes the animated Remotion title, narration master, captions, original suspense bed, timed SFX, chapter icons, story callouts and shock-only visual accents when their dependencies are available."
+if ($FullStyle) {
+    Write-Host "Full-style build includes optional Remotion title, word alignment, generated SFX/music, icons and story callouts."
+} else {
+    Write-Host "Basic build keeps the original narration and uses supplied images with subtle motion. No title card, Whisper, background music or extra sound effects."
+}
 Write-Host "Inspect the generated QA report and review critical moments in CapCut before exporting the MP4."
