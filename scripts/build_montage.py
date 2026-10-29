@@ -593,16 +593,37 @@ def make_spec(
                 {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
             ])
         else:
-            # Slow Ken Burns movement remains the default for all ordinary hard cuts.
-            operations.extend([
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":scale_a},
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
-            ])
+            if hybrid_mode:
+                slide_in_duration = min(0.24, max(0.14, seconds * 0.11))
+                operations.extend([
+                    {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":scale_a * 0.86},
+                    {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(slide_in_duration,3),"value":scale_a * 1.045,"easing":"ease-out"},
+                    {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(slide_in_duration + 0.08,3),"value":scale_a,"easing":"ease-out"},
+                    {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
+                ])
+            else:
+                # Keep the restrained original profile for other project presets.
+                operations.extend([
+                    {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":scale_a},
+                    {"op":"keyframe","target":ref,"property":"uniform_scale","time":seconds,"value":scale_b,"easing":"ease-in-out"},
+                ])
+        entrance_directions = [
+            (1.36, shot_base_y), (-1.36, shot_base_y),
+            (shot_base_x, 1.28), (shot_base_x, -1.28),
+        ]
+        exit_directions = [
+            (-1.36, shot_base_y), (1.36, shot_base_y),
+            (shot_base_x, -1.28), (shot_base_x, 1.28),
+        ]
+        entry_x, entry_y = entrance_directions[index % len(entrance_directions)]
+        exit_x, exit_y = exit_directions[index % len(exit_directions)]
+        initial_x, initial_y = (entry_x, entry_y) if hybrid_mode else (x_a, y_a)
+        final_x, final_y = (exit_x, exit_y) if hybrid_mode else (x_b, y_b)
         operations.extend([
-            {"op":"keyframe","target":ref,"property":"position_x","time":0.0,"value":x_a},
-            {"op":"keyframe","target":ref,"property":"position_x","time":seconds,"value":x_b,"easing":"ease-in-out"},
-            {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":y_a},
-            {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":y_b,"easing":"ease-in-out"},
+            {"op":"keyframe","target":ref,"property":"position_x","time":0.0,"value":initial_x},
+            {"op":"keyframe","target":ref,"property":"position_x","time":seconds,"value":final_x,"easing":"ease-in-out"},
+            {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":initial_y},
+            {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":final_y,"easing":"ease-in-out"},
         ])
         # Keep every still visibly alive: pulse its scale and drift its position at
         # intervals below one second, layered over the slow alternating push/pull.
@@ -625,30 +646,47 @@ def make_spec(
 
         shock_level = int(shot.get("shock_level", 0) or 0)
         if shock_level >= 2:
-            # Impact beats get a snap-zoom and short decaying shake; level 3 is strongest.
+            # Impact beats get a snap-zoom and short decaying shake; delay it until
+            # the flying image is on-canvas, so the image never teleports into place.
+            impact_offset = 0.27 if hybrid_mode else 0.0
             snap_factor = 1.14 if shock_level >= 3 else 1.09
             snap_peak = min(1.25, max(scale_a * snap_factor, scale_a + (0.06 if shock_level >= 3 else 0.035)))
             shake = 0.012 if shock_level >= 3 else 0.006
             operations.extend([
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.06,"value":snap_peak,"easing":"ease-out"},
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.20,"value":scale_a,"easing":"ease-out"},
-                {"op":"keyframe","target":ref,"property":"position_x","time":0.06,"value":shot_base_x + shake},
-                {"op":"keyframe","target":ref,"property":"position_x","time":0.12,"value":shot_base_x - shake},
-                {"op":"keyframe","target":ref,"property":"position_x","time":0.19,"value":shot_base_x + shake * 0.45},
-                {"op":"keyframe","target":ref,"property":"position_x","time":0.28,"value":shot_base_x},
-                {"op":"keyframe","target":ref,"property":"position_y","time":0.06,"value":shot_base_y - shake * 0.6},
-                {"op":"keyframe","target":ref,"property":"position_y","time":0.12,"value":shot_base_y + shake * 0.6},
-                {"op":"keyframe","target":ref,"property":"position_y","time":0.19,"value":shot_base_y - shake * 0.2},
-                {"op":"keyframe","target":ref,"property":"position_y","time":0.28,"value":shot_base_y},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(impact_offset + 0.06,3),"value":snap_peak,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(impact_offset + 0.20,3),"value":scale_a,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(impact_offset + 0.06,3),"value":shot_base_x + shake},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(impact_offset + 0.12,3),"value":shot_base_x - shake},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(impact_offset + 0.19,3),"value":shot_base_x + shake * 0.45},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(impact_offset + 0.28,3),"value":shot_base_x},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(impact_offset + 0.06,3),"value":shot_base_y - shake * 0.6},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(impact_offset + 0.12,3),"value":shot_base_y + shake * 0.6},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(impact_offset + 0.19,3),"value":shot_base_y - shake * 0.2},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(impact_offset + 0.28,3),"value":shot_base_y},
             ])
         if shock_level >= 3:
+            impact_offset = 0.27 if hybrid_mode else 0.0
             operations.extend([
-                {"op":"keyframe","target":ref,"property":"rotation","time":0.0,"value":0.0},
-                {"op":"keyframe","target":ref,"property":"rotation","time":0.06,"value":1.0},
-                {"op":"keyframe","target":ref,"property":"rotation","time":0.12,"value":-1.15},
-                {"op":"keyframe","target":ref,"property":"rotation","time":0.19,"value":0.65},
-                {"op":"keyframe","target":ref,"property":"rotation","time":0.27,"value":-0.25},
-                {"op":"keyframe","target":ref,"property":"rotation","time":0.36,"value":0.0},
+                {"op":"keyframe","target":ref,"property":"rotation","time":round(impact_offset + 0.0,3),"value":0.0},
+                {"op":"keyframe","target":ref,"property":"rotation","time":round(impact_offset + 0.06,3),"value":1.0},
+                {"op":"keyframe","target":ref,"property":"rotation","time":round(impact_offset + 0.12,3),"value":-1.15},
+                {"op":"keyframe","target":ref,"property":"rotation","time":round(impact_offset + 0.19,3),"value":0.65},
+                {"op":"keyframe","target":ref,"property":"rotation","time":round(impact_offset + 0.27,3),"value":-0.25},
+                {"op":"keyframe","target":ref,"property":"rotation","time":round(impact_offset + 0.36,3),"value":0.0},
+            ])
+        if hybrid_mode:
+            # Land on the selected composition after the entrance, drift/pulse while
+            # visible, then fly out quickly to expose the clean white canvas at each cut.
+            slide_in_duration = min(0.24, max(0.14, seconds * 0.11))
+            exit_duration = min(0.22, max(0.14, seconds * 0.10))
+            exit_start = max(slide_in_duration + 0.10, seconds - exit_duration)
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(slide_in_duration,3),"value":x_a,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(slide_in_duration,3),"value":y_a,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(exit_start,3),"value":x_b,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(exit_start,3),"value":y_b,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":seconds,"value":exit_x,"easing":"ease-in"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":exit_y,"easing":"ease-in"},
             ])
         if index < len(scene_rows)-1:
             slug, cut_duration = transition_for_scene(index, motion)
@@ -925,10 +963,9 @@ def make_spec(
     }
     tracks: list[dict[str,Any]] = []
     if not full_frame:
-        tracks.extend([
-            {"type":"video","name":"Whiteboard Background","items":[bg_item]},
-            {"type":"video","name":"Whiteboard Scene Frames","items":frame_items},
-        ])
+        tracks.append({"type":"video","name":"Whiteboard Background","items":[bg_item]})
+        if not hybrid_mode:
+            tracks.append({"type":"video","name":"Whiteboard Scene Frames","items":frame_items})
     tracks.append({"type":"video","name":"Scene Artwork","items":scene_items})
 
     horror_items: list[dict[str, Any]] = []
