@@ -1,5 +1,6 @@
 import csv
 import importlib.util
+import re
 import tempfile
 import unittest
 import wave
@@ -14,6 +15,60 @@ SPEC.loader.exec_module(BUILDER)
 
 
 class MontageTimingTests(unittest.TestCase):
+    def test_nutty_putty_title_composition_has_duration_headroom(self):
+        root_path = Path(__file__).resolve().parents[1] / "motion-lab" / "src" / "Root.tsx"
+        source = root_path.read_text(encoding="utf-8")
+        match = re.search(
+            r'id="NuttyPuttyTitle"\\s+component=\\{NuttyPuttyTitle\\}\\s+'
+            r'durationInFrames=\\{(\\d+)\\}\\s+fps=\\{30\\}',
+            source,
+        )
+        self.assertIsNotNone(match, "NuttyPuttyTitle composition was not found in Root.tsx")
+        self.assertGreaterEqual(int(match.group(1)) / 30.0, 2.4)
+
+    def test_hybrid_video_segment_never_exceeds_source_duration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temp = Path(temporary)
+            previous_build_dir = BUILDER.BUILD_DIR
+            previous_audio_duration = BUILDER.audio_duration
+            BUILDER.BUILD_DIR = temp / "build"
+            title = temp / "nutty-putty-title.mp4"
+            title.touch()
+            images = [title, temp / "scene_a.jpg", temp / "scene_b.jpg"]
+            for image in images[1:]:
+                image.touch()
+            # Simulate a rendered title file whose actual media duration is 2.0 sec.
+            BUILDER.audio_duration = lambda _path: 2.0
+            config = {
+                "project_name": "Title source-range regression",
+                "storyboard_boundaries": [0.0, 2.14, 6.5, 10.0],
+                "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                "settings": {
+                    "motion_preset": "nutty_putty_casefile",
+                    "layout_mode": "hybrid_whiteboard",
+                    "use_storyboard_boundaries": True,
+                    "presenter_overlay": False,
+                    "add_captions_when_transcribed": False,
+                    "show_scene_text_without_transcript": False,
+                    "sound_effects": [],
+                },
+            }
+            try:
+                spec, _, _ = BUILDER.make_spec(
+                    config, temp / "voice.mp3", images, [], 10.0, [], None
+                )
+                title_items = [
+                    item
+                    for track in spec["tracks"]
+                    for item in track.get("items", [])
+                    if item.get("path") == str(title)
+                ]
+                self.assertEqual(len(title_items), 1)
+                self.assertLessEqual(title_items[0]["duration"], 1.999)
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+                BUILDER.audio_duration = previous_audio_duration
+
     def test_timestamp_parser(self):
         self.assertAlmostEqual(BUILDER.parse_timestamp("00:01:02,500"), 62.5)
 
