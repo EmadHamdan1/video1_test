@@ -25,7 +25,6 @@ export const NuttyPuttyTitle: React.FC = () => {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const pulse = 1 + 0.018 * Math.sin((frame / fps) * Math.PI * 2 * 0.65);
   const caveDash = 1000 * (1 - caveProgress);
 
   return (
@@ -129,10 +128,10 @@ export const NuttyPuttyTitle: React.FC = () => {
       >
         <div
           style={{
-            fontSize: 126,
+            fontSize: 92,
             lineHeight: 0.93,
             fontWeight: 900,
-            letterSpacing: -5,
+            letterSpacing: -3,
             color: "#15191E",
             textTransform: "uppercase",
           }}
@@ -142,7 +141,7 @@ export const NuttyPuttyTitle: React.FC = () => {
         <div
           style={{
             marginTop: 18,
-            fontSize: 148,
+            fontSize: 108,
             lineHeight: 0.94,
             fontWeight: 900,
             letterSpacing: 3,
@@ -172,27 +171,6 @@ export const NuttyPuttyTitle: React.FC = () => {
         </div>
       </div>
 
-      <div
-        style={{
-          position: "absolute",
-          right: 142,
-          top: 124,
-          width: 116,
-          height: 116,
-          border: "7px solid #15191E",
-          borderRadius: "50%",
-          background: "#F6CF45",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 76,
-          fontWeight: 900,
-          transform: "scale(" + (titleSpring * pulse) + ")",
-          transformOrigin: "center",
-        }}
-      >
-        !
-      </div>
     </AbsoluteFill>
   );
 };
