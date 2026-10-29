@@ -127,6 +127,35 @@ BEAT_META = [
     ("tense", 2, "11:56 P.M."), ("sad", 3, "27 HOURS"), ("sad", 3, "DECLARED DEAD"),
     ("solemn", 3, "CONCRETE"), ("scary", 2, "WHAT IF"),
 ]
+STOCK_QUERIES = [
+    "Utah limestone cave entrance",
+    "spelunker exploring dark cave",
+    "group of cave explorers",
+    "cave map and exploration route",
+    "narrow limestone cave passage",
+    "tight corkscrew cave passage",
+    "cave rescue headlamp equipment",
+    "spelunker crawling narrow cave",
+    "narrow cave opening limestone",
+    "uncharted underground cave passage",
+    "caver trapped in narrow rocks",
+    "narrow rock crevice cave",
+    "rock tunnel cave formation",
+    "cave rescue emergency phone",
+    "confined cave passage flashlight",
+    "cave rescue team equipment",
+    "portable oxygen monitor medical",
+    "worried family emergency phone",
+    "cave rescue pulley rope system",
+    "damaged climbing rope carabiner",
+    "spelunker descending cave passage",
+    "Utah cave rescue operation",
+    "cave rescue team ropes pulley",
+    "cave entrance memorial concrete",
+    "sealed cave entrance rock",
+    "empty underground cave passage",
+]
+
 CHAPTERS = [
     (0, "THE CAVE"), (5, "THE CORKSCREW"), (9, "NO TURNING BACK"),
     (13, "THE RESCUE"), (18, "THE PULLEY"), (21, "27 HOURS"),
@@ -1016,7 +1045,8 @@ def prepare_simple_project(
         "story_beats": [
             {"scene_id": "story_%03d" % (i + 1), "text": row["text"],
              "start_s": row["start_s"], "end_s": row["end_s"],
-             "emotion": BEAT_META[i][0], "shock_level": BEAT_META[i][1], "trigger_word": BEAT_META[i][2]}
+             "emotion": BEAT_META[i][0], "shock_level": BEAT_META[i][1], "trigger_word": BEAT_META[i][2],
+             "stock_query": STOCK_QUERIES[i]}
             for i, row in enumerate(rows)
         ],
         "chapter_titles": [], "background_music": {}, "settings": settings,
@@ -1191,6 +1221,15 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     settings = {
         "motion_preset": "nutty_putty_casefile",
         "layout_mode": "hybrid_whiteboard",
+        # Licensed stills are selected by story beat and stored with credits/provenance.
+        "stock_media": {"enabled": True, "providers": ["pexels", "pixabay", "wikimedia"],
+                        "per_query": 1, "max_total": 32, "max_queries": 26,
+                        "min_width": 1280, "allow_video": False, "allow_share_alike": False},
+        "insert_every": 3,
+        # Do not guess CapCut text opacity/scale property names. Enable only after local CLI probe.
+        "text_caps": {},
+        "callout_font_size": 20,
+        "chapter_font_max": 20,
         "use_storyboard_boundaries": True,
         "scene_image_scale": 1.0, "scene_image_x": -0.24, "scene_image_y": -0.02,
         "card_scene_scale": 0.55,
@@ -1380,7 +1419,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
             {"scene_id": "story_%03d" % (index + 1), "text": row["text"],
              "start_s": row["start_s"], "end_s": row["end_s"],
              "emotion": BEAT_META[index][0], "shock_level": BEAT_META[index][1],
-             "trigger_word": BEAT_META[index][2]}
+             "trigger_word": BEAT_META[index][2], "stock_query": STOCK_QUERIES[index]}
             for index, row in enumerate(rows)
         ],
         "chapter_titles": chapters,
