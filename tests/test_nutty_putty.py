@@ -156,5 +156,12 @@ class NuttyPuttyPreparationTests(unittest.TestCase):
             BUILDER.PROJECT = old_project
 
 
+    def test_stock_queries_are_concrete_and_cover_all_story_beats(self):
+        self.assertEqual(len(BUILDER.STOCK_QUERIES), len(BUILDER.STORY_EN))
+        self.assertTrue(all(len(query.split()) >= 3 for query in BUILDER.STOCK_QUERIES))
+        self.assertTrue(all(query == query.strip() for query in BUILDER.STOCK_QUERIES))
+        self.assertIn("cave rescue pulley rope system", BUILDER.STOCK_QUERIES)
+
+
 if __name__ == "__main__":
     unittest.main()
