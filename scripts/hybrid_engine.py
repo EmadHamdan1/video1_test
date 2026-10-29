@@ -575,6 +575,8 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 src = indices[index] if index < len(indices) else index % len(images)
                 for step in range(1, len(images) + 1):
                     candidate_path = images[(src + step) % len(images)].resolve()
+                    if candidate_path.suffix.lower() in VIDEO_SUFFIXES:
+                        continue
                     if str(candidate_path) not in avoid_paths:
                         pick = candidate_path
                         break
@@ -606,6 +608,8 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                         src = indices[index] if index < len(indices) else index % len(images)
                         for step in range(2, len(images) + 2):
                             candidate_path = images[(src + step) % len(images)].resolve()
+                            if candidate_path.suffix.lower() in VIDEO_SUFFIXES:
+                                continue
                             if str(candidate_path) not in avoid_paths and candidate_path != pick:
                                 layer_path = candidate_path
                                 break
