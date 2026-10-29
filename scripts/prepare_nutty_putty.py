@@ -1339,7 +1339,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
             catalog.append(item)
         except Exception as exc:
             catalog.append({"id": image.name, "path": str(image), "type": "host_avatar_pose", "problem": str(exc)})
-    catalog.append(inventory_asset(source_copy, "voiceover_source", str(AUDIO_SOURCE)))
+    catalog.append(inventory_asset(source_audio, "voiceover_source", str(AUDIO_SOURCE)))
     catalog.append(inventory_asset(master_audio, "voiceover_master", str(AUDIO_SOURCE)))
     catalog.append(inventory_asset(horror_path, "horror_tint_overlay"))
     catalog.append(inventory_asset(flash_path.resolve(), "white_flash_overlay"))
