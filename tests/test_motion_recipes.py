@@ -19,7 +19,7 @@ class MotionRecipeTests(unittest.TestCase):
     def test_hero_motion_is_selected_from_story_emotion_and_trigger(self):
         self.assertEqual(motion.choose_hero_entrance(4, 3, "shocking", "ROPE SNAPPED"), "punch")
         self.assertEqual(motion.choose_hero_entrance(0, 3, "sad", "27 HOURS"), "slide_left")
-        self.assertEqual(motion.choose_hero_entrance(0, 2, "scary", "CORKSCREW"), "diagonal_sweep")
+        self.assertEqual(motion.choose_hero_entrance(1, 2, "scary", "CORKSCREW"), "tilt_pop")
         self.assertEqual(motion.choose_hero_entrance(0, 2, "scary", "WHAT IF"), "zoom_through")
         self.assertNotEqual(
             motion.choose_hero_entrance(0, 3, "sad", "DECLARED DEAD"),
