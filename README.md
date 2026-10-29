@@ -9,6 +9,8 @@ The story-specific full build uses the hybrid_whiteboard engine:
 - Pure-white canvas with hero illustrations alternating left / right / centre.
 - Individually timed entrance, hold motion and exit keyframes; short overlap between scene layers where useful.
 - Selective secondary B-roll images chosen from a query attached to the closest story beat, instead of always recycling the next local image.
+- A full-screen, cropped 16:9 stock B-roll hero about every fifth scene when a relevant, unused match exists; the original supplied art is used when no nearby beat match is available.
+- A local ASSET_STOCK_CONTACT_SHEET.jpg lets you review fetched images alongside their provider, query, and licence before publishing.
 - Concise keyword and chapter text styled by scripts/text_system.py: a restrained ink/red/gold palette, three semantic size tiers, safe-area clamping, collision nudging, and keyframed vertical movement.
 - Optional sound accents for selected entrances / story beats. Effects are not forced onto every element.
 - Structural spec QA in scripts/qa_spec.py: invalid/overlong clips, keyframes after clip end, very large or off-safe text, overlapping labels and long gaps between visible starts are logged as QA messages.
