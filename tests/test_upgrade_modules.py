@@ -119,12 +119,12 @@ class MontageUpgradeTests(unittest.TestCase):
                 first = stock_fetcher.fetch_stock(config, Path(temporary), log=lambda _message: None, http_get=download)
                 second = stock_fetcher.fetch_stock(config, Path(temporary), log=lambda _message: None, http_get=download)
                 credits = (Path(temporary) / "assets" / "stock" / "CREDITS.txt").read_text(encoding="utf-8")
-                contact_sheet = Path(temporary) / "build" / "ASSET_STOCK_CONTACT_SHEET.jpg"
+                contact_sheet_created = (Path(temporary) / "build" / "ASSET_STOCK_CONTACT_SHEET.jpg").is_file()
             self.assertEqual(len(first), 1)
             self.assertEqual(len(second), 1)
             self.assertEqual(search_count, 1)
             self.assertIn("Pexels", credits)
-            self.assertTrue(contact_sheet.is_file())
+            self.assertTrue(contact_sheet_created)
         finally:
             stock_fetcher.pexels_search = original_search
             if original_key is None:
