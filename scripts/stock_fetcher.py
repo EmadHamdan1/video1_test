@@ -304,6 +304,10 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
     manifest_path = out_dir / "stock_manifest.json"
     manifest = _load_manifest(manifest_path)
     manifest = [item for item in manifest if Path(str(item["path"])).is_file()]
+    # Backfill alpha metadata for assets cached by an earlier version of the fetcher.
+    for item in manifest:
+        if "alpha_channel" not in item and str(item.get("kind", "photo")) == "photo":
+            item["alpha_channel"] = _image_has_transparency(Path(str(item["path"])))
     have = {(str(item.get("provider", "")), str(item.get("id", ""))) for item in manifest}
     known_hashes = {str(item.get("sha1", "")) for item in manifest if item.get("sha1")}
     keys = _load_api_keys()
