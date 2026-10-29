@@ -8,7 +8,7 @@ The story-specific full build uses the hybrid_whiteboard engine:
 
 - Pure-white canvas with hero illustrations alternating left / right / centre.
 - Individually timed entrance, hold motion and exit keyframes; short overlap between scene layers where useful.
-- A larger motion vocabulary: pop, directional slides, drop/rise, tilt-pop, diagonal sweep, zoom-through and spin-in, plus shrink, slide, drop, tilt and zoom exits.
+- A larger, story-aware motion vocabulary: pop, directional slides, drop/rise, tilt-pop, diagonal sweep, zoom-through and spin-in, plus shrink, slide, drop, tilt and zoom exits. Entrance choice reads each beat's emotion, shock level and trigger phrase, so high danger and solemn aftermath do not receive the same transition.
 - A layered secondary image on nearly every post-opening scene, with 7 layout patterns, separate keyframes, and occasional paired-card collages that place 3 images on screen at once. The pair enters with a small stagger and uses different exit recipes rather than simply cutting away.
 - Selective secondary B-roll images chosen from a query attached to the closest story beat, instead of always recycling the next local image.
 - A full-screen, cropped 16:9 stock B-roll hero about every fifth scene when a relevant, unused match exists; the original supplied art is used when no nearby beat match is available.
