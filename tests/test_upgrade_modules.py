@@ -234,6 +234,48 @@ class MontageUpgradeTests(unittest.TestCase):
         self.assertEqual(rows[0]["stock_source_path"], "assets/stock/openverse_123.jpg")
         self.assertEqual(rows[0]["stock_hero"], "True")
 
+    def test_timeout_and_tls_failure_stop_repeating_stock_queries(self):
+        original_openverse = stock_fetcher.openverse_search
+        original_wikimedia = stock_fetcher.wikimedia_search
+        calls = {"openverse": 0, "wikimedia": 0}
+
+        def timeout_openverse(*_args, **_kwargs):
+            calls["openverse"] += 1
+            raise TimeoutError("The read operation timed out")
+
+        def timeout_wikimedia(*_args, **_kwargs):
+            calls["wikimedia"] += 1
+            raise OSError("[SSL: OPERATION_TIMED_OUT] handshake operation timed out")
+
+        stock_fetcher.openverse_search = timeout_openverse
+        stock_fetcher.wikimedia_search = timeout_wikimedia
+        messages = []
+        try:
+            config = {
+                "settings": {"stock_media": {
+                    "enabled": True,
+                    "providers": ["openverse", "wikimedia"],
+                    "per_query": 1,
+                    "max_total": 20,
+                    "max_queries": 20,
+                }},
+                "story_beats": [
+                    {"stock_query": "dark cave entrance"},
+                    {"stock_query": "cave rescue rope team"},
+                    {"stock_query": "narrow limestone cave"},
+                ],
+            }
+            with tempfile.TemporaryDirectory() as temporary:
+                result = stock_fetcher.fetch_stock(
+                    config, Path(temporary), log=messages.append,
+                )
+            self.assertEqual(result, [])
+            self.assertEqual(calls, {"openverse": 1, "wikimedia": 1})
+            self.assertTrue(any("skipping remaining online searches" in message for message in messages))
+        finally:
+            stock_fetcher.openverse_search = original_openverse
+            stock_fetcher.wikimedia_search = original_wikimedia
+
     def test_dns_failure_stops_repeating_stock_queries(self):
         original_openverse = stock_fetcher.openverse_search
         original_wikimedia = stock_fetcher.wikimedia_search
