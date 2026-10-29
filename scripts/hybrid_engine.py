@@ -416,6 +416,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 item for item in candidates
                 if abs(int(item.get("beat", -1)) - beat_index) <= 1
                 and Path(str(item.get("path", ""))).is_file()
+                and not bool(item.get("alpha_channel", False))
                 and str(Path(str(item.get("path", ""))).resolve()) not in used_stock_heroes
             ), None)
             if candidate:
