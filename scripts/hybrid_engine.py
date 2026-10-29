@@ -793,13 +793,17 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 "color": ts.style_for(kind)[0], "x": x, "y": y, "ref": ref,
             })
         ts.avoid_collisions(callout_items)
-        for item in callout_items:
+        for item_index, item in enumerate(callout_items):
             tl.clip(item["ref"], item["duration"])
             tl.other.append({
                 "op": "text-style", "target": item["ref"],
                 "style": ts.style_for(callout_kinds[item["ref"]])[1],
             })
-            ts.text_motion(tl, item["ref"], item["duration"], item["y"], settings.get("text_caps"))
+            ts.text_motion(
+                tl, item["ref"], item["duration"], item["y"], settings.get("text_caps"),
+                recipe=ts.choose_text_recipe(callout_kinds[item["ref"]], item_index),
+                x=float(item["x"]), direction=-1.0 if float(item["x"]) < 0 else 1.0,
+            )
 
     # ---------------- chapter titles (small, dark, top) ----------------
     chapter_items: list[dict[str, Any]] = []
@@ -821,7 +825,11 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                                   "fontSize": size, "color": color, "x": x, "y": y, "ref": ref})
             tl.clip(ref, c_end - c_start)
             tl.other.append({"op": "text-style", "target": ref, "style": ts.style_for("chapter")[1]})
-            ts.text_motion(tl, ref, c_end - c_start, y, settings.get("text_caps"))
+            ts.text_motion(
+                tl, ref, c_end - c_start, y, settings.get("text_caps"),
+                recipe=ts.choose_text_recipe("chapter", index - 1), x=x,
+                direction=-1.0 if x < 0 else 1.0,
+            )
         except (TypeError, ValueError):
             log("Invalid chapter title record skipped: " + repr(chapter))
 
