@@ -26,6 +26,9 @@ def choose_hero_entrance(index: int, shock: int, emotion: str = "", trigger_word
     trigger = " ".join(str(trigger_word or "").upper().replace("-", " ").split())
     if "WHAT IF" in trigger or mood in {"curious", "curiosity", "mysterious", "question"}:
         return "zoom_through"
+    # Give the opening a clean visual hook; context-aware routing starts on later beats.
+    if index == 0 and shock < 3:
+        return "pop"
     if trigger in {"ROPE SNAPPED", "HEAD FIRST"}:
         return "punch"
     # Respectful, quieter movement for grief, aftermath and memorial beats even when impact is high.
