@@ -134,6 +134,42 @@ def wikimedia_search(query: str, allow_share_alike: bool = False, per_page: int 
     return out
 
 
+
+def openverse_search(query: str, per_page: int = 8, allow_share_alike: bool = False) -> list[dict[str, Any]]:
+    """Openverse's openly-licensed image search; restrict results to commercially usable licences."""
+    allowed = "cc0,pdm,by,by-sa" if allow_share_alike else "cc0,pdm,by"
+    params = {
+        "q": query, "page_size": min(20, per_page), "license": allowed,
+        "license_type": "commercial", "extension": "jpg,jpeg,png,webp",
+        "filter_dead": "true", "mature": "false",
+    }
+    data = _json("https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(params), {"Accept": "application/json"})
+    out: list[dict[str, Any]] = []
+    for result in data.get("results", []):
+        short = str(result.get("license", "")).lower()
+        if short in {"by-nc", "by-nc-nd", "by-nd", "nc-sampling+", "sampling+"}:
+            continue
+        if short == "by-sa" and not allow_share_alike:
+            continue
+        if short not in {"cc0", "pdm", "by"} and not (allow_share_alike and short == "by-sa"):
+            continue
+        width, height = int(result.get("width") or 0), int(result.get("height") or 0)
+        license_version = str(result.get("license_version") or "").strip()
+        license_label = {"cc0": "CC0", "pdm": "Public Domain Mark", "by": "CC BY", "by-sa": "CC BY-SA"}.get(short, short.upper())
+        if license_version and short in {"by", "by-sa"}:
+            license_label += " " + license_version
+        creator = html.unescape(str(result.get("creator") or "Unknown author"))
+        page_url = str(result.get("foreign_landing_url") or result.get("detail_url") or "")
+        out.append({
+            "provider": "openverse", "id": str(result.get("id") or ""),
+            "kind": "photo", "url": str(result.get("url") or ""),
+            "width": width, "height": height, "license": license_label,
+            "license_url": str(result.get("license_url") or ""), "page_url": page_url,
+            "credit": "%s — %s, via Openverse (%s)" % (creator, license_label, page_url),
+        })
+    return out
+
+
 def build_queries(beats: list[dict[str, Any]], max_queries: int = 40) -> list[dict[str, Any]]:
     """Use concrete English scene descriptions; deduplicate queries while preserving order."""
     seen: set[str] = set()
@@ -197,7 +233,7 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
     known_hashes = {str(item.get("sha1", "")) for item in manifest if item.get("sha1")}
     keys = {"pexels": os.environ.get("PEXELS_API_KEY", ""), "pixabay": os.environ.get("PIXABAY_API_KEY", "")}
     requested = cfg.get("providers", ["pexels", "pixabay", "wikimedia"])
-    providers = [provider for provider in requested if provider == "wikimedia" or keys.get(provider)]
+    providers = [provider for provider in requested if provider in {"openverse", "wikimedia"} or keys.get(provider)]
     for provider in requested:
         if provider not in providers:
             log("Stock provider skipped (no API key in environment): " + str(provider))
@@ -225,7 +261,10 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
             if got >= per_query or len(manifest) >= max_total:
                 break
             try:
-                if provider == "pexels":
+                if provider == "openverse" and kind == "photo":
+                    candidates = openverse_search(query["query"], per_page=8,
+                                                  allow_share_alike=bool(cfg.get("allow_share_alike", False)))
+                elif provider == "pexels":
                     candidates = pexels_search(query["query"], keys["pexels"], kind, per_page=8)
                 elif provider == "pixabay":
                     candidates = pixabay_search(query["query"], keys["pixabay"], kind, per_page=8)
@@ -274,8 +313,9 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     credits = sorted({str(item.get("credit", "")) for item in manifest if item.get("credit")})
     credits.insert(0, "Stock-media source credits — review the matching source page before publishing.")
-    credits.extend(["", "Pexels: https://www.pexels.com/ — show a prominent link back when using the Pexels API.",
-                    "Pixabay: https://pixabay.com/ — API results are cached locally; do not make systematic mass downloads.",
+    credits.extend(["", "Openverse: https://openverse.org/ — verify each item's original source and licence; indexed licence data can be inaccurate.",
+                    "Pexels: https://www.pexels.com/ — show a prominent link back when using the Pexels API.",
+                    "Pixabay: https://pixabay.com/ — cache API results and avoid systematic mass downloads.",
                     "Wikimedia Commons: each file has its own licence; verify the recorded licence and source page."])
     (out_dir / "CREDITS.txt").write_text("\n".join(credits).rstrip() + "\n", encoding="utf-8")
     log("Stock media ready: %d local files (manifest: %s)" % (len(manifest), manifest_path))
