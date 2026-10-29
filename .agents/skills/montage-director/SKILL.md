@@ -22,6 +22,10 @@ When working in this repository, act as a documentary editor and a cautious pipe
 - Review `build/ASSET_STOCK_CONTACT_SHEET.jpg` and the stock manifest before publishing; reject irrelevant/near-duplicate candidates instead of keeping stock just to fill the screen.
 - Vary rhythm naturally. Plan visual changes frequently enough to avoid dead holds, but give serious moments room to breathe. Do not impose one rigid cut interval on every video.
 - Apply small push/pull/drift to stills; reserve punch zooms, shake, flashes, stronger red accents, and bass impacts for selected moments. Not every entrance needs a sound effect.
+- Use the current deterministic motion recipe helpers: pop, left/right slides, rise/drop, diagonal sweep, zoom-through and spin-in, with exits that shrink, slide, drop, tilt or zoom away. Do not reuse one animation for every picture.
+- After the opening, maintain an overlapping secondary image layer on most non-presenter scenes. Vary its position and size from the layout recipe; use paired staggered cards on selected high-impact beats to create a three-image composition, not a fixed documentary picture-in-picture.
+- Let images change roles: the hero can move to a side, shrink out, or be replaced by a beat-matched full-screen B-roll still; overlays should have their own independent timing and keyframes.
+- Keep cutout assets only when the downloaded image truly has transparent pixels. Check the stock manifest/contact sheet; prefer a relevant transparent PNG for a foreground detail when available, but never assume the filename means it has alpha.
 
 ## Typography
 
