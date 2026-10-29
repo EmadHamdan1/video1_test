@@ -404,9 +404,19 @@ class MontageTimingTests(unittest.TestCase):
                 )
                 tracks = {track["name"]: track for track in spec["tracks"]}
                 self.assertEqual([row["layout_side"] for row in scenes],
-                                 ["full_bleed", "center", "full_bleed", "left", "full_bleed"])
+                                 ["left", "center", "right", "left", "center"])
+                self.assertTrue(all(not row["full_bleed"] for row in scenes))
                 self.assertEqual([item["scale"] for item in tracks["Scene Artwork"]["items"]],
-                                 [1.0, 0.55, 1.0, 0.55, 1.0])
+                                 [0.55] * count)
+                self.assertIn("Whiteboard Background", tracks)
+                self.assertNotIn("Whiteboard Scene Frames", tracks)
+                from PIL import Image
+                with Image.open(tracks["Whiteboard Background"]["items"][0]["path"]) as background:
+                    self.assertEqual(background.getpixel((0, 0)), (255, 255, 255))
+                    self.assertEqual(background.getpixel((960, 540)), (255, 255, 255))
+                    self.assertEqual(background.getpixel((1919, 1079)), (255, 255, 255))
+                self.assertIn("Fast Secondary Image Inserts", tracks)
+                self.assertGreaterEqual(len(tracks["Fast Secondary Image Inserts"]["items"]), 1)
                 self.assertNotIn("Animated Captions", tracks)
                 self.assertFalse(any(track["name"] == "Animated Scene Callouts" for track in spec["tracks"]))
                 self.assertTrue(any(
@@ -416,6 +426,15 @@ class MontageTimingTests(unittest.TestCase):
                     and abs(float(operation.get("time", 0.0)) - 0.72) < 0.001
                     for operation in spec["operations"]
                 ))
+                position_keys = [
+                    operation for operation in spec["operations"]
+                    if operation.get("op") == "keyframe"
+                    and operation.get("target") == "scene_002"
+                    and operation.get("property") == "position_x"
+                ]
+                self.assertTrue(any(float(item["time"]) <= 0.001 and abs(float(item["value"])) > 1.0 for item in position_keys))
+                self.assertTrue(any(abs(float(item["time"]) - 0.22) < 0.03 and abs(float(item["value"])) < 1.0 for item in position_keys))
+                self.assertTrue(any(abs(float(item["time"]) - 2.0) < 0.001 and abs(float(item["value"])) > 1.0 for item in position_keys))
                 self.assertTrue(all(row["duration"] <= 2.0 for row in scenes))
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
