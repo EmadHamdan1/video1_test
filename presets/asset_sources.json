@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "search_providers": [
+    {
+      "id": "openverse",
+      "kind": [
+        "image",
+        "audio"
+      ],
+      "api": "https://api.openverse.org/v1/",
+      "auth": "anonymous or optional OAuth client credentials",
+      "policy": "Read the source record and license URL. Keep attribution and do not bulk scrape."
+    },
+    {
+      "id": "wikimedia-commons",
+      "kind": [
+        "image"
+      ],
+      "api": "https://commons.wikimedia.org/w/api.php",
+      "auth": "no API key for normal queries",
+      "policy": "Inspect each file page; metadata can contain HTML and attribution requirements. Check third-party/publicity rights."
+    },
+    {
+      "id": "pixabay",
+      "kind": [
+        "image",
+        "video"
+      ],
+      "api": "https://pixabay.com/api/",
+      "auth": "PIXABAY_API_KEY in local .env",
+      "policy": "Content License; do not redistribute source content as standalone media. Check trademarks and identifiable people."
+    },
+    {
+      "id": "pexels",
+      "kind": [
+        "image",
+        "video"
+      ],
+      "api": "https://api.pexels.com/v1/",
+      "auth": "PEXELS_API_KEY in local .env if available",
+      "policy": "Current API access may have key-issuance limits. Follow API attribution/linking requirements."
+    },
+    {
+      "id": "freesound",
+      "kind": [
+        "audio"
+      ],
+      "api": "https://freesound.org/apiv2/",
+      "auth": "FREESOUND_API_KEY in local .env",
+      "policy": "Check each recording's license; downloaded API URLs may be preview audio, not the original file."
+    },
+    {
+      "id": "lucide",
+      "kind": [
+        "icon"
+      ],
+      "api": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/",
+      "auth": "none",
+      "policy": "Lucide SVG icons are ISC-licensed; preserve LUCIDE-LICENSE.txt when redistributing source icons."
+    },
+    {
+      "id": "mixkit",
+      "kind": [
+        "audio",
+        "video"
+      ],
+      "api": null,
+      "auth": "manual browser download",
+      "policy": "No direct downloader in this pipeline. Respect the specific item-type license and never redistribute a sound-effect file by itself."
+    },
+    {
+      "id": "huggingface-inference",
+      "kind": [
+        "ai-image"
+      ],
+      "api": "https://huggingface.co/docs/inference-providers/tasks/text-to-image",
+      "auth": "HF_TOKEN in the local .env, with Inference Providers permission",
+      "policy": "Generation may consume provider credits; model licensing and output rights vary. The CLI requires an explicit --confirm-possible-cost flag, and the model card/terms must be reviewed before publication."
+    },
+    {
+      "id": "remotion",
+      "kind": [
+        "animation",
+        "text-overlay",
+        "transition-preview"
+      ],
+      "api": "https://www.remotion.dev/docs/",
+      "auth": "Local Node.js project; no asset API key",
+      "policy": "Renders are local video assets. Rendered clips import into CapCut as clips, not editable React layers. Review Remotion license before commercial use."
+    },
+    {
+      "id": "resvg",
+      "kind": [
+        "icon-rendering",
+        "svg-to-png"
+      ],
+      "api": "https://www.npmjs.com/package/@resvg/resvg-js",
+      "auth": "Local npm package installed with motion-lab; no API key",
+      "policy": "Renders selected SVG icons to transparent PNGs for CapCut overlay tracks. Original SVG and upstream license metadata remain local in each video project."
+    }
+  ],
+  "policy": [
+    "Searching never downloads media automatically.",
+    "Only download IDs after a human reviews the result and license.",
+    "Keep media and API keys local; never commit them to Git.",
+    "The manifest records creator/source/license, but does not replace reading the full license.",
+    "If the license is unknown or there is no direct download URL, open the source page and review/download manually.",
+    "Generated images require explicit cost acknowledgement and model license review."
+  ]
+}

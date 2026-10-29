@@ -1,0 +1,28 @@
+# Local media and generated drafts must not be committed
+build/
+dist/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.mp3
+*.wav
+*.m4a
+*.mp4
+*.mov
+*.jpeg
+*.jpg
+*.png
+*.webp
+*.srt
+*.ass
+.env
+config.local.json
+
+# Local per-video projects and downloaded third-party assets stay on this PC
+projects/*
+!projects/.gitkeep
+motion-lab/node_modules/
+motion-lab/out/
+motion-lab/.remotion/
+*.svg
