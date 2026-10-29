@@ -545,6 +545,8 @@ def make_spec(
             "right": "A_mirrored_subject-right_host-left",
             "full_bleed": "G_full-illustrated-action",
         }.get(layout_side, "A_subject-left_host-right")
+        if not hybrid_mode:
+            layout_label = "full-frame-illustration" if shot_full_bleed else "whiteboard-card-left / presenter-right"
         scene_rows.append({
             "start":shot_start, "end":shot_end, "duration":shot_duration,
             "image":str(image_path), "caption_context":context, "scene_ref":ref,
