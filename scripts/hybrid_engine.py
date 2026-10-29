@@ -487,11 +487,13 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
     inserted_per_beat: dict[int, int] = {}
     used_insert_paths: set[str] = set()
     if len(images) > 1 or stock_pool:
-        insert_every = max(2, int(settings.get("insert_every", 2)))
+        # After the opening, keep an extra visual layer present on most scenes. The
+        # presenter beats already provide another visual subject, so avoid clutter there.
+        insert_every = max(1, int(settings.get("insert_every", 1)))
         for index, row in enumerate(scene_rows):
             if index == 0 or row["scene_ref"] in host_scenes:
                 continue
-            if int(row["shock_level"]) < 2 and index % insert_every != 1:
+            if int(row["shock_level"]) < 2 and index % insert_every != 0:
                 continue
 
             mid = (float(row["start"]) + float(row["end"])) / 2.0
@@ -536,7 +538,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             layout = mr.overlay_layout(index, float(row.get("base_x", 0.0)),
                                        int(row.get("shock_level", 0)))
             offset = min(0.30, float(row["duration"]) * 0.14)
-            base_duration = min(1.45, float(row["duration"]) - offset - 0.18)
+            base_duration = min(float(row["duration"]) * 0.82, float(row["duration"]) - offset - 0.18)
             if base_duration < 0.42:
                 continue
 
@@ -579,6 +581,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                     "duration": dur, "ref": ref, "scale": scale, "x": tx, "y": ty,
                 })
                 used_insert_paths.add(str(layer_path))
+                avoid_paths.add(str(layer_path))
                 tl.clip(ref, dur)
                 mr.apply_layer_motion(tl, ref, dur, scale, tx, ty, str(slot["recipe"]), index + slot_index)
                 if slot_index == 0:
