@@ -1,5 +1,6 @@
 import csv
 import importlib.util
+import sys
 import tempfile
 import unittest
 import wave
@@ -7,6 +8,8 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_montage.py"
+sys.path.insert(0, str(SCRIPT.parent))
+import stock_fetcher
 SPEC = importlib.util.spec_from_file_location("build_montage", SCRIPT)
 BUILDER = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -62,6 +65,72 @@ class MontageTimingTests(unittest.TestCase):
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
                 BUILDER.audio_duration = previous_audio_duration
+
+    def test_hybrid_uses_relevant_stock_as_an_animated_full_bleed_hero(self):
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as temporary:
+            temp = Path(temporary)
+            previous_build_dir = BUILDER.BUILD_DIR
+            previous_stock_loader = stock_fetcher.load_stock_pool_entries
+            BUILDER.BUILD_DIR = temp / "build"
+            images = [temp / ("scene_%d.jpg" % index) for index in range(4)]
+            for image in images:
+                image.touch()
+            stock_dir = temp / "assets" / "stock"
+            stock_dir.mkdir(parents=True)
+            stock = stock_dir / "openverse_cave.jpg"
+            Image.new("RGB", (1600, 900), (70, 90, 120)).save(stock)
+            stock_fetcher.load_stock_pool_entries = lambda *_args: [{
+                "provider": "openverse", "id": "cave-1", "kind": "photo",
+                "beat": 1, "query": "dark cave passage", "path": str(stock.resolve()),
+            }]
+            config = {
+                "project_name": "Stock B-roll hero regression",
+                "storyboard_boundaries": [0.0, 2.0, 4.0, 6.0, 8.0],
+                "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                "story_beats": [
+                    {"start_s": 0.0, "end_s": 2.4, "text": "opening", "trigger_word": "CAVE"},
+                    {"start_s": 2.4, "end_s": 4.4, "text": "narrow passage", "trigger_word": "CORKSCREW"},
+                    {"start_s": 4.4, "end_s": 6.4, "text": "rescue", "trigger_word": "RESCUE"},
+                    {"start_s": 6.4, "end_s": 8.0, "text": "ending", "trigger_word": "HELP"},
+                ],
+                "settings": {
+                    "motion_preset": "nutty_putty_casefile",
+                    "layout_mode": "hybrid_whiteboard",
+                    "use_storyboard_boundaries": True,
+                    "presenter_overlay": False,
+                    "keyword_callouts": False,
+                    "text_caps": {},
+                    "stock_media": {"enabled": True, "hero_every": 2, "allow_video": False},
+                    "sound_effects": [],
+                    "icon_overlays": [],
+                    "callout_overlays": [],
+                    "chapter_titles": [],
+                },
+            }
+            try:
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, temp / "voice.mp3", images, [], 8.0, [], None
+                )
+                self.assertTrue(scenes[1]["stock_hero"])
+                self.assertTrue(scenes[1]["full_bleed"])
+                self.assertEqual(scenes[1]["stock_source_path"], str(stock.resolve()))
+                hero_path = Path(scenes[1]["image"])
+                self.assertTrue(hero_path.is_file())
+                with Image.open(hero_path) as hero:
+                    self.assertEqual(hero.size, (1920, 1080))
+                hero_items = [
+                    item for track in spec["tracks"] for item in track.get("items", [])
+                    if item.get("ref") == scenes[1]["scene_ref"]
+                ]
+                self.assertEqual(len(hero_items), 1)
+                self.assertEqual(hero_items[0]["scale"], 1.0)
+                self.assertEqual(hero_items[0]["x"], 0.0)
+                self.assertEqual(hero_items[0]["y"], 0.0)
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+                stock_fetcher.load_stock_pool_entries = previous_stock_loader
 
     def test_timestamp_parser(self):
         self.assertAlmostEqual(BUILDER.parse_timestamp("00:01:02,500"), 62.5)
