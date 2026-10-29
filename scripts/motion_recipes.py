@@ -29,7 +29,7 @@ def choose_hero_entrance(index: int, shock: int, emotion: str = "", trigger_word
     if trigger in {"ROPE SNAPPED", "HEAD FIRST"}:
         return "punch"
     # Respectful, quieter movement for grief, aftermath and memorial beats even when impact is high.
-    if mood in {"sad", "solemn", "grief", "somber", "somber"}:
+    if mood in {"sad", "solemn", "grief", "somber"}:
         return ("slide_left", "rise", "slide_right")[index % 3]
     if shock >= 3:
         return ("punch", "zoom_through", "diagonal_sweep", "spin_in")[index % 4]
