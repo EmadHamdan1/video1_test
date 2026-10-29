@@ -1223,7 +1223,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "layout_mode": "hybrid_whiteboard",
         # Licensed stills are selected by story beat and stored with credits/provenance.
         "stock_media": {"enabled": True, "providers": ["openverse", "pexels", "pixabay", "wikimedia"],
-                        "per_query": 1, "max_total": 32, "max_queries": 26,
+                        "per_query": 1, "max_total": 32, "max_queries": 26, "hero_every": 5,
                         "min_width": 1280, "allow_video": False, "allow_share_alike": False},
         "insert_every": 3,
         # Do not guess CapCut text opacity/scale property names. Enable only after local CLI probe.
