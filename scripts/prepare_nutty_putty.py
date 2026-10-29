@@ -1192,7 +1192,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "use_storyboard_boundaries": True,
         "scene_image_scale": 1.0, "scene_image_x": -0.24, "scene_image_y": -0.02,
         "card_scene_scale": 0.55,
-        "scene_zoom_start": 1.0, "scene_zoom_end": 1.09, "scene_pan_amount": 0.009,
+        "scene_zoom_start": 0.55, "scene_zoom_end": 0.60, "scene_pan_amount": 0.018,
         "target_shot_seconds": 2.65, "minimum_shot_seconds": 1.25,
         "presenter_overlay": True, "presenter_mode": "reset", "presenter_backplate": False,
         "presenter_smart_matte": True, "presenter_scale": 0.31, "presenter_x": 0.72, "presenter_y": 0.35,
@@ -1383,7 +1383,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         ],
         "chapter_titles": chapters,
         "background_music": {"path": str(music_path.resolve()), "start": 0.0,
-                              "duration": round(duration, 3), "volume": 0.62},
+                              "duration": round(duration, 3), "volume": 0.16},
         "settings": settings,
     }
     config["settings"]["icon_overlays"] = overlays
