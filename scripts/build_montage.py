@@ -516,10 +516,13 @@ def make_spec(
             hybrid_mode and (shock_level >= 3 or index % 4 == 0)
         )
         if hybrid_mode:
-            shot_scale = 1.0 if shot_full_bleed else float(settings.get("card_scene_scale", 0.54))
-            shot_x = 0.0 if shot_full_bleed else scene_x
+            card_scale = float(settings.get("card_scene_scale", 0.54))
+            layout_side = "full_bleed" if shot_full_bleed else ("left" if index % 3 == 0 else ("center" if index % 3 == 1 else "right"))
+            shot_scale = 1.0 if shot_full_bleed else card_scale
+            shot_x = 0.0 if shot_full_bleed else (scene_x if layout_side == "left" else (0.0 if layout_side == "center" else -scene_x))
             shot_y = 0.0 if shot_full_bleed else scene_y
         else:
+            layout_side = "full_bleed" if full_frame else "left"
             shot_scale = float(settings.get("scene_image_scale", 1.0 if full_frame else 0.50))
             shot_x = 0.0 if full_frame else scene_x
             shot_y = 0.0 if full_frame else scene_y
@@ -528,17 +531,28 @@ def make_spec(
             "duration":round(shot_duration,3), "ref":ref,
             "scale":shot_scale, "x":shot_x, "y":shot_y, "rotation":0
         })
-        if not full_frame:
+        # The card border is intentionally used only for the left-card layout; centered/right
+        # layouts stay clean on white instead of showing a misplaced frame underneath.
+        if not full_frame and layout_side == "left":
             frame_items.append({
                 "type":"photo", "path":assets["scene_cards"][index],
                 "start":round(shot_start,3), "duration":round(shot_duration,3),
                 "ref":frame_ref, "scale":1.0, "x":0.0, "y":0.0
             })
+        layout_label = {
+            "left": "A_subject-left_host-right",
+            "center": "B_centered-hero",
+            "right": "A_mirrored_subject-right_host-left",
+            "full_bleed": "G_full-illustrated-action",
+        }.get(layout_side, "A_subject-left_host-right")
         scene_rows.append({
             "start":shot_start, "end":shot_end, "duration":shot_duration,
             "image":str(image_path), "caption_context":context, "scene_ref":ref,
             "frame_ref":frame_ref,
-            "layout":"full-frame-illustration" if shot_full_bleed else "whiteboard-card-left / presenter-right",
+            "layout":layout_label,
+            "layout_template":layout_label,
+            "layout_side":layout_side,
+            "base_x":shot_x, "base_y":shot_y,
             "full_bleed":shot_full_bleed,
             "emotion":str(beat.get("emotion", "tense" if shot_full_bleed else "calm")),
             "shock_level":shock_level,
@@ -555,8 +569,8 @@ def make_spec(
         zoom_in = index%2 == 0
         scale_a, scale_b = (start_scale,end_scale) if zoom_in else (end_scale,start_scale)
         drift = pan_amount if index%2 == 0 else -pan_amount
-        shot_base_x = 0.0 if shot.get("full_bleed", full_frame) else scene_x
-        shot_base_y = 0.0 if shot.get("full_bleed", full_frame) else scene_y
+        shot_base_x = float(shot.get("base_x", 0.0 if shot.get("full_bleed", full_frame) else scene_x))
+        shot_base_y = float(shot.get("base_y", 0.0 if shot.get("full_bleed", full_frame) else scene_y))
         x_a, x_b = shot_base_x-drift, shot_base_x+drift
         y_a, y_b = shot_base_y+0.008, shot_base_y-0.008
         entrance_slug, entrance_duration = transition_for_scene(index, motion)
@@ -671,10 +685,21 @@ def make_spec(
             pose_duration = max(0.25, pose_end - pose_start)
             ref, plate_ref = "presenter_%02d" % index, "presenter_plate_%02d" % index
             presenter_path = presenters[pose_index]
+            host_x = presenter_x
+            if hybrid_mode:
+                host_scene = next((row for row in scene_rows
+                                   if float(row["start"]) <= pose_start < float(row["end"])), None)
+                side = str(host_scene.get("layout_side", "full_bleed")) if host_scene else "full_bleed"
+                if side == "left":
+                    host_x = 0.72
+                elif side == "right":
+                    host_x = -0.72
+                else:
+                    host_x = 0.72 if index % 2 else -0.72
             presenter_items.append({
                 "type":"photo","path":str(presenter_path),"start":round(pose_start, 3),
                 "duration":round(pose_duration, 3),"ref":ref,"scale":presenter_scale,
-                "x":presenter_x,"y":presenter_y
+                "x":host_x,"y":presenter_y
             })
             plate_index = min(pose_index, len(assets["presenter_backplates"]) - 1) if assets["presenter_backplates"] else -1
             if plate_index >= 0:
@@ -1074,7 +1099,7 @@ def write_scene_csv(path: Path, scenes: list[dict[str, Any]], presenters: list[d
             handle,
             fieldnames=[
                 "start", "end", "duration", "image", "caption_context",
-                "scene_ref", "frame_ref", "layout", "presenter_ref",
+                "scene_ref", "frame_ref", "layout", "layout_template", "layout_side", "full_bleed", "presenter_ref",
                 "emotion", "trigger_word", "shock_level",
             ],
         )
