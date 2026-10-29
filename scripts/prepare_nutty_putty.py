@@ -447,6 +447,20 @@ def synth_sfx(kind: str, path: Path, duration: float, seed: int) -> None:
         wav.writeframes(samples.tobytes())
 
 
+def fade_envelope(time_s: float, duration_s: float, fade_in_s: float = 0.60,
+                  fade_out_s: float = 1.20) -> float:
+    """Smoothstep amplitude envelope for an ambience bed; returns [0, 1]."""
+    duration_s = max(0.0, float(duration_s))
+    t = max(0.0, min(float(time_s), duration_s))
+    fade_in_s = min(max(0.0, float(fade_in_s)), duration_s * 0.35)
+    fade_out_s = min(max(0.0, float(fade_out_s)), duration_s * 0.40)
+    incoming = 1.0 if fade_in_s <= 0 else min(1.0, t / fade_in_s)
+    outgoing = 1.0 if fade_out_s <= 0 else min(1.0, max(0.0, (duration_s - t) / fade_out_s))
+    incoming = incoming * incoming * (3.0 - 2.0 * incoming)
+    outgoing = outgoing * outgoing * (3.0 - 2.0 * outgoing)
+    return max(0.0, min(1.0, incoming, outgoing))
+
+
 def make_music(path: Path, duration: float, shock_times: list[float]) -> None:
     samples = array.array("h")
     duck_ranges = [(max(0, t - 0.46), max(0, t - 0.04)) for t in shock_times]
@@ -468,6 +482,7 @@ def make_music(path: Path, duration: float, shock_times: list[float]) -> None:
                 edge = min(t - start, end - t)
                 value *= 0.10 + 0.16 * min(1.0, max(0.0, edge / 0.08))
                 break
+        value *= fade_envelope(t, duration, fade_in_s=0.60, fade_out_s=1.20)
         samples.append(int(max(-0.30, min(0.30, value)) * 32767))
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as wav:
