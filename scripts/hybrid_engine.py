@@ -253,6 +253,30 @@ def _make_accent_assets(output_dir: Path) -> dict[str, str]:
     return result
 
 
+
+def _prepare_stock_hero(source: Path, output_dir: Path, index: int, width: int, height: int,
+                        log: Any) -> Path | None:
+    """Create a clean 16:9 crop for selected full-screen stock B-roll shots."""
+    try:
+        from PIL import Image, ImageEnhance, ImageOps
+
+        with Image.open(source) as raw:
+            image = ImageOps.exif_transpose(raw).convert("RGB")
+            resampling = getattr(Image, "Resampling", Image).LANCZOS
+            image = ImageOps.fit(image, (width, height), method=resampling, centering=(0.5, 0.5))
+            # A restrained grade helps photographic inserts sit beside stylised illustrations.
+            image = ImageEnhance.Color(image).enhance(0.90)
+            image = ImageEnhance.Contrast(image).enhance(1.04)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            out = output_dir / ("stock_hero_%03d.jpg" % (index + 1))
+            image.save(out, quality=92, optimize=True)
+            return out.resolve()
+    except Exception as exc:
+        log("Stock hero image could not be prepared; retaining supplied artwork for scene %d: %s"
+            % (index + 1, exc))
+        return None
+
+
 def _plan_boundaries(bm: dict, config: dict, settings: dict, images: list, duration: float,
                      captions: list, target: float, minimum: float) -> tuple[list[float], list[int]]:
     log = bm["log"]
@@ -315,35 +339,72 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
     tl = _Timeline()
     beats = config.get("story_beats", [])
     beats = beats if isinstance(beats, list) else []
+    stock_pool = stock_fetcher.load_stock_pool_entries(config, bm["CONFIG_PATH"].parent, log)
+    if stock_pool:
+        log("Licensed stock pool available: %d photo(s)." % len(stock_pool))
+    stock_settings = settings.get("stock_media", {}) or {}
+    hero_stock_every = max(0, int(stock_settings.get("hero_every", 5)))
+    used_stock_heroes: set[str] = set()
+
     scene_rows: list[dict[str, Any]] = []
     hero_scale: dict[str, float] = {}
     entrance_kind: dict[str, str] = {}
     scene_tracks: list[list[dict[str, Any]]] = [[], []]
     count = len(indices)
 
-    # ---------------- hero scenes (alternate two tracks so exit overlaps next entrance) ----------------
+    # ---------------- hero scenes (alternate tracks, using occasional full-screen stock B-roll) ----------------
     for index, image_index in enumerate(indices):
         start, end = boundaries[index], boundaries[index + 1]
         d = max(0.25, end - start)
         is_last = index == count - 1
         clip_len = round(d + (0.0 if is_last else tail), 3)
-        image_path = images[image_index]
+        original_image_path = images[image_index]
+        image_path = original_image_path
+        ref = "scene_%03d" % (index + 1)
+        mid = (start + end) / 2
+        beat_index = next((beat_i for beat_i, item in enumerate(beats)
+                           if float(item.get("start_s", 0.0)) <= mid <= float(item.get("end_s", duration))), None)
+        beat = beats[beat_index] if beat_index is not None else {}
+        stock_source_path: str | None = None
+        # On a measured cadence, let a beat-matched stock image briefly take over the frame.
+        # The title/opening remains local art; a stock still is never selected just to fill a gap.
+        if (stock_pool and hero_stock_every > 0 and index > 0
+                and (index + 1) % hero_stock_every == 0 and beat_index is not None):
+            candidates = sorted(
+                stock_pool,
+                key=lambda item: abs(int(item.get("beat", -1)) - beat_index),
+            )
+            candidate = next((
+                item for item in candidates
+                if abs(int(item.get("beat", -1)) - beat_index) <= 1
+                and Path(str(item.get("path", ""))).is_file()
+                and str(Path(str(item.get("path", ""))).resolve()) not in used_stock_heroes
+            ), None)
+            if candidate:
+                source_path = Path(str(candidate["path"])).resolve()
+                prepared = _prepare_stock_hero(source_path, visuals_dir, index, width, height, log)
+                if prepared:
+                    image_path = prepared
+                    stock_source_path = str(source_path)
+                    used_stock_heroes.add(stock_source_path)
+
         if image_path.suffix.lower() in VIDEO_SUFFIXES:
             try:
                 src_len = bm["audio_duration"](image_path)
                 clip_len = round(min(clip_len, max(0.25, src_len - 0.001)), 3)
             except Exception:
                 pass
-        ref = "scene_%03d" % (index + 1)
-        mid = (start + end) / 2
-        beat = next((b for b in beats if float(b.get("start_s", 0.0)) <= mid <= float(b.get("end_s", duration))), {})
         shock = int(beat.get("shock_level", 0) or 0)
         context = next((str(c["text"]) for c in captions if float(c["start"]) <= mid <= float(c["end"])), "") \
             or str(beat.get("text", ""))
-        side = LAYOUT_CYCLE[index % len(LAYOUT_CYCLE)]
-        bx = scene_x if side == "left" else (-scene_x if side == "right" else 0.0)
-        by = scene_y
-        S = card_scale * (1.06 if side == "center" else 1.0)
+        full_bleed_stock = stock_source_path is not None
+        if full_bleed_stock:
+            side, bx, by, S = "center", 0.0, 0.0, 1.0
+        else:
+            side = LAYOUT_CYCLE[index % len(LAYOUT_CYCLE)]
+            bx = scene_x if side == "left" else (-scene_x if side == "right" else 0.0)
+            by = scene_y
+            S = card_scale * (1.06 if side == "center" else 1.0)
         edge = -1 if side == "left" else (1 if side == "right" else (1 if index % 2 else -1))
         media_type = "video" if image_path.suffix.lower() in VIDEO_SUFFIXES else "photo"
         scene_tracks[index % 2].append({
@@ -353,20 +414,19 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
         tl.clip(ref, clip_len)
         entrance_kind[ref] = scene_motion(tl, ref, clip_len, S, bx, by, index, edge, shock, is_last, pan_amount, push)
         hero_scale[ref] = S
-        label = {"left": "A_subject-left_host-right", "right": "A_mirrored_subject-right_host-left",
-                 "center": "B_centered-hero"}[side]
+        label = ("C_full_bleed_stock_broll" if full_bleed_stock else
+                 {"left": "A_subject-left_host-right", "right": "A_mirrored_subject-right_host-left",
+                  "center": "B_centered-hero"}[side])
         scene_rows.append({
             "start": start, "end": end, "duration": d, "image": str(image_path),
+            "source_image": str(original_image_path), "stock_source_path": stock_source_path,
+            "stock_hero": full_bleed_stock,
             "caption_context": context, "scene_ref": ref, "frame_ref": "frame_%03d" % (index + 1),
             "layout": label, "layout_template": label, "layout_side": side,
-            "base_x": bx, "base_y": by, "full_bleed": False,
+            "base_x": bx, "base_y": by, "full_bleed": full_bleed_stock,
             "emotion": str(beat.get("emotion", "calm")), "shock_level": shock,
             "trigger_word": str(beat.get("trigger_word", "")),
         })
-
-    stock_pool = stock_fetcher.load_stock_pool_entries(config, bm["CONFIG_PATH"].parent, log)
-    if stock_pool:
-        log("Licensed stock pool available: %d photo(s)." % len(stock_pool))
 
     sfx_cues: list[tuple[float, list[str]]] = []
     for row in scene_rows:
@@ -457,7 +517,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                     nxt = (nxt + 1) % len(images)
                 pick = images[nxt]
 
-            if str(pick) == row["image"]:
+            if str(pick) in {row["image"], str(row.get("stock_source_path") or "")}:
                 continue
             offset = min(0.48, row["duration"] * 0.22)
             dur = round(min(0.95, row["duration"] - offset - 0.12), 3)
