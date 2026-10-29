@@ -118,13 +118,14 @@ def pop_motion(tl: _Timeline, ref: str, D: float, S: float, x: float, y: float,
 
 def scene_motion(tl: _Timeline, ref: str, D: float, S: float, bx: float, by: float,
                  index: int, edge: int, shock: int, is_last: bool,
-                 pan_amount: float, push: float) -> str:
-    """Hero image: entrance recipe -> living hold -> overlapping exit. Returns entrance kind."""
+                 pan_amount: float, push: float, emotion: str = "",
+                 trigger_word: str = "") -> str:
+    """Hero image: story-aware entrance recipe -> living hold -> overlapping exit."""
     E = _clamp(D * 0.22, 0.16, 0.30)
     f = E / 0.30
     exit_len = 0.0 if is_last else _clamp(D * 0.14, 0.10, 0.18)
     xs = min(D, max(E + 0.12, D - exit_len))
-    kind = "punch" if shock >= 3 else ENTRANCES[index % len(ENTRANCES)]
+    kind = mr.choose_hero_entrance(index, shock, emotion, trigger_word)
 
     def T(v: float) -> float:
         return v * f
@@ -451,7 +452,10 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             "duration": clip_len, "ref": ref, "scale": round(S, 4), "x": bx, "y": by, "rotation": 0,
         })
         tl.clip(ref, clip_len)
-        entrance_kind[ref] = scene_motion(tl, ref, clip_len, S, bx, by, index, edge, shock, is_last, pan_amount, push)
+        entrance_kind[ref] = scene_motion(
+            tl, ref, clip_len, S, bx, by, index, edge, shock, is_last, pan_amount, push,
+            emotion=str(beat.get("emotion", "")), trigger_word=str(beat.get("trigger_word", "")),
+        )
         hero_scale[ref] = S
         label = ("C_full_bleed_stock_broll" if full_bleed_stock else
                  {"left": "A_subject-left_host-right", "right": "A_mirrored_subject-right_host-left",
