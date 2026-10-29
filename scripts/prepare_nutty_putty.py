@@ -461,28 +461,78 @@ def fade_envelope(time_s: float, duration_s: float, fade_in_s: float = 0.60,
     return max(0.0, min(1.0, incoming, outgoing))
 
 
-def make_music(path: Path, duration: float, shock_times: list[float]) -> None:
+def make_music(path: Path, duration: float, shock_times: list[float],
+              story_moments: dict[str, float] | None = None) -> None:
+    """Compose an original low-key suspense bed with a story-shaped rise, pulse and release."""
     samples = array.array("h")
-    duck_ranges = [(max(0, t - 0.46), max(0, t - 0.04)) for t in shock_times]
+    moments = story_moments or {}
+    corkscrew = float(moments.get("CORKSCREW", duration * 0.22))
+    rescue = float(moments.get("TEAMS ARRIVED", duration * 0.43))
+    rope_snap = float(moments.get("ROPE SNAPPED", duration * 0.72))
+    declared_dead = float(moments.get("DECLARED DEAD", duration * 0.88))
+    what_if = float(moments.get("WHAT IF", duration * 0.95))
+    duck_ranges = [(max(0.0, t - 0.32), min(duration, t + 0.16)) for t in shock_times]
+
+    def smoothstep(value: float) -> float:
+        value = max(0.0, min(1.0, value))
+        return value * value * (3.0 - 2.0 * value)
+
+    def ramp(t: float, start: float, end: float) -> float:
+        return smoothstep((t - start) / max(0.01, end - start))
+
     for index in range(max(1, int(math.ceil(duration * SAMPLE_RATE)))):
         t = index / SAMPLE_RATE
-        slow = 0.82 + 0.18 * math.sin(math.tau * 0.075 * t)
-        value = (
-            0.105 * math.sin(math.tau * 55.0 * t)
-            + 0.036 * math.sin(math.tau * 82.41 * t + 0.2 * math.sin(math.tau * 0.08 * t))
-            + 0.022 * math.sin(math.tau * 110.0 * t)
-            + 0.010 * math.sin(math.tau * 164.81 * t)
+        # A detuned low drone with slowly changing harmonics creates unease without
+        # competing with the narration; it is deliberately not a loud melody.
+        slow = 0.78 + 0.22 * math.sin(math.tau * 0.055 * t)
+        drone = (
+            0.082 * math.sin(math.tau * 48.0 * t)
+            + 0.047 * math.sin(math.tau * 55.0 * t)
+            + 0.024 * math.sin(math.tau * (55.55 + 0.24 * math.sin(math.tau * 0.035 * t)) * t)
+            + 0.015 * math.sin(math.tau * 82.41 * t + 0.25 * math.sin(math.tau * 0.08 * t))
+            + 0.008 * math.sin(math.tau * 110.0 * t)
         ) * slow
-        if t < min(duration * 0.10, 16.0):
-            phase = t % 2.25
-            if phase < 0.42:
-                value += 0.016 * math.sin(math.tau * (220.0 if phase < 0.21 else 293.66) * phase)
+
+        # Small distant ticking during exploration becomes a restrained heartbeat only
+        # during the rescue; it drops out again after the failed pulley.
+        pulse_level = 0.0
+        if t < corkscrew:
+            pulse_level = 0.20
+            pulse_period = 2.15
+        elif t < rescue:
+            pulse_level = 0.35 + 0.45 * ramp(t, corkscrew, rescue)
+            pulse_period = 1.75 - 0.25 * ramp(t, corkscrew, rescue)
+        elif t < rope_snap:
+            pulse_level = 0.80
+            pulse_period = 1.18
+        elif t < declared_dead:
+            pulse_level = 0.10
+            pulse_period = 2.4
+        else:
+            pulse_level = 0.0
+            pulse_period = 2.4
+        pulse_phase = t % pulse_period
+        heartbeat = math.exp(-((pulse_phase - 0.035) / 0.045) ** 2)
+        heartbeat += 0.72 * math.exp(-((pulse_phase - 0.23) / 0.065) ** 2)
+        drone += pulse_level * 0.020 * math.sin(math.tau * 46.0 * t) * heartbeat
+
+        # Clear the bed briefly around the most severe spoken beats so the event SFX
+        # and the narrator feel intentional instead of being buried under continuous music.
+        duck = 1.0
         for start, end in duck_ranges:
             if start <= t <= end:
-                edge = min(t - start, end - t)
-                value *= 0.10 + 0.16 * min(1.0, max(0.0, edge / 0.08))
-                break
-        value *= fade_envelope(t, duration, fade_in_s=0.60, fade_out_s=1.20)
+                centre = (start + end) * 0.5
+                half = max(0.01, (end - start) * 0.5)
+                duck = min(duck, 0.22 + 0.78 * min(1.0, abs(t - centre) / half))
+        # After the rope failure the score releases, then returns as an eerie low pad
+        # for the sealed-cave / next-case outro.
+        if t >= rope_snap:
+            drone *= 0.20 + 0.18 * ramp(t, rope_snap, declared_dead)
+        if t >= declared_dead:
+            drone *= 0.38 + 0.42 * ramp(t, declared_dead, what_if)
+        if t >= what_if:
+            drone *= 0.55 + 0.45 * ramp(t, what_if, duration)
+        value = drone * duck * fade_envelope(t, duration, fade_in_s=0.8, fade_out_s=1.6)
         samples.append(int(max(-0.30, min(0.30, value)) * 32767))
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as wav:
@@ -919,6 +969,7 @@ def fit_storyboard_boundaries(rows: list[dict[str, Any]], tokens: list[dict[str,
 
 
 def make_chapters(rows: list[dict[str, Any]], duration: float, intro_duration: float) -> list[dict[str, Any]]:
+    """Create brief chapter slates; section titles must not linger across whole chapters."""
     sections = []
     for row_index, title in CHAPTERS:
         if row_index >= len(rows):
@@ -926,12 +977,15 @@ def make_chapters(rows: list[dict[str, Any]], duration: float, intro_duration: f
         start = float(rows[row_index]["start_s"])
         if row_index == 0:
             start = max(start, intro_duration)
-        sections.append({"title": title, "start_s": min(start, duration), "duration_s": 1.0,
-                         "font_size": 31, "color": "#FFFFFF", "x": 0.0, "y": -0.78})
+        if start >= duration:
+            continue
+        sections.append({
+            "title": title,
+            "start_s": min(start, duration),
+            "duration_s": min(1.65, max(0.8, duration - start)),
+            "font_size": 31, "color": "#FFFFFF", "x": 0.0, "y": -0.78,
+        })
     sections.sort(key=lambda item: item["start_s"])
-    for index, item in enumerate(sections):
-        end = float(sections[index + 1]["start_s"]) if index + 1 < len(sections) else duration
-        item["duration_s"] = max(0.7, end - float(item["start_s"]))
     return sections
 
 
@@ -1031,6 +1085,19 @@ def inventory_asset(path: Path, asset_type: str, original: str = "") -> dict[str
             row["problem"] = "Duration could not be read: " + str(exc)
     return row
 
+
+
+def transition_sfx_allowed(event_time: float, existing_events: list[dict[str, Any]],
+                         safety_margin: float = 0.08) -> bool:
+    """Avoid adding a generic transition sound over a story-specific SFX."""
+    moment = float(event_time)
+    margin = max(0.0, float(safety_margin))
+    for event in existing_events:
+        start = float(event.get("start", 0.0))
+        end = start + max(0.0, float(event.get("duration", 0.0)))
+        if start - margin <= moment <= end + margin:
+            return False
+    return True
 
 
 def prepare_simple_project(
@@ -1228,7 +1295,12 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
             if match:
                 shock_times.append(float(match[0]))
     music_path = PROJECT / "assets" / "audio" / "sfx" / "suspense_bed.wav"
-    make_music(music_path, duration, shock_times)
+    music_moments = {}
+    for phrase in ("CORKSCREW", "TEAMS ARRIVED", "ROPE SNAPPED", "DECLARED DEAD", "WHAT IF"):
+        match = find_phrase(tokens, phrase)
+        if match:
+            music_moments[phrase] = float(match[0])
+    make_music(music_path, duration, shock_times, music_moments)
     sfx_events = []
     for label, kind, volume in SFX_EVENTS:
         match = find_phrase(tokens, label)
@@ -1384,6 +1456,9 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     for scene_index in range(1, len(scene_images)):
         event_time = float(boundaries[scene_index])
         if event_time >= duration - 0.08:
+            continue
+        # Keep a story-specific impact (e.g. rope snap, no pulse, concrete) intact.
+        if not transition_sfx_allowed(event_time, sfx_events):
             continue
         story_row = next(
             (row for row in rows
