@@ -175,6 +175,7 @@ class MontageTimingTests(unittest.TestCase):
                         "presenter_overlay": False,
                         "add_captions_when_transcribed": True,
                         "caption_words_per_chunk": 4,
+                        "show_captions": True,
                     },
                 }
                 spec, _, _ = BUILDER.make_spec(
@@ -209,6 +210,7 @@ class MontageTimingTests(unittest.TestCase):
                         "minimum_shot_seconds": 1.0,
                         "presenter_overlay": False,
                         "show_scene_text_without_transcript": True,
+                        "show_captions": True,
                     },
                 }
                 spec, _, _ = BUILDER.make_spec(
@@ -378,83 +380,54 @@ class MontageTimingTests(unittest.TestCase):
                 BUILDER.BUILD_DIR = previous_build_dir
 
 
-    def test_hybrid_whiteboard_uses_mixed_layouts_continuous_motion_and_no_long_captions(self):
+    def test_hybrid_whiteboard_pop_in_out_no_captions_and_small_callouts(self):
         with tempfile.TemporaryDirectory() as temporary:
             previous_build_dir = BUILDER.BUILD_DIR
             BUILDER.BUILD_DIR = Path(temporary) / "build"
             try:
                 count = 5
-                duration = 10.0
-                boundaries = [float(index * 2) for index in range(count + 1)]
                 config = {
                     "project_name": "Hybrid movement test",
-                    "storyboard_boundaries": boundaries,
-                    "scene_texts": ["Full sentence not meant to be displayed"] * count,
+                    "storyboard_boundaries": [float(i * 2) for i in range(count + 1)],
                     "story_beats": [
-                        {"start_s": index * 2.0, "end_s": (index + 1) * 2.0,
-                         "emotion": "scary" if index == 2 else "tense",
-                         "shock_level": 3 if index == 2 else 1,
-                         "trigger_word": "TEST"}
-                        for index in range(count)
+                        {"start_s": i * 2.0, "end_s": (i + 1) * 2.0, "emotion": "scary" if i == 2 else "tense",
+                         "shock_level": 3 if i == 2 else 1, "trigger_word": "TEST"}
+                        for i in range(count)
                     ],
                     "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
                     "settings": {
                         "motion_preset": "nutty_putty_casefile",
                         "layout_mode": "hybrid_whiteboard",
                         "use_storyboard_boundaries": True,
-                        "scene_image_scale": 1.0,
-                        "card_scene_scale": 0.55,
-                        "scene_image_x": -0.24,
-                        "scene_image_y": -0.02,
-                        "scene_zoom_start": 0.55,
-                        "scene_zoom_end": 0.60,
-                        "scene_pan_amount": 0.018,
                         "presenter_overlay": False,
-                        "add_captions_when_transcribed": False,
-                        "show_scene_text_without_transcript": False,
+                        "add_captions_when_transcribed": True,
                     },
                 }
                 spec, scenes, _ = BUILDER.make_spec(
                     config, Path("voice.mp3"),
-                    [Path("scene_%02d.jpg" % index) for index in range(count)],
-                    [], duration,
+                    [Path("scene_%02d.jpg" % i) for i in range(count)], [], 10.0,
                     [{"start": 0.0, "end": 10.0, "text": "This full narration cue must stay hidden"}],
                     Path("captions.srt"),
                 )
-                tracks = {track["name"]: track for track in spec["tracks"]}
-                self.assertEqual([row["layout_side"] for row in scenes],
-                                 ["left", "center", "right", "left", "center"])
-                self.assertTrue(all(not row["full_bleed"] for row in scenes))
-                self.assertEqual([item["scale"] for item in tracks["Scene Artwork"]["items"]],
-                                 [0.55] * count)
-                self.assertIn("Whiteboard Background", tracks)
-                self.assertNotIn("Whiteboard Scene Frames", tracks)
-                from PIL import Image
-                with Image.open(tracks["Whiteboard Background"]["items"][0]["path"]) as background:
-                    self.assertEqual(background.getpixel((0, 0)), (255, 255, 255))
-                    self.assertEqual(background.getpixel((960, 540)), (255, 255, 255))
-                    self.assertEqual(background.getpixel((1919, 1079)), (255, 255, 255))
-                self.assertIn("Fast Secondary Image Inserts", tracks)
-                self.assertGreaterEqual(len(tracks["Fast Secondary Image Inserts"]["items"]), 1)
+                tracks = {t["name"]: t for t in spec["tracks"]}
+                self.assertEqual([r["layout_side"] for r in scenes],
+                                 ["left", "right", "center", "left", "center"])
+                self.assertIn("Scene Artwork B", tracks)
                 self.assertNotIn("Animated Captions", tracks)
-                self.assertFalse(any(track["name"] == "Animated Scene Callouts" for track in spec["tracks"]))
-                self.assertTrue(any(
-                    operation.get("op") == "keyframe"
-                    and operation.get("target") == "scene_002"
-                    and operation.get("property") == "uniform_scale"
-                    and abs(float(operation.get("time", 0.0)) - 0.72) < 0.001
-                    for operation in spec["operations"]
-                ))
-                position_keys = [
-                    operation for operation in spec["operations"]
-                    if operation.get("op") == "keyframe"
-                    and operation.get("target") == "scene_002"
-                    and operation.get("property") == "position_x"
-                ]
-                self.assertTrue(any(float(item["time"]) <= 0.001 and abs(float(item["value"])) > 1.0 for item in position_keys))
-                self.assertTrue(any(abs(float(item["time"]) - 0.22) < 0.03 and abs(float(item["value"])) < 1.0 for item in position_keys))
-                self.assertTrue(any(abs(float(item["time"]) - 2.0) < 0.001 and abs(float(item["value"])) > 1.0 for item in position_keys))
-                self.assertTrue(all(row["duration"] <= 2.0 for row in scenes))
+                self.assertNotIn("Animated Scene Callouts", tracks)
+                self.assertIn("Fast Secondary Image Inserts", tracks)
+                self.assertIn("Keyword Callouts", tracks)
+                self.assertTrue(all(i["fontSize"] <= 30 for i in tracks["Keyword Callouts"]["items"]))
+                from PIL import Image
+                with Image.open(tracks["Whiteboard Background"]["items"][0]["path"]) as bg:
+                    self.assertEqual(bg.getpixel((960, 540)), (255, 255, 255))
+                keys = [op for op in spec["operations"]
+                        if op.get("op") == "keyframe" and op.get("target") == "scene_001"
+                        and op.get("property") == "uniform_scale"]
+                self.assertTrue(any(op["time"] <= 0.001 and op["value"] < 0.1 for op in keys))
+                self.assertTrue(any(op["time"] >= 2.0 and op["value"] < 0.1 for op in keys))
+                times = [op["time"] for op in keys]
+                self.assertEqual(times, sorted(times))
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
 

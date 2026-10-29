@@ -25,7 +25,14 @@ export const WhiteboardExplainer: React.FC<WhiteboardProps> = ({ title, subtitle
   const titleOpacity = interpolate(frame, [5, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#FAF9F5", opacity, fontFamily: "Arial, Helvetica, sans-serif", overflow: "hidden" }}>
+    <AbsoluteFill
+      style={{
+        backgroundColor: "#FAF9F5",
+        opacity,
+        fontFamily: "Arial, Helvetica, sans-serif",
+        overflow: "hidden"
+      }}
+    >
       <AbsoluteFill style={{ opacity: 0.45, backgroundImage: "radial-gradient(#DCD9D0 1.15px, transparent 1.15px)", backgroundSize: "28px 28px" }} />
       <div style={{ position: "absolute", left: 76, top: 62, padding: "14px 23px", borderRadius: 20, background: "#FFFFFF", border: "1px solid #E6E2D8", color: "#36414C", fontSize: 21, fontWeight: 800, letterSpacing: 2 }}>VISUAL EXPLAINER</div>
       <div style={{ position: "absolute", right: 80, top: 73, color: "#8B8D8A", fontSize: 17, letterSpacing: 2 }}>WHITEBOARD / MOTION</div>

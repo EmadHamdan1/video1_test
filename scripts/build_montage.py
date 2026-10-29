@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import csv
 import json
 import math
@@ -486,6 +487,14 @@ def make_spec(
     layout_mode = str(settings.get("layout_mode", "whiteboard_card")).strip().lower()
     full_frame = layout_mode in {"full_frame", "full-frame", "fullframe"}
     hybrid_mode = layout_mode in {"hybrid_whiteboard", "hybrid", "mixed_whiteboard"}
+    if hybrid_mode:
+        engine_path = Path(__file__).resolve().with_name("hybrid_engine.py")
+        engine_spec = importlib.util.spec_from_file_location("hybrid_engine", engine_path)
+        engine = importlib.util.module_from_spec(engine_spec)
+        engine_spec.loader.exec_module(engine)
+        return engine.make_hybrid_spec(
+            globals(), config, audio, images, presenters, duration, captions, captions_path
+        )
     width, height = int(canvas.get("width", 1920)), int(canvas.get("height", 1080))
     target = max(1.0, float(settings.get("target_shot_seconds", motion.get("target_shot_seconds", 3.8))))
     minimum = max(0.75, float(settings.get("minimum_shot_seconds", motion.get("minimum_shot_seconds", 1.8))))
@@ -970,7 +979,10 @@ def make_spec(
     caption_items: list[dict[str, Any]] = []
     text_preset_name = str(motion.get("text_preset", "marker_caption"))
     text_preset = load_text_animation_preset(text_preset_name)
-    transcript_enabled = bool(settings.get("add_captions_when_transcribed", True) and captions_path and captions)
+    transcript_enabled = bool(
+        settings.get("show_captions", False)
+        and settings.get("add_captions_when_transcribed", True) and captions_path and captions
+    )
     caption_sources: list[dict[str, Any]] = []
     max_words = int(settings.get("caption_words_per_chunk", text_preset.get("words_per_chunk", 5)))
     min_hold = float(settings.get("caption_min_hold_seconds", 0.85))
@@ -980,7 +992,7 @@ def make_spec(
             cue_end = min(duration, float(cue.get("end", 0.0)))
             caption_sources.extend(split_timed_text(cue_start, cue_end, str(cue.get("text", "")), max_words, min_hold))
         caption_track_name = "Animated Captions"
-    elif settings.get("show_scene_text_without_transcript", True) and config.get("scene_texts"):
+    elif settings.get("show_captions", False) and settings.get("show_scene_text_without_transcript", True) and config.get("scene_texts"):
         texts = config.get("scene_texts", [])
         for index, scene in enumerate(scene_rows):
             if index >= len(texts) or not str(texts[index]).strip():
@@ -1353,6 +1365,7 @@ def main(argv: list[str] | None = None) -> int:
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     config = load_config(CONFIG_PATH)
     settings = config.get("settings", {})
+    hybrid_layout = str(settings.get("layout_mode", "")).strip().lower() in {"hybrid_whiteboard", "hybrid", "mixed_whiteboard"}
 
     audio_raw = str(config.get("audio", "")).strip()
     audio = Path(os.path.expandvars(audio_raw)).expanduser()
@@ -1466,7 +1479,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Only the opening image gets a zoom-out entrance; other cuts use the deliberate transitions above.
     first_scene_id = refs.get("scene_001")
-    if first_scene_id:
+    if first_scene_id and not hybrid_layout:
         intro_result = subprocess.run(
             [capcut, "image-anim", str(draft_path), str(first_scene_id),
              "--intro", "zoom-out", "--intro-duration", "0.55"],
@@ -1475,7 +1488,7 @@ def main(argv: list[str] | None = None) -> int:
         if intro_result.returncode != 0:
             log("Opening reveal animation unavailable; keyframed movement remains.")
 
-    if presenter_rows:
+    if presenter_rows and not hybrid_layout:
         first_presenter_id = refs.get(str(presenter_rows[0]["ref"]))
         last_presenter_id = refs.get(str(presenter_rows[-1]["ref"]))
         if first_presenter_id:
