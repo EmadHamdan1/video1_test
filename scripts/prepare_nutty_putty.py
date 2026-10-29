@@ -224,6 +224,23 @@ def ffprobe_duration(path: Path) -> float:
     return duration
 
 
+def voice_master_filter_chain(duration: float, fade_in: float = 0.08, fade_out: float = 0.65) -> str:
+    """Return a validated FFmpeg voice filter chain with short start/end fades."""
+    length = max(0.2, float(duration))
+    fade_in = min(max(0.0, float(fade_in)), length * 0.20)
+    fade_out = min(max(0.0, float(fade_out)), length * 0.35)
+    filters = [
+        "highpass=f=70",
+        "acompressor=threshold=0.125:ratio=2.5:attack=15:release=120:makeup=2",
+        "loudnorm=I=-14:TP=-1:LRA=7",
+    ]
+    if fade_in >= 0.015:
+        filters.append("afade=t=in:st=0:d=%.3f" % fade_in)
+    if fade_out >= 0.015:
+        filters.append("afade=t=out:st=%.3f:d=%.3f" % (max(0.0, length - fade_out), fade_out))
+    return ",".join(filters)
+
+
 def copy_sources(simple: bool = False) -> tuple[list[Path], list[Path], Path, Path, dict[str, Any]]:
     missing_required = [path for path in [AUDIO_SOURCE, *IMAGE_SOURCES] if not path.is_file()]
     if missing_required:
@@ -257,8 +274,9 @@ def copy_sources(simple: bool = False) -> tuple[list[Path], list[Path], Path, Pa
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("FFmpeg was not found. Run check_tools.ps1 and fix the FFmpeg row first.")
-    filters = "highpass=f=70,acompressor=threshold=0.125:ratio=2.5:attack=15:release=120:makeup=2,loudnorm=I=-14:TP=-1:LRA=7"
-    log("Preparing a clean voice master (high-pass, gentle compression, -16 LUFS target, -3 dBTP ceiling).")
+    source_duration = ffprobe_duration(source_copy)
+    filters = voice_master_filter_chain(source_duration, fade_in=0.08, fade_out=0.65)
+    log("Preparing voice master with high-pass, gentle compression, loudness normalisation, and short 80ms/650ms fades.")
     result = run_process([
         ffmpeg, "-y", "-i", str(source_copy), "-af", filters, "-ar", "48000", "-ac", "2",
         "-c:a", "pcm_s24le", str(master),
