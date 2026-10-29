@@ -169,6 +169,45 @@ class NuttyPuttyPreparationTests(unittest.TestCase):
         self.assertLess(filters.index("loudnorm="), filters.index("afade=t=in:"))
         self.assertNotIn("afade", BUILDER.voice_master_filter_chain(1.0, fade_in=0.0, fade_out=0.0))
 
+    def test_chapter_titles_are_brief_and_do_not_fill_the_whole_section(self):
+        rows = [
+            {"start_s": index * 3.5, "end_s": index * 3.5 + 3.2}
+            for index in range(len(BUILDER.STORY_EN))
+        ]
+        chapters = BUILDER.make_chapters(rows, 104.15, 2.0)
+        self.assertGreaterEqual(len(chapters), 5)
+        self.assertTrue(all(0.8 <= item["duration_s"] <= 1.65 for item in chapters))
+        self.assertTrue(all(
+            right["start_s"] > left["start_s"]
+            for left, right in zip(chapters, chapters[1:])
+        ))
+
+    def test_generic_transition_sfx_yields_to_story_specific_sound(self):
+        events = [
+            {"start": 4.0, "duration": 0.8, "label": "ROPE SNAPPED"},
+            {"start": 8.0, "duration": 0.22, "label": "chapter icon"},
+        ]
+        self.assertFalse(BUILDER.transition_sfx_allowed(4.05, events))
+        self.assertFalse(BUILDER.transition_sfx_allowed(8.1, events))
+        self.assertTrue(BUILDER.transition_sfx_allowed(9.0, events))
+
+    def test_suspense_score_is_generated_with_story_moments(self):
+        import wave
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "suspense.wav"
+            BUILDER.make_music(
+                output, 3.0, [1.2],
+                {"CORKSCREW": 0.6, "TEAMS ARRIVED": 1.0,
+                 "ROPE SNAPPED": 1.8, "DECLARED DEAD": 2.4, "WHAT IF": 2.7},
+            )
+            self.assertTrue(output.is_file())
+            with wave.open(str(output), "rb") as audio:
+                self.assertEqual(audio.getframerate(), BUILDER.SAMPLE_RATE)
+                self.assertEqual(audio.getnchannels(), 1)
+                self.assertGreater(audio.getnframes(), BUILDER.SAMPLE_RATE * 2)
+                self.assertLessEqual(audio.getnframes(), BUILDER.SAMPLE_RATE * 3 + 1)
+
     def test_suspense_music_has_smooth_start_and_end_envelope(self):
         self.assertAlmostEqual(BUILDER.fade_envelope(0.0, 5.0), 0.0)
         self.assertAlmostEqual(BUILDER.fade_envelope(2.5, 5.0), 1.0)
