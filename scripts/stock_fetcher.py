@@ -11,6 +11,7 @@ import json
 import os
 import re
 import socket
+import ssl
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -300,18 +301,28 @@ def _load_api_keys() -> dict[str, str]:
     return values
 
 
-def _is_dns_resolution_failure(exc: BaseException) -> bool:
-    """Recognise local DNS lookup errors so a dead network does not spam every query."""
+def _is_network_connectivity_failure(exc: BaseException) -> bool:
+    """Recognise DNS, timeout and TLS transport failures that should trip a run-local circuit breaker."""
     reason = getattr(exc, "reason", None)
     details = " ".join((str(exc), str(reason))).lower()
-    return (
-        isinstance(exc, socket.gaierror)
-        or isinstance(reason, socket.gaierror)
-        or "getaddrinfo failed" in details
-        or "name or service not known" in details
-        or "temporary failure in name resolution" in details
-        or "nodename nor servname provided" in details
-    )
+    network_errors = (socket.gaierror, TimeoutError, socket.timeout)
+    if isinstance(exc, network_errors) or isinstance(reason, network_errors):
+        return True
+    # urllib may wrap socket / TLS errors as URLError, so inspect its reason text too.
+    return any(phrase in details for phrase in (
+        "getaddrinfo failed",
+        "name or service not known",
+        "temporary failure in name resolution",
+        "nodename nor servname provided",
+        "timed out",
+        "timeout",
+        "handshake operation",
+        "ssl error",
+        "ssl: certificate_verify_failed",
+        "connection reset",
+        "connection refused",
+        "network is unreachable",
+    )) or isinstance(exc, ssl.SSLError) or isinstance(reason, ssl.SSLError)
 
 
 def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], None] = print,
@@ -339,8 +350,8 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
         if provider not in providers:
             log("Stock provider skipped (no API key in environment): " + str(provider))
 
-    # Circuit-break DNS failures for this run only. A later run retries normally,
-    # but this build will not repeat the same failing hostname lookup for every beat.
+    # Circuit-break network failures for this run only. A later run retries normally,
+    # but read/handshake timeouts and DNS failures won't be repeated for every story beat.
     failed_providers: set[str] = set()
     per_query = max(1, int(cfg.get("per_query", 1)))
     max_total = max(0, int(cfg.get("max_total", 26)))
@@ -382,11 +393,11 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                 else:
                     candidates = []
             except Exception as exc:
-                if _is_dns_resolution_failure(exc):
+                if _is_network_connectivity_failure(exc):
                     failed_providers.add(provider)
                     log(
-                        "Stock provider disabled for the rest of this run after a DNS "
-                        "resolution failure (%s): %s" % (provider, exc)
+                        "Stock provider disabled for the rest of this run after a network "
+                        "connectivity failure (%s): %s" % (provider, exc)
                     )
                 else:
                     log("Stock search failed (%s, %r): %s" % (provider, query["query"], exc))
@@ -434,7 +445,7 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
         if got == 0 and query_key not in cached_query_counts:
             log("No usable licensed stock results for beat %d query %r; using supplied art for that beat." % (query["beat"], query["query"]))
         if providers and all(provider in failed_providers for provider in providers):
-            log("All configured stock providers failed DNS resolution; skipping remaining online searches and continuing with supplied local artwork.")
+            log("All configured stock providers hit network failures; skipping remaining online searches and continuing with supplied local artwork.")
             break
 
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
