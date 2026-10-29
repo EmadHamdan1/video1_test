@@ -711,7 +711,7 @@ def make_spec(
             presenter_rows.append({
                 "start":pose_start,"end":pose_end,"image":str(presenter_path),
                 "ref":ref,"backplate_ref":plate_ref,
-                "side":"left" if presenter_x < 0 else "right"
+                "side":"left" if host_x < 0 else "right"
             })
             mid = round(pose_duration / 2, 3)
             operations.extend([
@@ -1099,7 +1099,7 @@ def write_scene_csv(path: Path, scenes: list[dict[str, Any]], presenters: list[d
             handle,
             fieldnames=[
                 "start", "end", "duration", "image", "caption_context",
-                "scene_ref", "frame_ref", "layout", "layout_template", "layout_side", "full_bleed", "presenter_ref",
+                "scene_ref", "frame_ref", "layout", "layout_template", "layout_side", "base_x", "base_y", "full_bleed", "presenter_ref",
                 "emotion", "trigger_word", "shock_level",
             ],
         )
