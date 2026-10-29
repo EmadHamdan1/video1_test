@@ -161,16 +161,14 @@ CHAPTERS = [
     (13, "THE RESCUE"), (18, "THE PULLEY"), (21, "27 HOURS"),
     (24, "SEALED FOREVER"), (25, "THE NEXT CASE"),
 ]
+# Reserve sound effects for story-critical beats; routine cuts and text stay quiet.
 SFX_EVENTS = [
-    ("NUTTY PUTTY", "whoosh", 0.30), ("ELEVEN PEOPLE", "soft_click", 0.24),
-    ("CORKSCREW", "scratch", 0.30), ("FOURTEEN HOURS", "low_hit", 0.33),
-    ("UNCHARTED", "pop", 0.27), ("HEAD FIRST", "bass_drop", 0.40),
-    ("UPSIDE DOWN", "heartbeat", 0.28), ("TEAMS ARRIVED", "whoosh", 0.25),
-    ("OXYGEN DROPPING", "air_gasp", 0.30), ("HIS WIFE", "soft_click", 0.18),
-    ("NO PULSE", "low_hit", 0.42), ("ROPE SNAPPED", "rope_snap", 0.43),
-    ("JOHN SLIPPED", "bass_drop", 0.38), ("TWENTY SEVEN HOURS", "heartbeat", 0.28),
-    ("DECLARED DEAD", "low_hit", 0.40), ("SEALED WITH CONCRETE", "concrete_thud", 0.39),
-    ("WHAT IF", "scratch", 0.27), ("TWENTY FOUR HOURS", "low_hit", 0.30),
+    ("HEAD FIRST", "bass_drop", 0.22),
+    ("TEAMS ARRIVED", "whoosh", 0.16),
+    ("ROPE SNAPPED", "rope_snap", 0.28),
+    ("DECLARED DEAD", "low_hit", 0.20),
+    ("SEALED WITH CONCRETE", "concrete_thud", 0.18),
+    ("WHAT IF", "scratch", 0.15),
 ]
 ICON_CHAPTERS = [
     ("map-pin", "#FFD447"), ("compass", "#FFFFFF"), ("triangle-alert", "#FF3030"),
@@ -983,7 +981,7 @@ def make_chapters(rows: list[dict[str, Any]], duration: float, intro_duration: f
             "title": title,
             "start_s": min(start, duration),
             "duration_s": min(1.65, max(0.8, duration - start)),
-            "font_size": 31, "color": "#FFFFFF", "x": 0.0, "y": -0.78,
+            "font_size": 23, "color": "#FFFFFF", "x": 0.0, "y": -0.82,
         })
     sections.sort(key=lambda item: item["start_s"])
     return sections
@@ -1326,116 +1324,47 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     settings = {
         "motion_preset": "nutty_putty_casefile",
         "layout_mode": "hybrid_whiteboard",
-        # Licensed stills are selected by story beat and stored with credits/provenance.
-        "stock_media": {"enabled": True, "providers": ["openverse", "pexels", "pixabay", "wikimedia"],
-                        "per_query": 1, "max_total": 32, "max_queries": 26, "hero_every": 5,
-                        "min_width": 1280, "min_cutout_width": 640, "allow_video": False, "allow_share_alike": False},
-        "insert_every": 1,
-        # Do not guess CapCut text opacity/scale property names. Enable only after local CLI probe.
+        # Keep the previous keyframed hero-motion engine, but remove layers that
+        # caused unrelated images, badges and oversized callouts to collide.
+        "stock_media": {"enabled": False, "providers": [], "per_query": 0,
+                        "max_total": 0, "max_queries": 0, "hero_every": 0,
+                        "min_width": 1280, "allow_video": False, "allow_share_alike": False},
+        "secondary_image_inserts": False,
+        "show_motion_badges": False,
+        "show_fact_callouts": False,
+        "keyword_callouts": False,
+        "auto_entrance_sfx": False,
+        "scene_exit_overlap": 0.0,
         "text_caps": {},
-        "callout_font_size": 20,
-        "chapter_font_max": 20,
+        "callout_font_size": 22,
+        "chapter_font_max": 22,
         "use_storyboard_boundaries": True,
         "scene_image_scale": 1.0, "scene_image_x": -0.24, "scene_image_y": -0.02,
-        "card_scene_scale": 0.55,
-        "scene_zoom_start": 0.55, "scene_zoom_end": 0.60, "scene_pan_amount": 0.018,
-        "target_shot_seconds": 2.65, "minimum_shot_seconds": 1.25,
-        "presenter_overlay": True, "presenter_mode": "reset", "presenter_backplate": False,
-        "presenter_smart_matte": True, "presenter_scale": 0.31, "presenter_x": 0.72, "presenter_y": 0.35,
+        "card_scene_scale": 0.58,
+        "scene_zoom_start": 0.55, "scene_zoom_end": 0.59, "scene_pan_amount": 0.009,
+        "scene_push": 0.035,
+        "target_shot_seconds": 3.0, "minimum_shot_seconds": 1.5,
+        "presenter_overlay": False, "presenter_mode": "reset", "presenter_backplate": False,
+        "presenter_smart_matte": False, "presenter_scale": 0.31, "presenter_x": 0.72, "presenter_y": 0.35,
         "presenter_pose_seconds": 35.0, "presenter_reset_duration": 2.15,
         "use_precomputed_captions": True, "transcribe_if_whisper_available": False,
         "add_captions_when_transcribed": False, "show_scene_text_without_transcript": False,
-        "caption_words_per_chunk": 3, "caption_min_hold_seconds": 0.52, "caption_font_size": 36,
-        "caption_color": "#FFFFFF", "caption_danger_color": "#FF3030", "caption_action_color": "#FFD447",
-        "caption_outline_width": 4.0, "caption_outline_color": "#000000", "caption_outline_alpha": 1.0,
-        "caption_y": 0.66, "caption_x": 0.0,
-        "voice_volume": 0.96, "voice_fade_in": 0.06, "voice_fade_out": 0.65,
+        "caption_words_per_chunk": 4, "caption_min_hold_seconds": 0.72, "caption_font_size": 24,
+        "caption_color": "#FFFFFF", "caption_danger_color": "#FFFFFF", "caption_action_color": "#FFFFFF",
+        "caption_outline_width": 1.5, "caption_outline_color": "#000000", "caption_outline_alpha": 0.78,
+        "caption_y": 0.80, "caption_x": 0.0,
+        "voice_volume": 0.98, "voice_fade_in": 0.08, "voice_fade_out": 0.65,
         "make_sfx_cue_sheet": False, "flash_duration": 0.067,
-        "caption_danger_words": ["stuck", "corkscrew", "uncharted", "head first", "gravity", "hallucinating",
-                                 "oxygen", "screamed", "snapped", "no pulse", "deeper", "dead", "sealed",
-                                 "concrete", "upside down"],
-        "caption_action_words": ["eleven people", "fourteen hours", "six feet", "two hundred", "eighteen inches",
-                                 "twelve hours", "twenty seven hours", "24 hours"],
+        "caption_danger_words": [], "caption_action_words": [],
         "sound_effects": [
             {"path": item["path"], "start": item["start"], "duration": item["duration"], "volume": item["volume"]}
             for item in sfx_events
         ],
     }
     chapters = make_chapters(rows, duration, 2.0 if intro_path else 0.0)
-    overlays = make_local_chapter_icons(chapters)
-    fact_overlays = make_fact_callouts(tokens, duration)
-
-    # Give each visible callout and chapter-badge entrance a light, time-aligned audio cue.
-    # Avoid piling a small click over an existing major story impact at the same timestamp.
-    for index, item in enumerate(fact_overlays):
-        start = float(item["start_seconds"])
-        if any(abs(float(event["start"]) - start) <= 0.12 for event in sfx_events):
-            continue
-        kind = "pop" if item["mood"] == "danger" else "soft_click"
-        path = sound_paths[kind]
-        length = min(ffprobe_duration(path), max(0.08, duration - start))
-        if length <= 0:
-            continue
-        gain = 0.20 if item["mood"] == "danger" else 0.16
-        sfx_events.append({
-            "label": "Callout entrance — " + item["label"], "file": kind, "path": str(path),
-            "start": round(start, 3), "duration": round(length, 3), "volume": gain,
-            "volume_db": round(20 * math.log10(gain), 1),
-        })
-    for index, chapter in enumerate(chapters):
-        start = min(duration - 0.08, float(chapter["start_s"]) + 0.15)
-        if start < 0 or any(abs(float(event["start"]) - start) <= 0.12 for event in sfx_events):
-            continue
-        kind = "soft_click" if index % 2 == 0 else "pop"
-        path = sound_paths[kind]
-        length = min(ffprobe_duration(path), max(0.08, duration - start))
-        if length <= 0:
-            continue
-        gain = 0.18
-        sfx_events.append({
-            "label": "Chapter icon entrance — " + str(chapter["title"]),
-            "file": kind, "path": str(path), "start": round(start, 3),
-            "duration": round(length, 3), "volume": gain,
-            "volume_db": round(20 * math.log10(gain), 1),
-        })
-    # Brief whooshes support the host-avatar reset entrances (not every cut gets a noisy effect).
-    presenter_cadence = 35
-    for presenter_start in range(presenter_cadence, max(1, int(duration)), presenter_cadence):
-        if any(abs(float(event["start"]) - presenter_start) <= 0.14 for event in sfx_events):
-            continue
-        kind = "whoosh"
-        path = sound_paths[kind]
-        length = min(ffprobe_duration(path), max(0.08, duration - presenter_start))
-        gain = 0.18
-        sfx_events.append({
-            "label": "Presenter reset entrance", "file": kind, "path": str(path),
-            "start": round(float(presenter_start), 3), "duration": round(length, 3), "volume": gain,
-            "volume_db": round(20 * math.log10(gain), 1),
-        })
-
-    # Ensure the same sample is not used twice in succession. Keep the event time and swap
-    # to a related alternate transient instead of moving a sound away from its spoken trigger.
-    sfx_events.sort(key=lambda item: item["start"])
-    alternates = {
-        "whoosh": "scratch", "scratch": "whoosh",
-        "pop": "soft_click", "soft_click": "pop",
-        "low_hit": "concrete_thud", "concrete_thud": "low_hit",
-        "bass_drop": "low_hit", "heartbeat": "soft_click",
-        "air_gasp": "whoosh", "rope_snap": "scratch",
-    }
-    for index in range(1, len(sfx_events)):
-        previous, current = sfx_events[index - 1], sfx_events[index]
-        if current["file"] == previous["file"]:
-            alternate = alternates.get(str(current["file"]), "soft_click")
-            current["file"] = alternate
-            current["path"] = str(sound_paths[alternate])
-            current["duration"] = round(min(
-                ffprobe_duration(sound_paths[alternate]), max(0.08, duration - float(current["start"]))
-            ), 3)
-    settings["sound_effects"] = [
-        {"path": item["path"], "start": item["start"], "duration": item["duration"], "volume": item["volume"]}
-        for item in sfx_events
-    ]
+    # Chapter text is retained, but sticker icons and full-frame fact cards are intentionally off.
+    overlays: list[dict[str, Any]] = []
+    fact_overlays: list[dict[str, Any]] = []
 
     scene_images = ([intro_path] if intro_path else []) + fullframe_images
     fallback_texts = STORY_EN + [STORY_EN[-1]] * max(0, len(fullframe_images) - len(STORY_EN))
@@ -1506,14 +1435,9 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     flash_path = PROJECT / "assets" / "generated" / "white_flash.png"
     Image.new("RGB", (1920, 1080), (255, 255, 255)).save(flash_path, optimize=True)
     horror_path = make_horror_overlay()
-    horror_phrases = ["HEAD FIRST", "NO PULSE", "ROPE SNAPPED", "DECLARED DEAD", "CONCRETE"]
-    horror_times = []
-    for phrase in horror_phrases:
-        match = find_phrase(tokens, phrase)
-        if match and 0 <= float(match[0]) < duration:
-            horror_times.append(round(float(match[0]), 3))
-    death_match = find_phrase(tokens, "DECLARED DEAD")
-    flash_times = [round(float(death_match[0]), 3)] if death_match and float(death_match[0]) < duration else []
+    # Keep screen-flash and red-vignette overlays disabled; story beats are carried by motion and audio.
+    horror_times: list[float] = []
+    flash_times: list[float] = []
     config = {
         "project_name": "Nutty Putty Cave — Horror Story",
         "drafts_dir": "",
