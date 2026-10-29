@@ -39,7 +39,7 @@ class MontageTimingTests(unittest.TestCase):
                 wav_file.setnchannels(1)
                 wav_file.setsampwidth(2)
                 wav_file.setframerate(sample_rate)
-                wav_file.writeframes(b"\\x00\\x00" * frame_count)
+                wav_file.writeframes(b"\x00\x00" * frame_count)
 
             safe_duration = BUILDER.bounded_audio_clip_duration(path, 0.38)
             short_request = BUILDER.bounded_audio_clip_duration(path, 0.15)
