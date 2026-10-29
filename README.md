@@ -30,24 +30,25 @@ The look is an editable whiteboard-style motion-graphics treatment, not a full h
 - Python packages from `requirements.txt` (`mutagen` and `Pillow`)
 - Optional local Whisper CLI for timed captions
 
-## Rebuild the PRO draft
+## Build the Nutty Putty Cave CapCut draft (offline-first)
 
-1. Close CapCut completely before running the script.
-2. In PowerShell, navigate to the project folder and pull the latest branch changes:
+The story-specific launcher defaults to the full local style: supplied 16:9 illustrations, gentle Ken Burns movement, short chapter titles, animated fact callouts, a low original suspense bed, locally synthesized sound effects, a separate Arabic subtitle file, and a two-second Remotion title when the existing local Remotion installation is already available.
+
+**No dependency installation or AI-model download is attempted by this launcher.** It uses the existing `.venv`, installed FFmpeg/FFprobe, and installed `capcut` CLI. Chapter badges are drawn locally with Pillow. Whisper alignment is enabled only when faster-whisper and its model are already cached; otherwise timing is estimated from the script and narration duration.
+
+1. Save work in CapCut and close CapCut Desktop completely.
+2. In PowerShell, run these exact commands:
 
    ```powershell
    cd C:\Users\EmQr\video1_test
    git pull origin feat/capcut-montage-pipeline
-   ```
-
-3. Run:
-
-   ```powershell
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-   .\run_montage.ps1
+   .\run_nutty_putty.ps1
    ```
 
-The launcher creates a new dated `Video1_Whiteboard_Pro_YYYYMMDD_HHMMSS` draft and attempts to register it in CapCut. The older draft is left in place as a rollback copy. Open **Video1 Test - Whiteboard Explainer PRO** from CapCut's home/project list. The project uses generated assets in `build\visuals`; do not delete that folder while the draft depends on it.
+The launcher stops rather than downloading/installing a missing tool. Fix only the missing local prerequisite if it reports one. To build a minimal draft with the supplied images and original narration only, run ` .\run_nutty_putty.ps1 -BasicOnly `.
+
+The editable CapCut draft and reports are written under `projects\nutty-putty-cave\build`. Keep that project folder and its generated assets; the draft references those local paths.
 
 ## Quality check before export
 
