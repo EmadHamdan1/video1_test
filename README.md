@@ -8,15 +8,17 @@ The story-specific full build uses the hybrid_whiteboard engine:
 
 - Pure-white canvas with hero illustrations alternating left / right / centre.
 - Individually timed entrance, hold motion and exit keyframes; short overlap between scene layers where useful.
+- A larger motion vocabulary: pop, directional slides, drop/rise, tilt-pop, diagonal sweep, zoom-through and spin-in, plus shrink, slide, drop, tilt and zoom exits.
+- A layered secondary image on nearly every post-opening scene, with 7 layout patterns, separate keyframes, and occasional paired-card collages that place 3 images on screen at once. The pair enters with a small stagger and uses different exit recipes rather than simply cutting away.
 - Selective secondary B-roll images chosen from a query attached to the closest story beat, instead of always recycling the next local image.
 - A full-screen, cropped 16:9 stock B-roll hero about every fifth scene when a relevant, unused match exists; the original supplied art is used when no nearby beat match is available.
 - A local ASSET_STOCK_CONTACT_SHEET.jpg lets you review fetched images alongside their provider, query, and licence before publishing.
-- Concise keyword and chapter text styled by scripts/text_system.py: a restrained ink/red/gold palette, three semantic size tiers, safe-area clamping, collision nudging, and keyframed vertical movement.
+- Concise keyword and chapter text styled by scripts/text_system.py: a restrained ink/red/gold palette, three semantic size tiers, safe-area clamping, collision nudging, vertical settle, scale overshoot and scale-out.
 - Optional sound accents for selected entrances / story beats. Effects are not forced onto every element.
 - Structural spec QA in scripts/qa_spec.py: invalid/overlong clips, keyframes after clip end, very large or off-safe text, overlapping labels and long gaps between visible starts are logged as QA messages.
 - Source media stays local. A manifest and CREDITS.txt are created for fetched stock images.
 
-The full build adds concrete English stock-search terms to each prepared story beat. The stock searcher tries Openverse and Wikimedia Commons without API keys. Pexels and Pixabay are optional when their keys are present in process environment variables or the root .env. If a provider fails or no image survives filtering, the project falls back to its existing local artwork.
+The full build adds concrete English stock-search terms to each prepared story beat. Verified transparent PNGs are marked in the asset manifest and preferred for secondary cutout-style layers when available; ordinary opaque stock images remain supported. The stock searcher tries Openverse and Wikimedia Commons without API keys. Pexels and Pixabay are optional when their keys are present in process environment variables or the root .env. If a provider fails or no image survives filtering, the project falls back to its existing local artwork.
 
 ## Run the latest version
 
@@ -66,4 +68,4 @@ Run tests from the repository root:
 
 GitHub Actions also checks Python compilation, timing/asset tests, Windows PowerShell parsing and Motion Lab types. These checks validate source code, not a locally rendered video; a final visual review of the newest CapCut project and exported MP4 is still required.
 
-The persistent AI editing brief lives at .agents/skills/montage-director/SKILL.md. The detailed style / quality workflow and references are in docs/MONTAGE_UPGRADE.md.
+The persistent AI editing brief lives at .agents/skills/montage-director/SKILL.md. The detailed style / quality workflow is in docs/MONTAGE_UPGRADE.md; the GitHub motion research and keyframe recipe design are in docs/MOTION_REFERENCES.md.
