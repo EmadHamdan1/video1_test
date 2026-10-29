@@ -528,9 +528,9 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
         str(Path(str(row["stock_source_path"])).resolve()): row_index
         for row_index, row in enumerate(scene_rows) if row.get("stock_source_path")
     }
-    if len(images) > 1 or stock_pool:
-        # After the opening, keep an extra visual layer present on most scenes. The
-        # presenter beats already provide another visual subject, so avoid clutter there.
+    if settings.get("secondary_image_inserts", True) and (len(images) > 1 or stock_pool):
+        # Secondary imagery is optional. Story-specific documentary profiles can turn it off
+        # so hero motion remains keyframed without unrelated images stacking over the scene.
         insert_every = max(1, int(settings.get("insert_every", 1)))
         for index, row in enumerate(scene_rows):
             # Do not reuse the same source in the next four scenes, but don't exhaust the pool.
@@ -644,7 +644,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
 
     # ---------------- accent badges (! on shock, ? on questions) ----------------
     badge_items: list[dict[str, Any]] = []
-    if accents:
+    if accents and settings.get("show_motion_badges", True):
         for index, row in enumerate(scene_rows):
             blob = row["caption_context"] + " " + row["trigger_word"]
             if row["shock_level"] >= 2:
