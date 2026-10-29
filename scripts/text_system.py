@@ -84,10 +84,10 @@ def text_motion(timeline: Any, ref: str, duration: float, y: float,
     start_x, start_y, start_scale, start_rotation = x, y + rise, 0.90, 0.0
     peak_scale = 1.04
     if recipe == "slide_left":
-        start_x, start_y, start_scale = x - 0.085 * direction, y, 0.92
+        start_x, start_y, start_scale = x - 0.085, y, 0.92
         peak_scale = 1.025
     elif recipe == "slide_right":
-        start_x, start_y, start_scale = x + 0.085 * direction, y, 0.92
+        start_x, start_y, start_scale = x + 0.085, y, 0.92
         peak_scale = 1.025
     elif recipe == "slam":
         start_x, start_y, start_scale, start_rotation = x, y - 0.12, 0.70, -4.5 * direction
@@ -131,9 +131,9 @@ def text_motion(timeline: Any, ref: str, duration: float, y: float,
     if caps.get("scale", True):
         timeline.key(ref, "uniform_scale", duration, 0.84 if recipe not in {"slam", "tilt_pop"} else 0.76, "ease-in")
     if recipe == "slide_left":
-        timeline.key(ref, "position_x", duration, x + 0.055 * direction, "ease-in")
+        timeline.key(ref, "position_x", duration, x - 0.055, "ease-in")
     elif recipe == "slide_right":
-        timeline.key(ref, "position_x", duration, x - 0.055 * direction, "ease-in")
+        timeline.key(ref, "position_x", duration, x + 0.055, "ease-in")
     elif recipe in {"slam", "tilt_pop"}:
         timeline.key(ref, "position_y", duration, y + rise * 0.35, "ease-in")
         timeline.key(ref, "rotation", duration, 4.0 * direction, "ease-in")
