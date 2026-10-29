@@ -38,6 +38,18 @@ class MontageUpgradeTests(unittest.TestCase):
         self.assertFalse(stock_fetcher.license_ok("CC BY-SA 4.0"))
         self.assertTrue(stock_fetcher.license_ok("CC BY-SA 4.0", allow_share_alike=True))
 
+    def test_transparent_png_is_detected_for_cutout_overlays(self):
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            rgba_path = root / "transparent.png"
+            rgb_path = root / "opaque.jpg"
+            Image.new("RGBA", (32, 32), (255, 0, 0, 0)).save(rgba_path)
+            Image.new("RGB", (32, 32), (255, 0, 0)).save(rgb_path, "JPEG")
+            self.assertTrue(stock_fetcher._image_has_transparency(rgba_path))
+            self.assertFalse(stock_fetcher._image_has_transparency(rgb_path))
+
     def test_text_size_and_safe_area(self):
         self.assertEqual(text_system.classify("RUN", 3), "alert")
         self.assertEqual(text_system.classify("27 HOURS", 0), "stat")
@@ -58,6 +70,7 @@ class MontageUpgradeTests(unittest.TestCase):
         text_system.text_motion(timeline, "kw", 1.0, 0.4)
         position_times = [key[2] for key in timeline.keys if key[1] == "position_y"]
         self.assertEqual(position_times, sorted(position_times))
+        self.assertGreaterEqual(sum(key[1] == "uniform_scale" for key in timeline.keys), 4)
         self.assertFalse(any(key[1] in {"alpha", "opacity"} for key in timeline.keys))
 
         timeline = FakeTimeline()
