@@ -1565,8 +1565,11 @@ def finalize(build_exit_code: int, project_override: str | None = None) -> int:
         "- Rendered timeline shots: " + str(len(rows)),
         "- Longest rendered shot: " + (str(round(max(durations), 2)) + " seconds" if durations else "not available"),
         "- Presenter poses: " + str(len([a for a in catalog["assets"] if a.get("type") == "host_avatar_pose"])),
-        "- Timed English caption cues: " + str(timeline.get("caption_count", "not recorded")),
-        "- Arabic subtitle cues (separate SRT): " + str(timeline.get("arabic_subtitle_count", "not recorded")),
+        "- Timed English caption cues on timeline: " + str(timeline.get("caption_count", "not recorded")),
+        "- Full-sentence narration captions: disabled; short impact callouts and chapter titles only.",
+        "- Scene entrance SFX cues: " + str(sum(1 for item in config.get("settings", {}).get("sound_effects", []) if str(item.get("label", "")).startswith("Scene entrance"))),
+        "- Visual rhythm: hybrid whiteboard/card layouts with full-bleed action beats, sub-second zoom pulses and position drift.",
+        "- Arabic subtitle cues (separate SRT, not placed on timeline): " + str(timeline.get("arabic_subtitle_count", "not recorded")),
         "- Chapter titles: " + str(len(config.get("chapter_titles", []))),
         "- Story fact callouts: " + str(len(config.get("settings", {}).get("callout_overlays", []))),
         "- Critical horror tint moments: " + str(len(config.get("settings", {}).get("horror_overlay_times", []))),
@@ -1580,7 +1583,7 @@ def finalize(build_exit_code: int, project_override: str | None = None) -> int:
         "## Manual visual QA required in CapCut", "",
         "- Check the first two seconds and confirm the topic is immediately visible.",
         "- Check the Corkscrew, gravity / head-first, pulley / rope-snap, no-pulse, sealed cave and final teaser sections.",
-        "- Confirm presenter matte, title safe area, captions not covering faces, image crop/letterbox, and loudness meters.",
+        "- Confirm presenter matte, title safe area, short callouts not covering faces, image crop/letterbox, image motion, SFX timing and loudness meters.",
         "- No final rendered MP4 is claimed by this workflow: capcut-cli creates the editable CapCut draft, which must be previewed and exported from CapCut.",
     ]
     if durations and max(durations) > 5.0:
