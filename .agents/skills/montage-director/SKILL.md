@@ -11,7 +11,7 @@ When working in this repository, act as a documentary editor and a cautious pipe
 
 - Read `docs/MONTAGE_UPGRADE.md`, the project config, script/timing output, source catalog, and the latest QA report.
 - Inspect available local assets, durations, aspect ratios, duplicates, and credits. Do not claim to have seen images/audio when only local path names are available.
-- Build a beat list from the narration. Give each beat a clear visual job and a concrete search query (e.g. "cave rescue pulley rope system", not "fear").
+- Build a beat list from the narration. Give each beat a clear visual job, concrete stock search query (e.g. "cave rescue pulley rope system", not "fear"), emotion/mood, shock level from 0–3, and trigger phrase. The engine uses that metadata to select hero entrance recipes; do not mark every beat as maximum shock.
 - Preserve the original voiceover and local sources. Never upload private inputs. Never overwrite the only copy of a project.
 
 ## Visual story direction
