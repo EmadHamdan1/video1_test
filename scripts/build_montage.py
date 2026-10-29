@@ -275,6 +275,7 @@ def create_whiteboard_assets(
     output_dir: Path, width: int, height: int, scene_count: int, presenter_count: int,
     scene_x: float = -0.25, scene_y: float = -0.02,
     presenter_x: float = 0.72, presenter_y: float = 0.18,
+    plain_white: bool = False,
 ) -> dict[str, Any]:
     """Create local visual assets for a layered whiteboard/explainer edit."""
     try:
@@ -293,17 +294,20 @@ def create_whiteboard_assets(
                 pass
         return ImageFont.load_default()
 
-    board = Image.new("RGB", (width, height), paper)
-    bd = ImageDraw.Draw(board)
-    step = max(26, width // 60)
-    for yy in range(step, height, step):
-        for xx in range(step, width, step):
-            bd.ellipse((xx, yy, xx + 2, yy + 2), fill=(230,228,221))
-    bd.rounded_rectangle((52,40,322,92), radius=18, fill=(255,255,252), outline=(226,223,214), width=2)
-    bd.text((73,55), "VISUAL EXPLAINER", font=font(23), fill=(48,57,67))
-    bd.line((54,118,186,118), fill=accents[0], width=5)
-    bd.line((198,118,242,118), fill=accents[1], width=5)
-    bd.text((width-335,57), "WHITEBOARD / MOTION", font=font(17), fill=(137,139,136))
+    # The requested Nutty Putty style uses a truly solid white canvas: no grid,
+    # paper tint, labels, bars, or decorative marks behind the artwork.
+    board = Image.new("RGB", (width, height), (255, 255, 255) if plain_white else paper)
+    if not plain_white:
+        bd = ImageDraw.Draw(board)
+        step = max(26, width // 60)
+        for yy in range(step, height, step):
+            for xx in range(step, width, step):
+                bd.ellipse((xx, yy, xx + 2, yy + 2), fill=(230,228,221))
+        bd.rounded_rectangle((52,40,322,92), radius=18, fill=(255,255,252), outline=(226,223,214), width=2)
+        bd.text((73,55), "VISUAL EXPLAINER", font=font(23), fill=(48,57,67))
+        bd.line((54,118,186,118), fill=accents[0], width=5)
+        bd.line((198,118,242,118), fill=accents[1], width=5)
+        bd.text((width-335,57), "WHITEBOARD / MOTION", font=font(17), fill=(137,139,136))
     board_path = output_dir / "whiteboard_canvas.png"
     board.save(board_path, optimize=True)
 
@@ -489,7 +493,8 @@ def make_spec(
         BUILD_DIR / "visuals" / datetime.now().strftime("%Y%m%d_%H%M%S_%f"),
         width, height, 0 if full_frame else shot_count,
         len(presenters) if settings.get("presenter_overlay", True) else 0,
-        scene_x=scene_x, scene_y=scene_y, presenter_x=presenter_x, presenter_y=presenter_y
+        scene_x=scene_x, scene_y=scene_y, presenter_x=presenter_x, presenter_y=presenter_y,
+        plain_white=hybrid_mode,
     )
 
     scene_items: list[dict[str, Any]] = []
@@ -510,11 +515,10 @@ def make_spec(
         if not context:
             context = str(beat.get("text", ""))
         shock_level = int(beat.get("shock_level", 0) or 0)
-        # Hybrid pages keep most beats on a bright whiteboard card. Peak danger beats
-        # and every fourth beat briefly go full-bleed for visual punctuation.
-        shot_full_bleed = full_frame or (
-            hybrid_mode and (shock_level >= 3 or index % 4 == 0)
-        )
+        # Nutty Putty's hybrid mode always stays on the plain white canvas.
+        # Energy comes from moving artwork, quick overlays, and scene changes—not
+        # from replacing the white background with a full-screen background image.
+        shot_full_bleed = full_frame
         if hybrid_mode:
             card_scale = float(settings.get("card_scene_scale", 0.54))
             layout_side = "full_bleed" if shot_full_bleed else ("left" if index % 3 == 0 else ("center" if index % 3 == 1 else "right"))
@@ -531,9 +535,9 @@ def make_spec(
             "duration":round(shot_duration,3), "ref":ref,
             "scale":shot_scale, "x":shot_x, "y":shot_y, "rotation":0
         })
-        # The card border is intentionally used only for the left-card layout; centered/right
-        # layouts stay clean on white instead of showing a misplaced frame underneath.
-        if not full_frame and layout_side == "left":
+        # The story-specific hybrid mode intentionally has no card/frame artwork.
+        # The pure-white canvas stays visible around every moving source image.
+        if not full_frame and not hybrid_mode and layout_side == "left":
             frame_items.append({
                 "type":"photo", "path":assets["scene_cards"][index],
                 "start":round(shot_start,3), "duration":round(shot_duration,3),
