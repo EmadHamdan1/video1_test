@@ -31,7 +31,7 @@ xfade and afade are useful at render time, but their constraints matter: clips m
 
 ## What is implemented in this repository
 
-- Hero-scene entrances: pop, slide, drop, tilt-pop, left/right slides, rise, diagonal sweep, zoom-through and spin-in.
+- Hero-scene entrances: pop, slide, drop, tilt-pop, left/right slides, rise, diagonal sweep, zoom-through and spin-in. The selector uses story emotion, shock level and trigger phrase; e.g. sharp physical danger can punch or zoom, while grief/aftermath gets a quieter slide/rise.
 - Hero-scene exits: shrink-away, directional slide-away, drop-away, tilt-away and zoom-away.
 - Reusable secondary-layer recipes: left/right/top/bottom entrances, scale-pop, tilt-swing, diagonal-sweep, zoom-through, rise-overshoot and drop-bounce; five different exits.
 - Seven single-card layouts, plus paired top-card collages. Paired cards start with a slight deterministic stagger rather than appearing at exactly the same instant.
