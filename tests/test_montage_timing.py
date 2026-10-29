@@ -92,7 +92,7 @@ class MontageTimingTests(unittest.TestCase):
                 "story_beats": [
                     {"start_s": 0.0, "end_s": 2.4, "text": "opening", "trigger_word": "CAVE"},
                     {"start_s": 2.4, "end_s": 4.4, "text": "narrow passage", "trigger_word": "CORKSCREW"},
-                    {"start_s": 4.4, "end_s": 6.4, "text": "rescue", "trigger_word": "RESCUE"},
+                    {"start_s": 4.4, "end_s": 6.4, "text": "rescue", "trigger_word": "RESCUE", "shock_level": 3},
                     {"start_s": 6.4, "end_s": 8.0, "text": "ending", "trigger_word": "HELP"},
                 ],
                 "settings": {
@@ -128,6 +128,17 @@ class MontageTimingTests(unittest.TestCase):
                 self.assertEqual(hero_items[0]["scale"], 1.0)
                 self.assertEqual(hero_items[0]["x"], 0.0)
                 self.assertEqual(hero_items[0]["y"], 0.0)
+
+                inserts = next(track["items"] for track in spec["tracks"]
+                               if track["name"] == "Fast Secondary Image Inserts")
+                paired = [item for item in inserts if 4.0 <= item["start"] < 6.5]
+                self.assertGreaterEqual(len(paired), 2)
+                self.assertGreaterEqual(len({item["path"] for item in paired}), 2)
+                paired_refs = {item["ref"] for item in paired}
+                motion_keys = [op for op in spec["operations"]
+                               if op.get("op") == "keyframe" and op.get("target") in paired_refs]
+                self.assertTrue(any(op.get("property") == "rotation" for op in motion_keys))
+                self.assertTrue(any(op.get("property") == "position_x" for op in motion_keys))
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
                 stock_fetcher.load_stock_pool_entries = previous_stock_loader
