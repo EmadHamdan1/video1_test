@@ -271,7 +271,7 @@ class MontageTimingTests(unittest.TestCase):
     def test_nutty_putty_scale_pop_is_keyframed_not_a_native_transition(self):
         motion = BUILDER.load_motion_preset({"motion_preset": "nutty_putty_casefile"})
         self.assertEqual(BUILDER.transition_for_scene(0, motion), ("cut", 0.0))
-        self.assertEqual(BUILDER.transition_for_scene(13, motion), ("scale-pop", 0.18))
+        self.assertEqual(BUILDER.transition_for_scene(13, motion), ("scale-pop", 0.16))
 
         with tempfile.TemporaryDirectory() as temporary:
             previous_build_dir = BUILDER.BUILD_DIR
