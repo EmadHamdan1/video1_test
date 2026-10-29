@@ -491,7 +491,7 @@ def make_spec(
     presenter_y = float(settings.get("presenter_y", 0.18))
     assets = create_whiteboard_assets(
         BUILD_DIR / "visuals" / datetime.now().strftime("%Y%m%d_%H%M%S_%f"),
-        width, height, 0 if full_frame else shot_count,
+        width, height, 0 if (full_frame or hybrid_mode) else shot_count,
         len(presenters) if settings.get("presenter_overlay", True) else 0,
         scene_x=scene_x, scene_y=scene_y, presenter_x=presenter_x, presenter_y=presenter_y,
         plain_white=hybrid_mode,
