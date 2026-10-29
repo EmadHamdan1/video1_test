@@ -14,6 +14,32 @@ RECIPES = (
     "rise_overshoot", "drop_bounce",
 )
 EXIT_RECIPES = ("shrink_away", "slide_away", "drop_away", "tilt_away", "zoom_away")
+HERO_ENTRANCES = (
+    "pop", "slide", "drop", "tilt_pop", "slide_left", "slide_right",
+    "rise", "diagonal_sweep", "zoom_through", "spin_in",
+)
+
+
+def choose_hero_entrance(index: int, shock: int, emotion: str = "", trigger_word: str = "") -> str:
+    """Choose motion by story beat and impact, with stable index-based tie-breaking."""
+    mood = " ".join(str(emotion or "").lower().replace("-", " ").split())
+    trigger = " ".join(str(trigger_word or "").upper().replace("-", " ").split())
+    if "WHAT IF" in trigger or mood in {"curious", "curiosity", "mysterious", "question"}:
+        return "zoom_through"
+    if trigger in {"ROPE SNAPPED", "HEAD FIRST"}:
+        return "punch"
+    # Respectful, quieter movement for grief, aftermath and memorial beats even when impact is high.
+    if mood in {"sad", "solemn", "grief", "somber", "somber"}:
+        return ("slide_left", "rise", "slide_right")[index % 3]
+    if shock >= 3:
+        return ("punch", "zoom_through", "diagonal_sweep", "spin_in")[index % 4]
+    if mood in {"scary", "fear", "panic", "urgent"}:
+        return ("diagonal_sweep", "tilt_pop", "drop", "slide_right")[index % 4]
+    if mood in {"tense", "suspense", "anxious"}:
+        return ("slide", "slide_left", "zoom_through", "rise")[index % 4]
+    if mood in {"calm", "neutral", "setup"}:
+        return ("pop", "slide", "rise")[index % 3]
+    return HERO_ENTRANCES[index % len(HERO_ENTRANCES)]
 
 
 def overlay_layout(index: int, hero_x: float, shock: int = 0) -> dict[str, Any]:
