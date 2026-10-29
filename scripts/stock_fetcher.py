@@ -175,10 +175,11 @@ def build_queries(beats: list[dict[str, Any]], max_queries: int = 40) -> list[di
     seen: set[str] = set()
     queries: list[dict[str, Any]] = []
     for index, beat in enumerate(beats):
+        # Require an explicit concrete visual query. Trigger words are often abstract
+        # facts ("27 HOURS", "NO PULSE") and make poor, irrelevant stock searches.
         query = re.sub(r"\s+", " ", str(beat.get("stock_query") or "")).strip()
-        if not query:
-            trigger = re.sub(r"\s+", " ", str(beat.get("trigger_word") or "")).strip()
-            query = trigger if re.fullmatch(r"[A-Za-z][A-Za-z '\-]{2,48}", trigger) else ""
+        if len(query.split()) < 2:
+            query = ""
         key = query.casefold()
         if not key or key in seen:
             continue
