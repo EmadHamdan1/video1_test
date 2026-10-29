@@ -19,10 +19,6 @@ from qa_spec import audit_spec
 TAU = math.tau
 VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".m4v"}
 LAYOUT_CYCLE = ["left", "right", "center", "left", "center", "right"]
-ENTRANCES = [
-    "pop", "slide", "drop", "tilt_pop", "slide_left", "slide_right",
-    "rise", "diagonal_sweep", "zoom_through", "spin_in", "pop", "slide",
-]
 EXITS = ["shrink", "slide_out", "shrink", "drop_out", "tilt_away", "zoom_away"]
 
 
