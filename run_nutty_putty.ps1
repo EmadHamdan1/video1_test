@@ -8,8 +8,10 @@ $Project = "projects\nutty-putty-cave"
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
 Write-Host ""
-Write-Host "=== Nutty Putty Cave: offline-first CapCut build ===" -ForegroundColor Cyan
+Write-Host "=== Nutty Putty Cave: local-first CapCut build + licensed stock B-roll ===" -ForegroundColor Cyan
 Write-Host "This run will not install Python/npm packages or download AI models."
+Write-Host "Full mode may query Openverse/Wikimedia online and uses Pexels/Pixabay only when local API keys are configured."
+Write-Host "Downloaded stock assets and provenance stay local in the project assets\stock folder."
 Write-Host "Updating only the existing GitHub project code..."
 git switch $Branch
 if ($LASTEXITCODE -ne 0) { throw "Could not switch to $Branch." }
