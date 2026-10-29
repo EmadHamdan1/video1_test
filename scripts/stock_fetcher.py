@@ -217,6 +217,28 @@ def _load_manifest(path: Path) -> list[dict[str, Any]]:
         return []
 
 
+def _load_api_keys() -> dict[str, str]:
+    """Read optional API keys from process environment or a private root .env file."""
+    values = {"pexels": os.environ.get("PEXELS_API_KEY", ""),
+              "pixabay": os.environ.get("PIXABAY_API_KEY", "")}
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if env_path.is_file():
+        try:
+            for raw in env_path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                name, value = line.split("=", 1)
+                name, value = name.strip(), value.strip().strip('"').strip("'")
+                if name == "PEXELS_API_KEY" and not values["pexels"]:
+                    values["pexels"] = value
+                elif name == "PIXABAY_API_KEY" and not values["pixabay"]:
+                    values["pixabay"] = value
+        except OSError:
+            pass
+    return values
+
+
 def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], None] = print,
                 http_get: Callable[[str], bytes] | None = None) -> list[dict[str, Any]]:
     """Fetch once, cache results, avoid scraping, and preserve credits/licences."""
@@ -231,7 +253,7 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
     manifest = [item for item in manifest if Path(str(item["path"])).is_file()]
     have = {(str(item.get("provider", "")), str(item.get("id", ""))) for item in manifest}
     known_hashes = {str(item.get("sha1", "")) for item in manifest if item.get("sha1")}
-    keys = {"pexels": os.environ.get("PEXELS_API_KEY", ""), "pixabay": os.environ.get("PIXABAY_API_KEY", "")}
+    keys = _load_api_keys()
     requested = cfg.get("providers", ["pexels", "pixabay", "wikimedia"])
     providers = [provider for provider in requested if provider in {"openverse", "wikimedia"} or keys.get(provider)]
     for provider in requested:
