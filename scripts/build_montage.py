@@ -444,6 +444,7 @@ def make_spec(
     canvas = config.get("canvas", {})
     layout_mode = str(settings.get("layout_mode", "whiteboard_card")).strip().lower()
     full_frame = layout_mode in {"full_frame", "full-frame", "fullframe"}
+    hybrid_mode = layout_mode in {"hybrid_whiteboard", "hybrid", "mixed_whiteboard"}
     width, height = int(canvas.get("width", 1920)), int(canvas.get("height", 1080))
     target = max(1.0, float(settings.get("target_shot_seconds", motion.get("target_shot_seconds", 3.8))))
     minimum = max(0.75, float(settings.get("minimum_shot_seconds", motion.get("minimum_shot_seconds", 1.8))))
@@ -500,20 +501,6 @@ def make_spec(
         image_path = images[image_index]
         ref, frame_ref = "scene_%03d" % (index+1), "frame_%03d" % (index+1)
         media_type = "video" if image_path.suffix.lower() in {".mp4", ".mov", ".webm", ".m4v"} else "photo"
-        scene_items.append({
-            "type":media_type, "path":str(image_path), "start":round(shot_start,3),
-            "duration":round(shot_duration,3), "ref":ref,
-            "scale":float(settings.get("scene_image_scale", 1.0 if full_frame else 0.50)),
-            "x":0.0 if full_frame else scene_x,
-            "y":0.0 if full_frame else scene_y,
-            "rotation":0
-        })
-        if not full_frame:
-            frame_items.append({
-                "type":"photo", "path":assets["scene_cards"][index],
-                "start":round(shot_start,3), "duration":round(shot_duration,3),
-                "ref":frame_ref, "scale":1.0, "x":0.0, "y":0.0
-            })
         midpoint = (shot_start+shot_end)/2
         context = next((str(cue["text"]) for cue in captions
                         if float(cue["start"]) <= midpoint <= float(cue["end"])), "")
@@ -522,13 +509,39 @@ def make_spec(
                     {})
         if not context:
             context = str(beat.get("text", ""))
+        shock_level = int(beat.get("shock_level", 0) or 0)
+        # Hybrid pages keep most beats on a bright whiteboard card. Peak danger beats
+        # and every fourth beat briefly go full-bleed for visual punctuation.
+        shot_full_bleed = full_frame or (
+            hybrid_mode and (shock_level >= 3 or index % 4 == 0)
+        )
+        if hybrid_mode:
+            shot_scale = 1.0 if shot_full_bleed else float(settings.get("card_scene_scale", 0.54))
+            shot_x = 0.0 if shot_full_bleed else scene_x
+            shot_y = 0.0 if shot_full_bleed else scene_y
+        else:
+            shot_scale = float(settings.get("scene_image_scale", 1.0 if full_frame else 0.50))
+            shot_x = 0.0 if full_frame else scene_x
+            shot_y = 0.0 if full_frame else scene_y
+        scene_items.append({
+            "type":media_type, "path":str(image_path), "start":round(shot_start,3),
+            "duration":round(shot_duration,3), "ref":ref,
+            "scale":shot_scale, "x":shot_x, "y":shot_y, "rotation":0
+        })
+        if not full_frame:
+            frame_items.append({
+                "type":"photo", "path":assets["scene_cards"][index],
+                "start":round(shot_start,3), "duration":round(shot_duration,3),
+                "ref":frame_ref, "scale":1.0, "x":0.0, "y":0.0
+            })
         scene_rows.append({
             "start":shot_start, "end":shot_end, "duration":shot_duration,
             "image":str(image_path), "caption_context":context, "scene_ref":ref,
             "frame_ref":frame_ref,
-            "layout":"full-frame-illustration" if full_frame else "whiteboard-card-left / presenter-right",
-            "emotion":str(beat.get("emotion", "tense" if full_frame else "calm")),
-            "shock_level":int(beat.get("shock_level", 0) or 0),
+            "layout":"full-frame-illustration" if shot_full_bleed else "whiteboard-card-left / presenter-right",
+            "full_bleed":shot_full_bleed,
+            "emotion":str(beat.get("emotion", "tense" if shot_full_bleed else "calm")),
+            "shock_level":shock_level,
             "trigger_word":str(beat.get("trigger_word", "")),
         })
 
@@ -542,8 +555,10 @@ def make_spec(
         zoom_in = index%2 == 0
         scale_a, scale_b = (start_scale,end_scale) if zoom_in else (end_scale,start_scale)
         drift = pan_amount if index%2 == 0 else -pan_amount
-        x_a, x_b = scene_x-drift, scene_x+drift
-        y_a, y_b = scene_y+0.008, scene_y-0.008
+        shot_base_x = 0.0 if shot.get("full_bleed", full_frame) else scene_x
+        shot_base_y = 0.0 if shot.get("full_bleed", full_frame) else scene_y
+        x_a, x_b = shot_base_x-drift, shot_base_x+drift
+        y_a, y_b = shot_base_y+0.008, shot_base_y-0.008
         entrance_slug, entrance_duration = transition_for_scene(index, motion)
         scale_pop = entrance_slug.strip().lower() in {"scale-pop", "scale_pop", "scalepop"}
         # A few story cuts use an entrance scale-pop instead of a native transition:
@@ -569,12 +584,45 @@ def make_spec(
             {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":y_a},
             {"op":"keyframe","target":ref,"property":"position_y","time":seconds,"value":y_b,"easing":"ease-in-out"},
         ])
-        if int(shot.get("shock_level", 0) or 0) >= 3:
-            # Snap zoom (0.06 s in, settle by 0.18 s) and a short, decaying jolt only on level-3 beats.
-            snap_peak = min(1.25, max(scale_a * 1.12, scale_a + 0.06))
+        # Keep every still visibly alive: pulse its scale and drift its position at
+        # intervals below one second, layered over the slow alternating push/pull.
+        pulse_time = 0.72
+        phase = (index % 4) * (math.pi / 2)
+        t = pulse_time
+        while t < seconds - 0.18:
+            progress = t / max(0.25, seconds)
+            base_scale = scale_a + (scale_b - scale_a) * progress
+            pulse = 0.010 * math.sin((math.tau * t / 1.48) + phase)
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(t,3),
+                 "value":round(max(0.1, base_scale + pulse),4),"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(t,3),
+                 "value":round(shot_base_x + 0.006 * math.sin(math.tau*t/1.32 + phase),4),"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(t,3),
+                 "value":round(shot_base_y + 0.006 * math.cos(math.tau*t/1.48 + phase),4),"easing":"ease-in-out"},
+            ])
+            t += pulse_time
+
+        shock_level = int(shot.get("shock_level", 0) or 0)
+        if shock_level >= 2:
+            # Impact beats get a snap-zoom and short decaying shake; level 3 is strongest.
+            snap_factor = 1.14 if shock_level >= 3 else 1.09
+            snap_peak = min(1.25, max(scale_a * snap_factor, scale_a + (0.06 if shock_level >= 3 else 0.035)))
+            shake = 0.012 if shock_level >= 3 else 0.006
             operations.extend([
                 {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.06,"value":snap_peak,"easing":"ease-out"},
-                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.18,"value":scale_a,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.20,"value":scale_a,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":0.06,"value":shot_base_x + shake},
+                {"op":"keyframe","target":ref,"property":"position_x","time":0.12,"value":shot_base_x - shake},
+                {"op":"keyframe","target":ref,"property":"position_x","time":0.19,"value":shot_base_x + shake * 0.45},
+                {"op":"keyframe","target":ref,"property":"position_x","time":0.28,"value":shot_base_x},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.06,"value":shot_base_y - shake * 0.6},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.12,"value":shot_base_y + shake * 0.6},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.19,"value":shot_base_y - shake * 0.2},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.28,"value":shot_base_y},
+            ])
+        if shock_level >= 3:
+            operations.extend([
                 {"op":"keyframe","target":ref,"property":"rotation","time":0.0,"value":0.0},
                 {"op":"keyframe","target":ref,"property":"rotation","time":0.06,"value":1.0},
                 {"op":"keyframe","target":ref,"property":"rotation","time":0.12,"value":-1.15},
@@ -742,8 +790,8 @@ def make_spec(
     # capcut-cli compile currently validates audio-fade using CLI flag names rather than
     # this spec's camelCase fields, causing the whole draft to fail before writing. Keep the
     # narration unchanged in the compile spec; any fade can be applied as a post-build CLI edit.
-    # Build editable phrase-level text clips. Timed Whisper cues take priority; otherwise
-    # story sentences supplied by the per-video project become scene callouts.
+    # Full-sentence narration captions are optional. This project disables them;
+    # only concise designed chapter titles and 1–3 word visual callouts remain.
     caption_items: list[dict[str, Any]] = []
     text_preset_name = str(motion.get("text_preset", "marker_caption"))
     text_preset = load_text_animation_preset(text_preset_name)
