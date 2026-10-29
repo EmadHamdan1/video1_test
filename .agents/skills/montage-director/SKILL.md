@@ -18,7 +18,8 @@ When working in this repository, act as a documentary editor and a cautious pipe
 
 - Create purposeful shot-size and source variation: establishing view, human/detail illustration, map/diagram, contextual B-roll, then a return to the hero image.
 - Add licensed stock only when it meaningfully illustrates the current beat. Prefer the nearest beat's query and metadata; do not randomly decorate or use the same image twice.
-- Preserve a consistent visual identity. Keep the canvas clean; use whitespace deliberately. Small inserts should remain secondary to the hero image.
+- Preserve a consistent visual identity. Keep the canvas clean; use whitespace deliberately. Small inserts should remain secondary to the hero image, but use a relevant full-frame stock cut every few scenes when a strong match exists to vary visual scale.
+- Review `build/ASSET_STOCK_CONTACT_SHEET.jpg` and the stock manifest before publishing; reject irrelevant/near-duplicate candidates instead of keeping stock just to fill the screen.
 - Vary rhythm naturally. Plan visual changes frequently enough to avoid dead holds, but give serious moments room to breathe. Do not impose one rigid cut interval on every video.
 - Apply small push/pull/drift to stills; reserve punch zooms, shake, flashes, stronger red accents, and bass impacts for selected moments. Not every entrance needs a sound effect.
 
