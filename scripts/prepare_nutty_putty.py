@@ -228,7 +228,7 @@ def copy_sources(simple: bool = False) -> tuple[list[Path], list[Path], Path, Pa
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("FFmpeg was not found. Run check_tools.ps1 and fix the FFmpeg row first.")
-    filters = "highpass=f=70,acompressor=threshold=0.125:ratio=2.5:attack=15:release=120:makeup=2,loudnorm=I=-16:TP=-3:LRA=7"
+    filters = "highpass=f=70,acompressor=threshold=0.125:ratio=2.5:attack=15:release=120:makeup=2,loudnorm=I=-14:TP=-1:LRA=7"
     log("Preparing a clean voice master (high-pass, gentle compression, -16 LUFS target, -3 dBTP ceiling).")
     result = run_process([
         ffmpeg, "-y", "-i", str(source_copy), "-af", filters, "-ar", "48000", "-ac", "2",
@@ -970,7 +970,7 @@ def prepare_simple_project(
         "scene_zoom_start": 1.0, "scene_zoom_end": 1.065, "scene_pan_amount": 0.006,
         "target_shot_seconds": 2.65, "minimum_shot_seconds": 1.25,
         "presenter_overlay": True, "presenter_mode": "reset", "presenter_backplate": False,
-        "presenter_smart_matte": True, "presenter_scale": 0.23, "presenter_x": -0.73, "presenter_y": 0.43,
+        "presenter_smart_matte": True, "presenter_scale": 0.31, "presenter_x": 0.72, "presenter_y": 0.35,
         "presenter_pose_seconds": 35.0, "presenter_reset_duration": 2.15,
         "use_precomputed_captions": False, "transcribe_if_whisper_available": False,
         "add_captions_when_transcribed": False, "show_scene_text_without_transcript": False,
@@ -1165,16 +1165,17 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
             ), 3)
     settings = {
         "motion_preset": "nutty_putty_casefile",
-        "layout_mode": "full_frame",
+        "layout_mode": "hybrid_whiteboard",
         "use_storyboard_boundaries": True,
-        "scene_image_scale": 1.0, "scene_image_x": 0.0, "scene_image_y": 0.0,
-        "scene_zoom_start": 1.0, "scene_zoom_end": 1.065, "scene_pan_amount": 0.006,
+        "scene_image_scale": 1.0, "scene_image_x": -0.24, "scene_image_y": -0.02,
+        "card_scene_scale": 0.55,
+        "scene_zoom_start": 1.0, "scene_zoom_end": 1.09, "scene_pan_amount": 0.009,
         "target_shot_seconds": 2.65, "minimum_shot_seconds": 1.25,
         "presenter_overlay": True, "presenter_mode": "reset", "presenter_backplate": False,
-        "presenter_smart_matte": True, "presenter_scale": 0.23, "presenter_x": -0.73, "presenter_y": 0.43,
+        "presenter_smart_matte": True, "presenter_scale": 0.31, "presenter_x": 0.72, "presenter_y": 0.35,
         "presenter_pose_seconds": 35.0, "presenter_reset_duration": 2.15,
         "use_precomputed_captions": True, "transcribe_if_whisper_available": False,
-        "add_captions_when_transcribed": True, "show_scene_text_without_transcript": False,
+        "add_captions_when_transcribed": False, "show_scene_text_without_transcript": False,
         "caption_words_per_chunk": 3, "caption_min_hold_seconds": 0.52, "caption_font_size": 36,
         "caption_color": "#FFFFFF", "caption_danger_color": "#FF3030", "caption_action_color": "#FFD447",
         "caption_outline_width": 4.0, "caption_outline_color": "#000000", "caption_outline_alpha": 1.0,
@@ -1206,7 +1207,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         length = min(ffprobe_duration(path), max(0.08, duration - start))
         if length <= 0:
             continue
-        gain = 0.13 if item["mood"] == "danger" else 0.10
+        gain = 0.20 if item["mood"] == "danger" else 0.16
         sfx_events.append({
             "label": "Callout entrance — " + item["label"], "file": kind, "path": str(path),
             "start": round(start, 3), "duration": round(length, 3), "volume": gain,
@@ -1221,7 +1222,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         length = min(ffprobe_duration(path), max(0.08, duration - start))
         if length <= 0:
             continue
-        gain = 0.095
+        gain = 0.18
         sfx_events.append({
             "label": "Chapter icon entrance — " + str(chapter["title"]),
             "file": kind, "path": str(path), "start": round(start, 3),
@@ -1236,7 +1237,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         kind = "whoosh"
         path = sound_paths[kind]
         length = min(ffprobe_duration(path), max(0.08, duration - presenter_start))
-        gain = 0.105
+        gain = 0.18
         sfx_events.append({
             "label": "Presenter reset entrance", "file": kind, "path": str(path),
             "start": round(float(presenter_start), 3), "duration": round(length, 3), "volume": gain,
@@ -1279,6 +1280,57 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         if any(b <= a for a, b in zip(boundaries, boundaries[1:])):
             boundaries = [round(duration * i / len(scene_images), 3) for i in range(len(scene_images) + 1)]
             boundaries[0], boundaries[-1] = 0.0, round(duration, 3)
+
+    # Add a short sound cue exactly at each new scene entrance, not just at story keywords.
+    # Major level-3 danger beats get a bass drop; calmer switches rotate clean pops/whooshes.
+    transition_samples = ("whoosh", "pop", "soft_click", "scratch")
+    for scene_index in range(1, len(scene_images)):
+        event_time = float(boundaries[scene_index])
+        if event_time >= duration - 0.08:
+            continue
+        story_row = next(
+            (row for row in rows
+             if float(row["start_s"]) <= event_time < float(row["end_s"])),
+            None,
+        )
+        line_index = int(story_row["line_index"]) if story_row else min(len(BEAT_META) - 1, scene_index - 1)
+        shock_level = BEAT_META[line_index][1] if 0 <= line_index < len(BEAT_META) else 1
+        kind = "bass_drop" if shock_level >= 3 else transition_samples[scene_index % len(transition_samples)]
+        path = sound_paths[kind]
+        cue_duration = min(ffprobe_duration(path), duration - event_time)
+        if cue_duration <= 0:
+            continue
+        gain = 0.27 if shock_level >= 3 else 0.20
+        sfx_events.append({
+            "label": "Scene entrance " + str(scene_index + 1),
+            "file": kind, "path": str(path), "start": round(event_time, 3),
+            "duration": round(cue_duration, 3), "volume": gain,
+            "volume_db": round(20 * math.log10(gain), 1),
+        })
+
+    # Re-sort and keep consecutive one-shots varied; keep scene-entry cue times exact.
+    sfx_events.sort(key=lambda item: item["start"])
+    alternates = {
+        "whoosh": "scratch", "scratch": "whoosh",
+        "pop": "soft_click", "soft_click": "pop",
+        "low_hit": "concrete_thud", "concrete_thud": "low_hit",
+        "bass_drop": "low_hit", "heartbeat": "soft_click",
+        "air_gasp": "whoosh", "rope_snap": "scratch", "concrete_thud": "low_hit",
+    }
+    for cue_index in range(1, len(sfx_events)):
+        previous, current = sfx_events[cue_index - 1], sfx_events[cue_index]
+        if current["file"] == previous["file"]:
+            alternate = alternates.get(str(current["file"]), "soft_click")
+            current["file"] = alternate
+            current["path"] = str(sound_paths[alternate])
+            current["duration"] = round(min(
+                ffprobe_duration(sound_paths[alternate]), max(0.08, duration - float(current["start"]))
+            ), 3)
+    settings["sound_effects"] = [
+        {"path": item["path"], "start": item["start"], "duration": item["duration"], "volume": item["volume"]}
+        for item in sfx_events
+    ]
+
     flash_path = PROJECT / "assets" / "generated" / "white_flash.png"
     Image.new("RGB", (1920, 1080), (255, 255, 255)).save(flash_path, optimize=True)
     horror_path = make_horror_overlay()
@@ -1308,7 +1360,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         ],
         "chapter_titles": chapters,
         "background_music": {"path": str(music_path.resolve()), "start": 0.0,
-                              "duration": round(duration, 3), "volume": 0.42},
+                              "duration": round(duration, 3), "volume": 0.62},
         "settings": settings,
     }
     config["settings"]["icon_overlays"] = overlays
@@ -1380,7 +1432,8 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
 
     timeline = create_story_timeline(STORY_EN, rows, tokens, scene_images, boundaries, chapters, duration, timing_mode, sfx_events)
     timeline["asset_count"] = len(catalog)
-    timeline["caption_count"] = len(captions)
+    timeline["caption_count"] = 0
+    timeline["narration_caption_cues_generated_but_not_overlaid"] = len(captions)
     timeline["arabic_subtitle_count"] = len(arabic_captions)
     timeline["arabic_subtitle_file"] = str((PROJECT / "build" / "captions_ar.srt").resolve())
     timeline["icon_overlays"] = overlays
