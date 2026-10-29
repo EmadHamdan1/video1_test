@@ -105,6 +105,46 @@ class MontageUpgradeTests(unittest.TestCase):
         for expected in ("TEXT_SIZE big", "TEXT_OVERLAP", "STATIC_GAP"):
             self.assertIn(expected, issues)
 
+    def test_lower_resolution_transparent_cutout_is_kept_but_not_as_full_bleed_stock(self):
+        from PIL import Image, ImageDraw
+
+        candidate = {
+            "provider": "pexels", "id": "transparent-1", "kind": "photo",
+            "url": "https://images.example.test/cutout.png", "width": 900, "height": 900,
+            "license": "Pexels License", "page_url": "https://www.pexels.com/photo/cutout/",
+            "credit": "Photo by Test on Pexels (https://www.pexels.com/photo/cutout/)",
+        }
+        original_search = stock_fetcher.pexels_search
+        original_key = os.environ.get("PEXELS_API_KEY")
+        stock_fetcher.pexels_search = lambda *_args, **_kwargs: [candidate]
+        os.environ["PEXELS_API_KEY"] = "test-key"
+        try:
+            buffer = io.BytesIO()
+            image = Image.new("RGBA", (900, 900), (0, 0, 0, 0))
+            ImageDraw.Draw(image).ellipse((80, 80, 820, 820), fill=(220, 40, 40, 255))
+            image.save(buffer, "PNG")
+            with tempfile.TemporaryDirectory() as temporary:
+                config = {
+                    "settings": {"stock_media": {
+                        "enabled": True, "providers": ["pexels"], "per_query": 1, "max_total": 2,
+                        "min_width": 1280, "min_cutout_width": 640,
+                    }},
+                    "story_beats": [{"stock_query": "transparent cave rescue cutout"}],
+                }
+                assets = stock_fetcher.fetch_stock(
+                    config, Path(temporary), log=lambda _message: None,
+                    http_get=lambda _url: buffer.getvalue(),
+                )
+            self.assertEqual(len(assets), 1)
+            self.assertTrue(assets[0]["alpha_channel"])
+            self.assertLess(assets[0]["width"], 1280)
+        finally:
+            stock_fetcher.pexels_search = original_search
+            if original_key is None:
+                os.environ.pop("PEXELS_API_KEY", None)
+            else:
+                os.environ["PEXELS_API_KEY"] = original_key
+
     def test_stock_fetch_is_disabled_by_default(self):
         with tempfile.TemporaryDirectory() as temporary:
             result = stock_fetcher.fetch_stock({"settings": {"stock_media": {"enabled": False}}}, Path(temporary))
