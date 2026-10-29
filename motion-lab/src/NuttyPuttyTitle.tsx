@@ -31,13 +31,13 @@ export const NuttyPuttyTitle: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: "#F7F3EA",
+        backgroundColor: "#FFFFFF",
         color: "#15191E",
         overflow: "hidden",
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
-      <AbsoluteFill style={{ opacity: 0.28 }}>
+      <AbsoluteFill style={{ opacity: 0 }}>
         <svg width="100%" height="100%" viewBox="0 0 1920 1080">
           <path d="M0 760 C220 690 355 770 520 710 S820 715 970 780 L970 1080 L0 1080 Z" fill="#D9D2C6" />
           <path d="M1920 695 C1710 650 1600 755 1450 710 S1220 750 1080 820 L1080 1080 L1920 1080 Z" fill="#D9D2C6" />
@@ -53,15 +53,17 @@ export const NuttyPuttyTitle: React.FC = () => {
       >
         <path
           d="M0 905 C155 890 200 820 290 830 C410 845 435 955 545 925 C660 895 650 760 760 730 C855 705 930 780 1000 735 C1090 675 1040 570 1145 535 C1250 500 1335 605 1405 555 C1480 500 1475 400 1575 395 C1690 390 1740 480 1920 438 L1920 1080 L0 1080 Z"
-          fill="#252A30"
+          fill="#FFFFFF"
+          stroke="#15191E"
+          strokeWidth="8"
           transform="translate(0 36)"
           opacity={0.97}
         />
         <path
           d="M0 905 C155 890 200 820 290 830 C410 845 435 955 545 925 C660 895 650 760 760 730 C855 705 930 780 1000 735 C1090 675 1040 570 1145 535 C1250 500 1335 605 1405 555 C1480 500 1475 400 1575 395 C1690 390 1740 480 1920 438"
           fill="none"
-          stroke="#F7F3EA"
-          strokeWidth="9"
+          stroke="#15191E"
+          strokeWidth="6"
           strokeLinecap="round"
           strokeDasharray="1000"
           strokeDashoffset={caveDash}
