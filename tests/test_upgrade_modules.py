@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import build_montage
 import qa_spec
 import stock_fetcher
 import text_system
@@ -196,6 +197,84 @@ class MontageUpgradeTests(unittest.TestCase):
                 os.environ.pop("PEXELS_API_KEY", None)
             else:
                 os.environ["PEXELS_API_KEY"] = original_key
+
+
+    def test_scene_csv_keeps_hybrid_stock_metadata(self):
+        import csv
+
+        scenes = [{
+            "start": 0.0,
+            "end": 2.0,
+            "duration": 2.0,
+            "image": "prepared_stock.jpg",
+            "source_image": "original_art.png",
+            "stock_source_path": "assets/stock/openverse_123.jpg",
+            "stock_hero": True,
+            "caption_context": "A caver enters the passage",
+            "scene_ref": "scene_001",
+            "frame_ref": "frame_001",
+            "layout": "C_full_bleed_stock_broll",
+            "layout_template": "C_full_bleed_stock_broll",
+            "layout_side": "center",
+            "base_x": 0.0,
+            "base_y": 0.0,
+            "full_bleed": True,
+            "emotion": "tense",
+            "trigger_word": "TRAPPED",
+            "shock_level": 2,
+        }]
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "scene_timing.csv"
+            build_montage.write_scene_csv(output, scenes, [])
+            with output.open("r", encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["source_image"], "original_art.png")
+        self.assertEqual(rows[0]["stock_source_path"], "assets/stock/openverse_123.jpg")
+        self.assertEqual(rows[0]["stock_hero"], "True")
+
+    def test_dns_failure_stops_repeating_stock_queries(self):
+        original_openverse = stock_fetcher.openverse_search
+        original_wikimedia = stock_fetcher.wikimedia_search
+        calls = {"openverse": 0, "wikimedia": 0}
+
+        def fail_openverse(*_args, **_kwargs):
+            calls["openverse"] += 1
+            raise OSError("[Errno 11001] getaddrinfo failed")
+
+        def fail_wikimedia(*_args, **_kwargs):
+            calls["wikimedia"] += 1
+            raise OSError("[Errno 11001] getaddrinfo failed")
+
+        stock_fetcher.openverse_search = fail_openverse
+        stock_fetcher.wikimedia_search = fail_wikimedia
+        messages = []
+        try:
+            config = {
+                "settings": {"stock_media": {
+                    "enabled": True,
+                    "providers": ["openverse", "wikimedia"],
+                    "per_query": 1,
+                    "max_total": 20,
+                    "max_queries": 20,
+                }},
+                "story_beats": [
+                    {"stock_query": "dark cave entrance"},
+                    {"stock_query": "cave rescue rope team"},
+                    {"stock_query": "narrow limestone cave"},
+                ],
+            }
+            with tempfile.TemporaryDirectory() as temporary:
+                result = stock_fetcher.fetch_stock(
+                    config, Path(temporary), log=messages.append,
+                )
+            self.assertEqual(result, [])
+            self.assertEqual(calls, {"openverse": 1, "wikimedia": 1})
+            self.assertTrue(any("skipping remaining online searches" in message for message in messages))
+        finally:
+            stock_fetcher.openverse_search = original_openverse
+            stock_fetcher.wikimedia_search = original_wikimedia
 
 
 if __name__ == "__main__":
