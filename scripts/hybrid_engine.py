@@ -19,8 +19,11 @@ from qa_spec import audit_spec
 TAU = math.tau
 VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".m4v"}
 LAYOUT_CYCLE = ["left", "right", "center", "left", "center", "right"]
-ENTRANCES = ["pop", "slide", "drop", "tilt_pop", "slide", "pop"]
-EXITS = ["shrink", "slide_out", "shrink", "drop_out"]
+ENTRANCES = [
+    "pop", "slide", "drop", "tilt_pop", "slide_left", "slide_right",
+    "rise", "diagonal_sweep", "zoom_through", "spin_in", "pop", "slide",
+]
+EXITS = ["shrink", "slide_out", "shrink", "drop_out", "tilt_away", "zoom_away"]
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -136,11 +139,37 @@ def scene_motion(tl: _Timeline, ref: str, D: float, S: float, bx: float, by: flo
         xk = [(0, bx + edge * .62, None), (T(.18), bx - edge * .02, "ease-out"), (E, bx, "ease-out")]
         yk = [(0, by, None), (E, by, "ease-out")]
         rk = [(0, -edge * 4.0, None), (T(.20), edge * 1.0, "ease-out"), (E, 0.0, "ease-out")]
+    elif kind in {"slide_left", "slide_right"}:
+        direction = -1.0 if kind == "slide_left" else 1.0
+        sk = [(0, .78 * S, None), (T(.18), 1.06 * S, "ease-out"), (E, S, "ease-out")]
+        xk = [(0, bx + direction * 1.18, None), (T(.18), bx - direction * .025, "ease-out"), (E, bx, "ease-out")]
+        yk = [(0, by + .015 * direction, None), (E, by, "ease-out")]
+        rk = [(0, -direction * 6.0, None), (T(.18), direction * 1.5, "ease-out"), (E, 0.0, "ease-out")]
     elif kind == "drop":
         sk = [(0, .94 * S, None), (T(.16), 1.02 * S, "ease-in"), (T(.22), 1.05 * S, "ease-out"), (E, S, "ease-out")]
         xk = [(0, bx, None), (E, bx, "ease-out")]
         yk = [(0, by - .62, None), (T(.16), by + .035, "ease-in"), (T(.24), by - .015, "ease-out"), (E, by, "ease-in-out")]
         rk = [(0, edge * 3.0, None), (E, 0.0, "ease-out")]
+    elif kind == "rise":
+        sk = [(0, .84 * S, None), (T(.18), 1.06 * S, "ease-out"), (E, S, "ease-out")]
+        xk = [(0, bx, None), (E, bx, "ease-out")]
+        yk = [(0, by + .68, None), (T(.18), by - .025, "ease-out"), (E, by, "ease-out")]
+        rk = [(0, -edge * 3.0, None), (E, 0.0, "ease-out")]
+    elif kind == "diagonal_sweep":
+        sk = [(0, .76 * S, None), (T(.18), 1.08 * S, "ease-out"), (E, S, "ease-out")]
+        xk = [(0, bx + edge * .88, None), (T(.18), bx - edge * .02, "ease-out"), (E, bx, "ease-out")]
+        yk = [(0, by + .62, None), (T(.18), by - .02, "ease-out"), (E, by, "ease-out")]
+        rk = [(0, -edge * 8.0, None), (T(.18), edge * 1.5, "ease-out"), (E, 0.0, "ease-out")]
+    elif kind == "zoom_through":
+        sk = [(0, 1.42 * S, None), (T(.14), .90 * S, "ease-out"), (T(.22), 1.06 * S, "ease-out"), (E, S, "ease-out")]
+        xk = [(0, bx + edge * .05, None), (E, bx, "ease-out")]
+        yk = [(0, by, None), (E, by, "ease-out")]
+        rk = [(0, 0.0, None), (E, 0.0, "ease-out")]
+    elif kind == "spin_in":
+        sk = [(0, .08 * S, None), (T(.16), 1.10 * S, "ease-out"), (T(.23), .97 * S, "ease-in-out"), (E, S, "ease-out")]
+        xk = [(0, bx + edge * .28, None), (E, bx, "ease-out")]
+        yk = [(0, by - .18, None), (E, by, "ease-out")]
+        rk = [(0, edge * 18.0, None), (T(.16), -edge * 3.0, "ease-out"), (E, 0.0, "ease-out")]
     elif kind == "tilt_pop":
         sk = [(0, .06 * S, None), (T(.15), 1.10 * S, "ease-out"), (T(.23), .98 * S, "ease-in-out"), (E, S, "ease-out")]
         xk = [(0, bx + edge * .05, None), (E, bx, "ease-out")]
@@ -210,10 +239,18 @@ def scene_motion(tl: _Timeline, ref: str, D: float, S: float, bx: float, by: flo
             tl.key(ref, "uniform_scale", xs + 0.4 * (D - xs), sc * 1.05, "ease-out")
             tl.key(ref, "uniform_scale", D, .05 * S, "ease-in")
             tl.key(ref, "rotation", D, r + edge * 6.0, "ease-in")
-        elif ek == "slide_out":
-            tl.key(ref, "position_x", D, bx + edge * .9, "ease-in")
-            tl.key(ref, "uniform_scale", D, .88 * sc, "ease-in")
-            tl.key(ref, "rotation", D, r + edge * 5.0, "ease-in")
+        elif ek in {"slide_out", "slide_out_left", "slide_out_right"}:
+            direction = edge if ek == "slide_out" else (-1.0 if ek == "slide_out_left" else 1.0)
+            tl.key(ref, "position_x", D, bx + direction * .98, "ease-in")
+            tl.key(ref, "uniform_scale", D, .82 * sc, "ease-in")
+            tl.key(ref, "rotation", D, r + direction * 5.0, "ease-in")
+        elif ek == "tilt_away":
+            tl.key(ref, "position_x", D, bx + edge * .30, "ease-in")
+            tl.key(ref, "uniform_scale", D, .82 * sc, "ease-in")
+            tl.key(ref, "rotation", D, r + edge * 14.0, "ease-in")
+        elif ek == "zoom_away":
+            tl.key(ref, "uniform_scale", D, 1.30 * sc, "ease-in")
+            tl.key(ref, "position_y", D, by - edge * .06, "ease-in")
         else:
             tl.key(ref, "position_y", D, by + .75, "ease-in")
             tl.key(ref, "uniform_scale", D, .92 * sc, "ease-in")
