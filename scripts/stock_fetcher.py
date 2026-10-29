@@ -240,8 +240,15 @@ def _write_contact_sheet(rows: list[dict[str, Any]], project_dir: Path,
             x, y = (index % columns) * cell_w, (index // columns) * cell_h
             try:
                 with Image.open(str(row["path"])) as source:
-                    thumb = ImageOps.contain(ImageOps.exif_transpose(source).convert("RGB"),
-                                             (cell_w - 16, cell_h - 62), method=resampling)
+                    opened = ImageOps.exif_transpose(source)
+                    if "A" in opened.getbands() or "transparency" in opened.info:
+                        rgba = opened.convert("RGBA")
+                        matte = Image.new("RGBA", rgba.size, (246, 246, 243, 255))
+                        matte.alpha_composite(rgba)
+                        preview = matte.convert("RGB")
+                    else:
+                        preview = opened.convert("RGB")
+                    thumb = ImageOps.contain(preview, (cell_w - 16, cell_h - 62), method=resampling)
                 sheet.paste(thumb, (x + (cell_w - thumb.width) // 2, y + 4))
             except Exception as exc:
                 draw.text((x + 8, y + 8), "UNREADABLE STOCK IMAGE", fill=(180, 24, 24))
