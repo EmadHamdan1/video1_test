@@ -13,6 +13,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stock_fetcher
 import text_system as ts
+import motion_recipes as mr
 from qa_spec import audit_spec
 
 TAU = math.tau
@@ -481,61 +482,111 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             sfx_cues.append((start_t, ["whoosh", "pop", "other"]))
             pose += 1
 
-    # ---------------- relevant stock B-roll / secondary inserts ----------------
+    # ---------------- layered B-roll collages with varied keyframe recipes ----------------
     insert_items: list[dict[str, Any]] = []
     inserted_per_beat: dict[int, int] = {}
+    used_insert_paths: set[str] = set()
     if len(images) > 1 or stock_pool:
-        insert_every = max(2, int(settings.get("insert_every", 3 if stock_pool else 5)))
+        insert_every = max(2, int(settings.get("insert_every", 2)))
         for index, row in enumerate(scene_rows):
             if index == 0 or row["scene_ref"] in host_scenes:
                 continue
-            if row["shock_level"] < 2 and index % insert_every != 1:
+            if int(row["shock_level"]) < 2 and index % insert_every != 1:
                 continue
 
+            mid = (float(row["start"]) + float(row["end"])) / 2.0
+            beat_index = next((beat_i for beat_i, beat in enumerate(beats)
+                               if float(beat.get("start_s", 0.0)) <= mid
+                               <= float(beat.get("end_s", duration))), None)
+            avoid_paths = {
+                str(Path(str(row["image"])).resolve()),
+                str(Path(str(row.get("stock_source_path") or "")).resolve())
+                    if row.get("stock_source_path") else "",
+            } | used_insert_paths
+
+            # Prefer an unused stock still whose recorded query belongs to this beat or an
+            # adjacent beat. Do not insert a distant/abstract search result just to fill space.
+            ranked_stock = sorted(
+                stock_pool,
+                key=lambda item: abs(int(item.get("beat", -1)) - beat_index)
+                    if beat_index is not None else 10_000,
+            )
             pick: Path | None = None
-            if stock_pool:
-                mid = (float(row["start"]) + float(row["end"])) / 2.0
-                beat_index = next((beat_i for beat_i, beat in enumerate(beats)
-                                   if float(beat.get("start_s", 0.0)) <= mid
-                                   <= float(beat.get("end_s", duration))), None)
-                if beat_index is not None:
-                    distance = min(abs(int(item.get("beat", -1)) - beat_index) for item in stock_pool)
-                    relevant = [item for item in stock_pool
-                                if abs(int(item.get("beat", -1)) - beat_index) == distance]
-                    use_index = inserted_per_beat.get(beat_index, 0) % len(relevant)
-                    pick = Path(str(relevant[use_index]["path"]))
-                    inserted_per_beat[beat_index] = inserted_per_beat.get(beat_index, 0) + 1
-                else:
-                    pick = Path(str(stock_pool[len(insert_items) % len(stock_pool)]["path"]))
+            for candidate in ranked_stock:
+                candidate_path = Path(str(candidate.get("path", ""))).resolve()
+                if not candidate_path.is_file() or str(candidate_path) in avoid_paths:
+                    continue
+                if beat_index is not None and abs(int(candidate.get("beat", -1)) - beat_index) > 1:
+                    continue
+                pick = candidate_path
+                break
 
+            # Local artwork remains the reliable fallback when a suitable licensed image
+            # is unavailable. Choose a different image from the hero layer.
             if pick is None:
-                src = indices[index]
-                nxt = (src + 1) % len(images)
-                for _ in range(len(images)):
-                    if images[nxt].suffix.lower() not in VIDEO_SUFFIXES:
+                src = indices[index] if index < len(indices) else index % len(images)
+                for step in range(1, len(images) + 1):
+                    candidate_path = images[(src + step) % len(images)].resolve()
+                    if str(candidate_path) not in avoid_paths:
+                        pick = candidate_path
                         break
-                    nxt = (nxt + 1) % len(images)
-                pick = images[nxt]
+            if pick is None:
+                continue
 
-            if str(pick) in {row["image"], str(row.get("stock_source_path") or "")}:
+            layout = mr.overlay_layout(index, float(row.get("base_x", 0.0)),
+                                       int(row.get("shock_level", 0)))
+            offset = min(0.30, float(row["duration"]) * 0.14)
+            base_duration = min(1.45, float(row["duration"]) - offset - 0.18)
+            if base_duration < 0.42:
                 continue
-            offset = min(0.48, row["duration"] * 0.22)
-            dur = round(min(0.95, row["duration"] - offset - 0.12), 3)
-            if dur < 0.45:
-                continue
-            bx = row["base_x"]
-            tx = (0.62 if bx < -0.1 else (-0.62 if bx > 0.1 else (0.76 if index % 2 == 0 else -0.76)))
-            ty = 0.26
-            ref = "secondary_%03d" % (len(insert_items) + 1)
-            start_at = round(row["start"] + offset, 3)
-            insert_items.append({
-                "type": "photo", "path": str(pick), "start": start_at, "duration": dur,
-                "ref": ref, "scale": 0.22, "x": tx, "y": ty,
-            })
-            tl.clip(ref, dur)
-            pop_motion(tl, ref, dur, 0.22, tx, ty, tilt=3.0 if tx > 0 else -3.0, enter=0.26, exit_len=0.16,
-                       float_amp=0.010, from_dx=0.30 if tx > 0 else -0.30, from_dy=0.08, phase=index)
-            sfx_cues.append((start_at, ["pop", "whoosh", "other"]))
+
+            for slot_index, slot in enumerate(layout["slots"]):
+                layer_path = pick
+                if slot_index > 0:
+                    # A paired collage gets a second, distinct picture. Prefer another
+                    # relevant stock item; if none exists, use a different supplied image.
+                    layer_path = None
+                    for candidate in ranked_stock:
+                        candidate_path = Path(str(candidate.get("path", ""))).resolve()
+                        if not candidate_path.is_file() or str(candidate_path) in avoid_paths:
+                            continue
+                        if beat_index is not None and abs(int(candidate.get("beat", -1)) - beat_index) > 1:
+                            continue
+                        layer_path = candidate_path
+                        break
+                    if layer_path is None:
+                        src = indices[index] if index < len(indices) else index % len(images)
+                        for step in range(2, len(images) + 2):
+                            candidate_path = images[(src + step) % len(images)].resolve()
+                            if str(candidate_path) not in avoid_paths and candidate_path != pick:
+                                layer_path = candidate_path
+                                break
+                if layer_path is None or str(layer_path) in avoid_paths:
+                    continue
+
+                stagger = mr.staggered_pair_offsets(index)[slot_index]
+                start_at = round(float(row["start"]) + offset + stagger, 3)
+                dur = round(min(base_duration, float(row["end"]) - start_at - 0.08), 3)
+                if dur < 0.36:
+                    continue
+
+                tx, ty, scale = float(slot["x"]), float(slot["y"]), float(slot["scale"])
+                ref = "secondary_%03d" % (len(insert_items) + 1)
+                suffix = layer_path.suffix.lower()
+                media_type = "video" if suffix in VIDEO_SUFFIXES else "photo"
+                insert_items.append({
+                    "type": media_type, "path": str(layer_path), "start": start_at,
+                    "duration": dur, "ref": ref, "scale": scale, "x": tx, "y": ty,
+                })
+                used_insert_paths.add(str(layer_path))
+                tl.clip(ref, dur)
+                mr.apply_layer_motion(tl, ref, dur, scale, tx, ty, str(slot["recipe"]), index + slot_index)
+                if slot_index == 0:
+                    sfx_cues.append((start_at, ["pop", "whoosh", "other"]))
+            inserted_per_beat[beat_index if beat_index is not None else index] = (
+                inserted_per_beat.get(beat_index if beat_index is not None else index, 0)
+                + len(layout["slots"])
+            )
 
     # ---------------- accent badges (! on shock, ? on questions) ----------------
     badge_items: list[dict[str, Any]] = []
