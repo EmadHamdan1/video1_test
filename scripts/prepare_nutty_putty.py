@@ -886,29 +886,29 @@ def create_story_timeline(lines: list[str], rows: list[dict[str, Any]], tokens: 
         chapter = next((item["title"] for item in reversed(chapters) if float(item["start_s"]) <= start), "THE CAVE")
         scene_sfx = [{"file": item["file"], "time_s": item["start"], "volume": item["volume"]}
                      for item in sfx_events if start <= item["start"] < end]
-        full_bleed = (index % 4 == 0) or shock >= 3
-        layout_side = "full_bleed" if full_bleed else ("left" if index % 3 == 0 else ("center" if index % 3 == 1 else "right"))
+        layout_side = ("left", "center", "right")[index % 3]
         layout_template = {
             "left": "A_subject-left_host-right",
             "center": "B_centered-hero",
             "right": "A_mirrored_subject-right_host-left",
-            "full_bleed": "G_full-illustrated-action",
         }[layout_side]
+        entry_direction = ("right", "left", "bottom", "top")[index % 4]
+        exit_direction = ("left", "right", "top", "bottom")[index % 4]
+        scene_start = round(start, 3)
         scenes.append({
             "scene_id": "scene_%03d" % (index + 1),
-            "start_s": round(start, 3), "end_s": round(end, 3),
+            "start_s": scene_start, "end_s": round(end, 3),
             "start_frame": round(start * 30), "end_frame": round(end * 30),
             "trigger_word": trigger, "chapter": chapter, "emotion": emotion, "shock_level": shock,
-            "layout_template": layout_template, "full_bleed": full_bleed,
-            "background": str(image),
+            "layout_template": layout_template, "layout_side": layout_side, "full_bleed": False,
+            "background": "#FFFFFF",
             "layers": [{
-                "asset": str(image), "layer": "L0" if full_bleed else "L2",
-                "position": "full-frame" if full_bleed else layout_side + " third / whiteboard canvas",
-                "size_percent_frame_height": 100 if full_bleed else 55,
-                "scale": "100% to 109% with 0.72 s breathing pulses",
-                "entrance": "scale-pop 0.18 s" if index and (index + 1) % 14 == 0 else "hard cut",
-                "exit": "hard-cut",
-                "idle_loop": "continuous micro-zoom and 1–3% position drift",
+                "asset": str(image), "layer": "L2", "position": layout_side + " third on pure-white canvas",
+                "size_percent_frame_height": 55,
+                "scale": "55% to 60% with 0.72 s zoom pulses",
+                "entrance": "slide from " + entry_direction + " + overshoot pop (0.14–0.24 s)",
+                "exit": "slide toward " + exit_direction + " over final 0.14–0.22 s",
+                "idle_loop": "continuous zoom pulse and 1–3% positional drift",
                 "partial_changes": [
                     {"type": "trigger-word impact pulse", "trigger_word": trigger, "at_s": round(float(row["start_s"]), 3) if row else round(midpoint, 3)},
                     {"type": "brief red tint / camera shake", "trigger_word": trigger, "at_s": round(float(row["start_s"]), 3) if row else round(midpoint, 3)} if shock >= 2 else {"type": "subtle scale pulse", "trigger_word": trigger, "at_s": round(midpoint, 3)},
@@ -916,8 +916,8 @@ def create_story_timeline(lines: list[str], rows: list[dict[str, Any]], tokens: 
             }],
             "camera": "snap zoom + decaying shake" if shock >= 2 else "alternating push-in / pull-out with continuous drift",
             "text": {"content": "", "focus_word": trigger, "chapter_title": chapter, "max_words": 3,
-                     "narration_captions": "disabled; only short designed callouts and chapter titles"},
-            "transition_in": "scale-pop entrance" if index and (index + 1) % 14 == 0 else "hard cut",
+                     "narration_captions": "disabled; only brief designed callouts and chapter titles"},
+            "transition_in": "scale-pop replacement" if index and (index + 1) % 7 == 0 else "hard cut with directional entrance",
             "sfx": scene_sfx,
             "music": {"track": "assets/audio/sfx/suspense_bed.wav", "target_dbfs_approx": -24,
                       "duck_db": 6, "pre_shock_dip_s": 0.4 if shock >= 3 else 0.0},
@@ -925,7 +925,7 @@ def create_story_timeline(lines: list[str], rows: list[dict[str, Any]], tokens: 
         })
     return {
         "project": "Nutty Putty Cave",
-        "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+        "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9", "background": "#FFFFFF"},
         "voiceover_duration_s": round(duration, 3),
         "timing_mode": timing_mode,
         "word_count": len(tokens),
@@ -940,12 +940,14 @@ def create_story_timeline(lines: list[str], rows: list[dict[str, Any]], tokens: 
         "scene_timeline": scenes,
         "sound_effect_events": sfx_events,
         "transition_policy": {
-            "default": "hard cut ~90%",
-            "accent": "keyframed scale-pop on selected cuts; white flash only on death reveal",
+            "default": "hard cut plus animated fly-in/fly-out",
+            "accent": "keyframed scale-pop replacement every 7th cut; white flash only on death reveal",
+            "secondary_image_inserts": "brief adjacent-image overlays on selected high-impact beats",
             "forbidden": ["wipe", "spin", "cube", "page curl", "glitch pack", "decorative zoom blur"],
         },
         "review_note": "ASSET_CONTACT_SHEET.jpg was generated locally. File metadata is inspectable, but image semantics are not asserted automatically.",
     }
+
 
 
 def inventory_asset(path: Path, asset_type: str, original: str = "") -> dict[str, Any]:
