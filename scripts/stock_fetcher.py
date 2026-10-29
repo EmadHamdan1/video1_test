@@ -21,7 +21,7 @@ UA = "video1-test-montage/1.1 (local video project)"
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
 
-def _http(url: str, headers: dict[str, str] | None = None, timeout: int = 25) -> bytes:
+def _http(url: str, headers: dict[str, str] | None = None, timeout: int = 12) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()
@@ -322,6 +322,10 @@ def _is_network_connectivity_failure(exc: BaseException) -> bool:
         "connection reset",
         "connection refused",
         "network is unreachable",
+        "429 too many requests",
+        "too many requests",
+        "rate limit exceeded",
+        "503 service unavailable",
     )) or isinstance(exc, ssl.SSLError) or isinstance(reason, ssl.SSLError)
 
 
@@ -428,8 +432,15 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                         destination.unlink(missing_ok=True)
                         continue
                 except Exception as exc:
-                    log("Stock download failed (%s): %s" % (url, exc))
                     destination.unlink(missing_ok=True)
+                    if _is_network_connectivity_failure(exc):
+                        failed_providers.add(provider)
+                        log(
+                            "Stock provider disabled for the rest of this run after a download "
+                            "network failure (%s): %s" % (provider, exc)
+                        )
+                        break
+                    log("Stock download failed (%s): %s" % (url, exc))
                     continue
                 digest = hashlib.sha1(destination.read_bytes()).hexdigest()[:12]
                 if digest in known_hashes:
