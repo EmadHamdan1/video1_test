@@ -327,6 +327,9 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
     per_query = max(1, int(cfg.get("per_query", 1)))
     max_total = max(0, int(cfg.get("max_total", 26)))
     min_width = max(320, int(cfg.get("min_width", 1280)))
+    # Transparent foreground cutouts can be small because they occupy only a fraction
+    # of the frame; let them use a lower resolution threshold than hero/B-roll images.
+    min_cutout_width = max(320, min(min_width, int(cfg.get("min_cutout_width", 640))))
     allow_video = bool(cfg.get("allow_video", False))
     beats = config.get("story_beats", []) if isinstance(config.get("story_beats", []), list) else []
     cached_query_counts: dict[tuple[int, str], int] = {}
@@ -368,7 +371,8 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                 url = str(candidate.get("url", ""))
                 if not identifier or not url.startswith(("https://", "http://")):
                     continue
-                if int(candidate.get("width") or 0) < min_width or (provider, identifier) in have:
+                candidate_width = int(candidate.get("width") or 0)
+                if candidate_width < min_cutout_width or (provider, identifier) in have:
                     continue
                 if kind == "video" and not allow_video:
                     continue
@@ -377,6 +381,12 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                     if not destination.is_file():
                         destination.write_bytes(http_get(url))
                     if destination.stat().st_size < 1024 or (kind == "photo" and not _valid_image(destination)):
+                        destination.unlink(missing_ok=True)
+                        continue
+                    alpha_channel = _image_has_transparency(destination) if kind == "photo" else False
+                    # Only keep below-target-resolution photos if they're actual transparent
+                    # overlays; opaque images stay subject to the hero/B-roll minimum.
+                    if kind == "photo" and candidate_width < min_width and not alpha_channel:
                         destination.unlink(missing_ok=True)
                         continue
                 except Exception as exc:
@@ -389,7 +399,7 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                 manifest.append({
                     **candidate, "path": str(destination.resolve()), "query": query["query"],
                     "beat": query["beat"], "sha1": digest,
-                    "alpha_channel": _image_has_transparency(destination) if kind == "photo" else False,
+                    "alpha_channel": alpha_channel,
                 })
                 have.add((provider, identifier))
                 known_hashes.add(digest)
