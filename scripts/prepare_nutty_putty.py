@@ -14,8 +14,6 @@ import subprocess
 import sys
 import time
 import unicodedata
-import urllib.error
-import urllib.request
 import wave
 from datetime import datetime
 from pathlib import Path
@@ -299,52 +297,63 @@ def make_fullframe_versions(images: list[Path]) -> list[Path]:
     return result
 
 
-def download_icons(chapters: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], Path]:
-    icon_dir = PROJECT / "assets" / "icons"
+def make_local_chapter_icons(chapters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Draw simple chapter badges locally with Pillow; never fetch icons or install renderers."""
     generated = PROJECT / "assets" / "generated" / "icons"
-    icon_dir.mkdir(parents=True, exist_ok=True)
     generated.mkdir(parents=True, exist_ok=True)
-    license_url = "https://raw.githubusercontent.com/lucide-icons/lucide/main/LICENSE"
-    license_path = icon_dir / "LUCIDE-LICENSE.txt"
-    renderer = ROOT / "motion-lab" / "scripts" / "render-svg.mjs"
-    node = shutil.which("node")
-    try:
-        if not license_path.exists():
-            request = urllib.request.Request(license_url, headers={"User-Agent": "NuttyPuttyVideoBuilder/1.0"})
-            with urllib.request.urlopen(request, timeout=20) as response:
-                license_path.write_bytes(response.read(1024 * 1024))
-    except Exception as exc:
-        log("Could not download Lucide license automatically: " + str(exc))
-    overlays = []
+    overlays: list[dict[str, Any]] = []
+
     for index, (name, color) in enumerate(ICON_CHAPTERS):
-        svg = icon_dir / (name + ".svg")
-        try:
-            request = urllib.request.Request(
-                "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/" + name + ".svg",
-                headers={"User-Agent": "NuttyPuttyVideoBuilder/1.0"},
-            )
-            with urllib.request.urlopen(request, timeout=20) as response:
-                payload = response.read(256 * 1024).decode("utf-8", errors="strict")
-            if "<svg" not in payload.lower() or "<script" in payload.lower() or "javascript:" in payload.lower():
-                log("Rejected unexpected SVG for icon " + name)
-                continue
-            svg.write_text(payload, encoding="utf-8")
-        except Exception as exc:
-            log("Lucide icon download skipped for " + name + ": " + str(exc))
-            continue
         target = generated / ("%02d_%s.png" % (index + 1, name))
-        if node and renderer.is_file():
-            result = run_process([node, str(renderer), str(svg.resolve()), str(target.resolve()), "256", color], timeout=60)
-            if result.returncode != 0 or not target.is_file():
-                log("Icon render skipped for " + name + ": " + (result.stderr or result.stdout)[-300:])
-                continue
-            chapter_start = float(chapters[index].get("start_s", 2.0)) + 0.15 if index < len(chapters) else 2.15
-            overlays.append({
-                "name": name, "path": str(target.resolve()),
-                "start_seconds": round(chapter_start, 3), "duration": 1.15,
-                "x": 0.78, "y": -0.53, "scale": 0.115, "color": color,
-            })
-    return overlays, license_path
+        image = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        accent_hex = color.lstrip("#")
+        accent = tuple(int(accent_hex[offset:offset + 2], 16) for offset in (0, 2, 4)) + (255,)
+        white = (250, 249, 245, 255)
+        ink = (24, 28, 34, 245)
+        draw.ellipse((18, 18, 238, 238), fill=ink, outline=accent, width=10)
+
+        if name == "map-pin":
+            draw.ellipse((82, 52, 174, 144), outline=white, width=10)
+            draw.ellipse((111, 81, 145, 115), fill=accent)
+            draw.line([(91, 125), (128, 198), (165, 125)], fill=white, width=10, joint="curve")
+        elif name == "compass":
+            draw.polygon([(128, 48), (185, 183), (128, 157), (71, 183)], fill=accent, outline=white)
+            draw.line([(128, 48), (128, 157)], fill=white, width=8)
+            draw.ellipse((115, 115, 141, 141), fill=ink, outline=white, width=5)
+        elif name == "triangle-alert":
+            draw.polygon([(128, 48), (207, 194), (49, 194)], outline=accent, fill=ink)
+            draw.line([(128, 94), (128, 143)], fill=white, width=14)
+            draw.ellipse((120, 158, 136, 174), fill=white)
+        elif name == "phone":
+            draw.rounded_rectangle((83, 48, 173, 207), radius=15, outline=white, width=10)
+            draw.line([(109, 69), (147, 69)], fill=accent, width=7)
+            draw.ellipse((119, 179, 137, 197), fill=accent)
+        elif name == "heart-pulse":
+            draw.line([(49, 128), (83, 128), (103, 91), (126, 166), (148, 111), (168, 139), (207, 139)],
+                      fill=white, width=11, joint="curve")
+        elif name == "clock":
+            draw.ellipse((58, 58, 198, 198), outline=white, width=11)
+            draw.line([(128, 80), (128, 129), (163, 151)], fill=accent, width=12, joint="curve")
+        elif name == "construction":
+            draw.line([(78, 190), (177, 91)], fill=white, width=17)
+            draw.line([(66, 84), (105, 123)], fill=accent, width=18)
+            draw.line([(153, 62), (195, 104)], fill=white, width=18)
+            draw.line([(139, 77), (178, 38)], fill=accent, width=12)
+        else:
+            draw.line([(128, 54), (128, 168)], fill=white, width=14)
+            draw.line([(78, 126), (128, 180), (178, 126)], fill=accent, width=14, joint="curve")
+
+        image.save(target, optimize=True)
+        chapter_start = float(chapters[index].get("start_s", 2.0)) + 0.15 if index < len(chapters) else 2.15
+        overlays.append({
+            "name": name, "path": str(target.resolve()),
+            "start_seconds": round(chapter_start, 3), "duration": 1.15,
+            "x": 0.78, "y": -0.53, "scale": 0.115, "color": color,
+        })
+
+    log("Created " + str(len(overlays)) + " local chapter icons with Pillow; no network requests.")
+    return overlays
 
 
 def synth_sfx(kind: str, path: Path, duration: float, seed: int) -> None:
@@ -547,25 +556,63 @@ def tokenise_story(lines: list[str]) -> list[dict[str, Any]]:
     return tokens
 
 
+def find_cached_whisper_model() -> Path | None:
+    """Return an already-cached faster-whisper base.en snapshot, without network access."""
+    cache_roots: list[Path] = []
+    hf_home = os.environ.get("HF_HOME")
+    hub_cache = os.environ.get("HUGGINGFACE_HUB_CACHE")
+    if hf_home:
+        cache_roots.append(Path(hf_home) / "hub")
+    if hub_cache:
+        cache_roots.append(Path(hub_cache))
+    cache_roots.extend([
+        Path.home() / ".cache" / "huggingface" / "hub",
+        Path.home() / ".huggingface" / "hub",
+    ])
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        cache_roots.append(Path(local_app_data) / "huggingface" / "hub")
+
+    seen: set[str] = set()
+    for root in cache_roots:
+        key = str(root.resolve()).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        snapshots = root / "models--Systran--faster-whisper-base.en" / "snapshots"
+        if not snapshots.is_dir():
+            continue
+        candidates = sorted(
+            (path for path in snapshots.iterdir()
+             if path.is_dir() and (path / "model.bin").is_file() and (path / "config.json").is_file()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            return candidates[0]
+    return None
+
+
 def install_and_transcribe(audio: Path) -> tuple[list[dict[str, Any]], str]:
+    """Use only an already-installed package and cached model. Never pip-install or fetch models."""
     try:
         from faster_whisper import WhisperModel
     except Exception:
-        requirements = ROOT / "requirements-transcription.txt"
-        log("Word alignment is not available; attempting optional faster-whisper install.")
-        result = subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(requirements)], check=False, timeout=None)
-        if result.returncode != 0:
-            return [], "ESTIMATED: faster-whisper installation failed"
-        try:
-            import importlib
-            importlib.invalidate_caches()
-            from faster_whisper import WhisperModel
-        except Exception:
-            return [], "ESTIMATED: faster-whisper import failed"
+        log("Whisper not installed; skipping word alignment without installing anything.")
+        return [], "ESTIMATED: local faster-whisper package unavailable; downloads disabled"
+
+    model_path = find_cached_whisper_model()
+    if model_path is None:
+        log("No cached faster-whisper base.en model found; skipping transcription without downloading it.")
+        return [], "ESTIMATED: Whisper model is not cached locally; downloads disabled"
+
     try:
         threads = max(2, min(8, os.cpu_count() or 4))
-        log("Transcribing in English with the CPU int8 base.en model. First run downloads the model.")
-        model = WhisperModel("base.en", device="cpu", compute_type="int8", cpu_threads=threads)
+        log("Using the cached base.en Whisper model from disk; network access is disabled.")
+        model = WhisperModel(
+            str(model_path), device="cpu", compute_type="int8",
+            cpu_threads=threads, local_files_only=True,
+        )
         segments, info = model.transcribe(
             str(audio), language="en", word_timestamps=True, vad_filter=True, beam_size=5,
         )
@@ -581,11 +628,11 @@ def install_and_transcribe(audio: Path) -> tuple[list[dict[str, Any]], str]:
                         "end_s": max(float(word.start) + 0.04, float(word.end)),
                     })
         if not words:
-            return [], "ESTIMATED: transcription returned no word timestamps"
-        return words, "faster-whisper base.en word timestamps; language=" + str(getattr(info, "language", "en"))
+            return [], "ESTIMATED: cached faster-whisper returned no word timestamps"
+        return words, "cached faster-whisper base.en word timestamps; language=" + str(getattr(info, "language", "en"))
     except Exception as exc:
-        log("Word transcription failed; timings will be estimated. " + str(exc))
-        return [], "ESTIMATED: faster-whisper failed: " + str(exc)
+        log("Local Whisper run failed; using estimated timing and making no download attempt. " + str(exc))
+        return [], "ESTIMATED: local faster-whisper failed: " + str(exc)
 
 
 def align_tokens(reference: list[dict[str, Any]], heard: list[dict[str, Any]], duration: float) -> float:
@@ -1144,7 +1191,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         ],
     }
     chapters = make_chapters(rows, duration, 2.0 if intro_path else 0.0)
-    overlays, icon_license = download_icons(chapters)
+    overlays = make_local_chapter_icons(chapters)
     fact_overlays = make_fact_callouts(tokens, duration)
 
     # Give each visible callout and chapter-badge entrance a light, time-aligned audio cue.
@@ -1301,7 +1348,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     for path in sorted((PROJECT / "assets" / "audio" / "sfx").glob("*.wav")):
         catalog.append(inventory_asset(path, "music" if path.name == "suspense_bed.wav" else "sfx"))
     for path in sorted((PROJECT / "assets" / "generated" / "icons").glob("*.png")):
-        catalog.append(inventory_asset(path, "lucide_icon_overlay"))
+        catalog.append(inventory_asset(path, "procedural_chapter_icon"))
     for path in sorted((PROJECT / "assets" / "generated" / "callouts").glob("*.png")):
         catalog.append(inventory_asset(path, "story_fact_callout"))
     for path in sorted((PROJECT / "assets" / "icons").glob("*.svg")):
