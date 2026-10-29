@@ -38,7 +38,7 @@ xfade and afade are useful at render time, but their constraints matter: clips m
 - The full Nutty Putty build now aims for a second visual layer on nearly every scene after the opening (except presenter beats, where the presenter itself adds a second visual). High-impact beats and selected rhythm points create two secondary image cards, resulting in three visual layers when the hero image is present.
 - Secondary items normally live for roughly 70–80% of a scene, have separate editable keyframes, and prefer story-relevant licensed stock. When no near-beat stock item is available, they use a different supplied illustration. A recent-use window prevents immediate repetition without exhausting the image pool over a long video.
 - If a fetched PNG truly has transparent pixels, the asset manifest records alpha_channel: true and same-beat transparent assets are preferred for secondary/cutout-style positions. The system does not claim a source is a cutout based only on its filename.
-- Short text callouts use a restrained palette, semantic sizes, safe-area checks, vertical settle, scale overshoot and scale-out. Opacity animation remains disabled unless the installed CLI's property schema is explicitly probed.
+- Short text callouts use a restrained palette, semantic sizes, safe-area checks, vertical settle, scale overshoot and scale-out. Alerts select slam/tilt/zoom recipes, statistics select pop/zoom/slide recipes, and keywords/chapters rotate through rise and directional slides. Opacity animation remains disabled unless the installed CLI's property schema is explicitly probed.
 
 ## Why these techniques fit this pipeline
 
