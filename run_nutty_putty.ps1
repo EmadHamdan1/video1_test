@@ -107,6 +107,7 @@ Write-Host "Project data: $BuildDir"
 Write-Host "QA report: $(Join-Path $BuildDir 'QA_REPORT.md')"
 Write-Host "Asset catalog: $(Join-Path $BuildDir 'ASSET_CATALOG_SUMMARY.md')"
 Write-Host "Contact sheet: $(Join-Path $BuildDir 'ASSET_CONTACT_SHEET.jpg')"
+Write-Host "Stock B-roll contact sheet: $(Join-Path $BuildDir 'ASSET_STOCK_CONTACT_SHEET.jpg')"
 Write-Host ""
 Write-Host "Open CapCut Desktop and review the new Nutty Putty Cave draft before exporting."
 if ($BasicOnly) {
