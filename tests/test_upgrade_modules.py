@@ -107,7 +107,7 @@ class MontageUpgradeTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as temporary:
                 buffer = io.BytesIO()
-                Image.new("RGB", (64, 64), "red").save(buffer, "JPEG")
+                Image.new("RGB", (512, 512), "red").save(buffer, "JPEG")
                 config = {
                     "settings": {"stock_media": {
                         "enabled": True, "providers": ["pexels"], "per_query": 1, "max_total": 10,
