@@ -2,6 +2,7 @@ import csv
 import importlib.util
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 
 
@@ -28,6 +29,24 @@ class MontageTimingTests(unittest.TestCase):
         self.assertEqual(len(cues), 2)
         self.assertEqual(cues[0]["text"], "Hello there.")
         self.assertAlmostEqual(cues[1]["end"], 2.5)
+
+    def test_audio_clip_duration_is_clamped_to_wave_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "pop.wav"
+            sample_rate = 10000
+            frame_count = 2200  # 0.22 seconds
+            with wave.open(str(path), "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(b"\\x00\\x00" * frame_count)
+
+            safe_duration = BUILDER.bounded_audio_clip_duration(path, 0.38)
+            short_request = BUILDER.bounded_audio_clip_duration(path, 0.15)
+
+        self.assertLess(safe_duration, 0.22)
+        self.assertGreater(safe_duration, 0.19)
+        self.assertAlmostEqual(short_request, 0.15)
 
     def test_boundaries_are_monotonic_and_cover_duration(self):
         boundaries = BUILDER.scene_boundaries(40.0, 8, 4.2, 1.6, [])
