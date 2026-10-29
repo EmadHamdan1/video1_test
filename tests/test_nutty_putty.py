@@ -162,6 +162,20 @@ class NuttyPuttyPreparationTests(unittest.TestCase):
         self.assertTrue(all(query == query.strip() for query in BUILDER.STOCK_QUERIES))
         self.assertIn("cave rescue pulley rope system", BUILDER.STOCK_QUERIES)
 
+    def test_voice_master_filter_chain_has_real_ffmpeg_fades(self):
+        filters = BUILDER.voice_master_filter_chain(104.15)
+        self.assertIn("afade=t=in:st=0:d=0.080", filters)
+        self.assertIn("afade=t=out:st=103.500:d=0.650", filters)
+        self.assertLess(filters.index("loudnorm="), filters.index("afade=t=in:"))
+        self.assertNotIn("afade", BUILDER.voice_master_filter_chain(1.0, fade_in=0.0, fade_out=0.0))
+
+    def test_suspense_music_has_smooth_start_and_end_envelope(self):
+        self.assertAlmostEqual(BUILDER.fade_envelope(0.0, 5.0), 0.0)
+        self.assertAlmostEqual(BUILDER.fade_envelope(2.5, 5.0), 1.0)
+        self.assertAlmostEqual(BUILDER.fade_envelope(5.0, 5.0), 0.0)
+        self.assertTrue(all(0.0 <= BUILDER.fade_envelope(t, 5.0) <= 1.0
+                            for t in (0.0, 0.1, 0.6, 1.2, 2.5, 4.0, 4.8, 5.0)))
+
 
 if __name__ == "__main__":
     unittest.main()
