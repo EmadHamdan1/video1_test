@@ -38,6 +38,18 @@ class MontageUpgradeTests(unittest.TestCase):
         self.assertFalse(stock_fetcher.license_ok("CC BY-SA 4.0"))
         self.assertTrue(stock_fetcher.license_ok("CC BY-SA 4.0", allow_share_alike=True))
 
+    def test_text_recipe_selection_varies_by_semantic_role(self):
+        self.assertEqual(len({text_system.choose_text_recipe("alert", i) for i in range(3)}), 3)
+        self.assertEqual(len({text_system.choose_text_recipe("stat", i) for i in range(3)}), 3)
+        self.assertEqual(len({text_system.choose_text_recipe("chapter", i) for i in range(3)}), 3)
+        for recipe_index in range(5):
+            timeline = FakeTimeline()
+            recipe = text_system.choose_text_recipe("keyword", recipe_index)
+            text_system.text_motion(timeline, "label", 1.2, -0.2, recipe=recipe, x=0.25)
+            self.assertTrue(any(key[1] == "uniform_scale" for key in timeline.keys))
+            self.assertTrue(any(key[1] == "rotation" for key in timeline.keys))
+            self.assertLessEqual(max(key[2] for key in timeline.keys), 1.2)
+
     def test_transparent_png_is_detected_for_cutout_overlays(self):
         from PIL import Image
 
