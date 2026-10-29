@@ -95,6 +95,43 @@ def audio_duration(path: Path) -> float:
     )
 
 
+def bounded_audio_clip_duration(path: Path, requested_duration: float) -> float:
+    """Keep an audio segment inside its source file, with a small rounding safety margin."""
+    requested = max(0.0, float(requested_duration))
+    if requested <= 0.0:
+        return 0.0
+
+    source_duration: float | None = None
+    # WAV duration can be read using only the standard library, keeping the offline
+    # workflow independent of FFprobe for the short generated sound effects.
+    if path.suffix.lower() == ".wav":
+        try:
+            import wave
+            with wave.open(str(path), "rb") as wav_file:
+                rate = wav_file.getframerate()
+                if rate > 0:
+                    source_duration = wav_file.getnframes() / float(rate)
+        except (OSError, EOFError, wave.Error, ZeroDivisionError):
+            source_duration = None
+
+    if source_duration is None:
+        try:
+            source_duration = audio_duration(path)
+        except (OSError, RuntimeError, ValueError):
+            # Preserve the requested timing if metadata cannot be read; the regular
+            # media preflight will still report missing paths before compilation.
+            return requested
+
+    if not math.isfinite(source_duration) or source_duration <= 0.0:
+        return 0.0
+
+    # Leave a small buffer so container/codec duration rounding never asks CapCut
+    # to read a few extra milliseconds beyond the real source duration.
+    margin = min(0.02, source_duration * 0.05)
+    safe_source_duration = max(0.0, source_duration - margin)
+    return round(min(requested, safe_source_duration), 3)
+
+
 def find_whisper_command() -> str | None:
     """Find Whisper on PATH or inside this repository's virtual environment."""
     found = shutil.which("whisper")
@@ -913,9 +950,13 @@ def make_spec(
                 sound_duration = min(5.0,max(0.3,duration-start))
             if start >= duration:
                 continue
+            sound_duration = bounded_audio_clip_duration(path, min(sound_duration, duration-start))
+            if sound_duration < 0.03:
+                log("Local SFX is too short or unreadable; skipped: " + str(path))
+                continue
             sfx_items.append({
                 "path":str(path.resolve()),"start":round(start,3),
-                "duration":round(min(sound_duration,duration-start),3),
+                "duration":sound_duration,
                 "volume":float(item.get("volume",0.16)),"ref":"local_sfx_%02d"%(index+1)
             })
         except (TypeError,ValueError):
@@ -1204,8 +1245,11 @@ def make_spec(
             cue_path = Path(os.path.expandvars(str(chosen.get("path", "")))).expanduser()
             if not cue_path.is_file():
                 continue
-            cue_duration = min(0.38, float(overlay["duration"]))
-            if cue_duration <= 0:
+            cue_duration = bounded_audio_clip_duration(
+                cue_path, min(0.38, float(overlay["duration"]))
+            )
+            if cue_duration < 0.03:
+                log("Secondary entrance SFX is too short or unreadable; skipped: " + str(cue_path))
                 continue
             sfx_items.append({
                 "path": str(cue_path.resolve()), "start": float(overlay["start"]),
