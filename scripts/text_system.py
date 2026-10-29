@@ -53,31 +53,89 @@ def avoid_collisions(items: list[dict[str, Any]], gap_y: float = 0.12) -> None:
         placed.append(item)
 
 
+TEXT_RECIPES = {
+    "alert": ("slam", "tilt_pop", "zoom"),
+    "stat": ("pop", "zoom", "slide_left"),
+    "keyword": ("rise", "slide_left", "slide_right", "tilt_pop", "pop"),
+    "chapter": ("slide_left", "rise", "pop"),
+}
+
+
+def choose_text_recipe(kind: str, index: int = 0) -> str:
+    """Assign deterministic, semantically appropriate text movement without random flicker."""
+    choices = TEXT_RECIPES.get(kind, TEXT_RECIPES["keyword"])
+    return choices[index % len(choices)]
+
+
 def text_motion(timeline: Any, ref: str, duration: float, y: float,
                 caps: dict[str, Any] | None = None, enter: float = 0.18,
-                leave: float = 0.14, rise: float = 0.04) -> None:
-    """Use verified position/scale keyframes; opacity remains opt-in until CLI probing."""
+                leave: float = 0.14, rise: float = 0.04, recipe: str = "rise",
+                x: float = 0.0, direction: float = 1.0) -> None:
+    """Animate text with a deterministic entry/settle/exit recipe using known transform properties."""
     caps = caps or {}
     if duration <= 0:
         return
+    duration = float(duration)
     enter = min(max(0.04, enter), duration * 0.4)
     leave = min(max(0.04, leave), duration * 0.3)
     hold_end = max(enter + 0.01, duration - leave)
-    timeline.key(ref, "position_y", 0.0, y + rise)
+    direction = -1.0 if direction < 0 else 1.0
+
+    start_x, start_y, start_scale, start_rotation = x, y + rise, 0.90, 0.0
+    peak_scale = 1.04
+    if recipe == "slide_left":
+        start_x, start_y, start_scale = x - 0.085 * direction, y, 0.92
+        peak_scale = 1.025
+    elif recipe == "slide_right":
+        start_x, start_y, start_scale = x + 0.085 * direction, y, 0.92
+        peak_scale = 1.025
+    elif recipe == "slam":
+        start_x, start_y, start_scale, start_rotation = x, y - 0.12, 0.70, -4.5 * direction
+        peak_scale = 1.12
+    elif recipe == "tilt_pop":
+        start_x, start_y, start_scale, start_rotation = x + 0.04 * direction, y + rise * 0.5, 0.68, -9.0 * direction
+        peak_scale = 1.10
+    elif recipe == "zoom":
+        start_x, start_y, start_scale = x, y, 1.24
+        peak_scale = 0.94
+    elif recipe == "pop":
+        start_x, start_y, start_scale = x, y + rise * 0.6, 0.72
+        peak_scale = 1.10
+    else:  # rise
+        recipe = "rise"
+
+    timeline.key(ref, "position_x", 0.0, start_x)
+    timeline.key(ref, "position_y", 0.0, start_y)
+    timeline.key(ref, "rotation", 0.0, start_rotation)
+    timeline.key(ref, "uniform_scale", 0.0, start_scale)
+    timeline.key(ref, "uniform_scale", enter * 0.68, peak_scale, "ease-out")
+    timeline.key(ref, "position_x", enter * 0.70, x, "ease-out")
+    timeline.key(ref, "position_y", enter * 0.70, y - 0.006, "ease-out")
+    timeline.key(ref, "rotation", enter * 0.70, start_rotation * 0.12, "ease-out")
+    timeline.key(ref, "uniform_scale", enter, 1.0, "ease-out")
+    timeline.key(ref, "position_x", enter, x, "ease-out")
     timeline.key(ref, "position_y", enter, y, "ease-out")
+    timeline.key(ref, "rotation", enter, 0.0, "ease-out")
+
+    timeline.key(ref, "position_x", hold_end, x, "ease-in-out")
     timeline.key(ref, "position_y", hold_end, y, "ease-in-out")
-    timeline.key(ref, "position_y", duration, y + rise * 0.6, "ease-in")
+    timeline.key(ref, "uniform_scale", hold_end, 1.0, "ease-in-out")
+
     opacity_property = caps.get("opacity_property")
     if opacity_property:
         timeline.key(ref, str(opacity_property), 0.0, 0.0)
         timeline.key(ref, str(opacity_property), enter, 1.0, "ease-out")
         timeline.key(ref, str(opacity_property), hold_end, 1.0)
         timeline.key(ref, str(opacity_property), duration, 0.0, "ease-in")
-    # Scale keyframes are already used by the image pipeline and create a restrained
-    # text overshoot/settle plus a visible exit when no verified opacity property exists.
+
     if caps.get("scale", True):
-        timeline.key(ref, "uniform_scale", 0.0, 0.82)
-        timeline.key(ref, "uniform_scale", enter * 0.72, 1.075, "ease-out")
-        timeline.key(ref, "uniform_scale", enter, 1.0, "ease-out")
-        timeline.key(ref, "uniform_scale", hold_end, 1.0, "ease-in-out")
-        timeline.key(ref, "uniform_scale", duration, 0.84, "ease-in")
+        timeline.key(ref, "uniform_scale", duration, 0.84 if recipe not in {"slam", "tilt_pop"} else 0.76, "ease-in")
+    if recipe == "slide_left":
+        timeline.key(ref, "position_x", duration, x + 0.055 * direction, "ease-in")
+    elif recipe == "slide_right":
+        timeline.key(ref, "position_x", duration, x - 0.055 * direction, "ease-in")
+    elif recipe in {"slam", "tilt_pop"}:
+        timeline.key(ref, "position_y", duration, y + rise * 0.35, "ease-in")
+        timeline.key(ref, "rotation", duration, 4.0 * direction, "ease-in")
+    else:
+        timeline.key(ref, "position_y", duration, y + rise * 0.6, "ease-in")
