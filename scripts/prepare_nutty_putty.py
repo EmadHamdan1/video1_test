@@ -172,8 +172,8 @@ def ensure_dirs() -> None:
 
 
 def run_process(command: list[str], cwd: Path | None = None, timeout: int | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=str(cwd) if cwd else None, text=True, capture_output=True,
-                          check=False, timeout=timeout)
+    return subprocess.run(command, cwd=str(cwd) if cwd else None, text=True, encoding="utf-8", errors="replace",
+                          capture_output=True, check=False, timeout=timeout)
 
 
 def ffprobe_duration(path: Path) -> float:
@@ -1103,7 +1103,8 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     if npm and (ROOT / "motion-lab" / "node_modules").is_dir():
         log("Rendering the 2-second Remotion title card.")
         result = subprocess.run([npm, "run", "render:nutty-title"], cwd=str(ROOT / "motion-lab"),
-                                text=True, capture_output=True, check=False, timeout=None)
+                                text=True, encoding="utf-8", errors="replace",
+                                capture_output=True, check=False, timeout=None)
         if result.returncode != 0 or not intro.is_file():
             log("Remotion title render did not finish successfully; continuing without the title clip.")
             log((result.stderr or result.stdout or "")[-1200:])
