@@ -485,12 +485,19 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
     # ---------------- layered B-roll collages with varied keyframe recipes ----------------
     insert_items: list[dict[str, Any]] = []
     inserted_per_beat: dict[int, int] = {}
-    used_insert_paths: set[str] = set()
+    # Avoid immediate repetition, but allow re-use later in a long story when local art is scarce.
+    used_insert_paths: dict[str, int] = {
+        str(Path(str(row["stock_source_path"])).resolve()): row_index
+        for row_index, row in enumerate(scene_rows) if row.get("stock_source_path")
+    }
     if len(images) > 1 or stock_pool:
         # After the opening, keep an extra visual layer present on most scenes. The
         # presenter beats already provide another visual subject, so avoid clutter there.
         insert_every = max(1, int(settings.get("insert_every", 1)))
         for index, row in enumerate(scene_rows):
+            # Do not reuse the same source in the next four scenes, but don't exhaust the pool.
+            used_insert_paths = {path: last_index for path, last_index in used_insert_paths.items()
+                                 if index - last_index <= 4}
             if index == 0 or row["scene_ref"] in host_scenes:
                 continue
             if int(row["shock_level"]) < 2 and index % insert_every != 0:
@@ -504,14 +511,16 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 str(Path(str(row["image"])).resolve()),
                 str(Path(str(row.get("stock_source_path") or "")).resolve())
                     if row.get("stock_source_path") else "",
-            } | used_insert_paths
+            } | set(used_insert_paths)
 
             # Prefer an unused stock still whose recorded query belongs to this beat or an
             # adjacent beat. Do not insert a distant/abstract search result just to fill space.
             ranked_stock = sorted(
                 stock_pool,
-                key=lambda item: abs(int(item.get("beat", -1)) - beat_index)
-                    if beat_index is not None else 10_000,
+                key=lambda item: (
+                    abs(int(item.get("beat", -1)) - beat_index) if beat_index is not None else 10_000,
+                    not bool(item.get("alpha_channel", False)),
+                ),
             )
             pick: Path | None = None
             for candidate in ranked_stock:
@@ -580,7 +589,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                     "type": media_type, "path": str(layer_path), "start": start_at,
                     "duration": dur, "ref": ref, "scale": scale, "x": tx, "y": ty,
                 })
-                used_insert_paths.add(str(layer_path))
+                used_insert_paths[str(layer_path)] = index
                 avoid_paths.add(str(layer_path))
                 tl.clip(ref, dur)
                 mr.apply_layer_motion(tl, ref, dur, scale, tx, ty, str(slot["recipe"]), index + slot_index)
