@@ -1222,7 +1222,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "motion_preset": "nutty_putty_casefile",
         "layout_mode": "hybrid_whiteboard",
         # Licensed stills are selected by story beat and stored with credits/provenance.
-        "stock_media": {"enabled": True, "providers": ["pexels", "pixabay", "wikimedia"],
+        "stock_media": {"enabled": True, "providers": ["openverse", "pexels", "pixabay", "wikimedia"],
                         "per_query": 1, "max_total": 32, "max_queries": 26,
                         "min_width": 1280, "allow_video": False, "allow_share_alike": False},
         "insert_every": 3,
