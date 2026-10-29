@@ -28,7 +28,7 @@ Hugging Face image generation is not an automatic fallback: an inference provide
 4. Use one text hierarchy: short keyword (usually 1–3 words), statistic/date, and chapter label. Keep font size inside the tested tier range, place text inside the safe area, avoid simultaneous collisions, and prefer dark ink on white with red or gold only for semantic emphasis.
 5. Use a brief vertical settle for title/callout keyframes. Opacity and scale keyframes are deliberately disabled by default until the installed local `capcut-cli` schema has been probed. Do not guess whether the property is `alpha` or `opacity`.
 6. Use sound where it supports a story change or a meaningful entrance. Keep transient SFX below narration, avoid repeated identical sounds in a row, and do not add an effect to every element.
-7. Transitions should support continuity: mostly direct cuts/short dissolves where supported, with selective slide/push/flash or blur accents. A transition must not exceed either adjacent clip and should never hide weak visual storytelling.
+7. Transitions should support continuity: mostly direct cuts/short dissolves where supported, with selective slide/push/flash or blur accents. A transition must not exceed either adjacent clip and should never hide weak visual storytelling. The editable CapCut path now uses 10 directional/scale/rotation hero entrances and multiple exits, plus reusable secondary-layer recipes; see docs/MOTION_REFERENCES.md.
 
 ## Local CapCut schema probe
 
@@ -57,6 +57,10 @@ Only after the output verifies a property should `settings.text_caps` be set. Fo
 - Pixabay API docs: https://pixabay.com/api/docs/
 - Wikimedia Commons API: https://www.mediawiki.org/wiki/API:Imageinfo
 - Remotion transitions: https://www.remotion.dev/docs/transitions
+- MotionKit reusable motion design patterns: https://github.com/SkyBlueHeat/MotionKit
+- Kinetic Titles (MIT, alpha-channel title overlays): https://github.com/bsewell/kinetic-titles
+- Video Agent FFmpeg xfade transition recipe: https://github.com/agamm/video-agent/blob/main/.claude/skills/video-transitions/SKILL.md
+- Pipeline/motion research for this repository: docs/MOTION_REFERENCES.md
 - FFmpeg filters: https://ffmpeg.org/ffmpeg-filters.html
 - GitHub editing workflow ideas: https://github.com/copiadigital/footage-montage
 - GitHub video-editing pipeline examples: https://github.com/gitethanwoo/video-editing
