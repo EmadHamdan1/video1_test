@@ -1492,7 +1492,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "- Voiceover source and normalized master: 2",
         "- Original synthesized SFX: " + str(len(sound_paths)),
         "- Suspense music beds: 1",
-        " - Locally drawn chapter icons rendered: " + str(len(overlays),
+        "- Locally drawn chapter icons rendered: " + str(len(overlays)),
         "- Animated fact callouts generated: " + str(len(fact_overlays)),
         "- Remotion title clip rendered: " + ("yes" if intro_path else "no"),
         "- Exact duplicate groups detected by SHA-256: " + str(len(duplicates)),
@@ -1506,11 +1506,11 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "# Nutty Putty Cave — initial preparation QA\n\n"
         "- Prepared local copies of all supplied source images, presenter poses and narration.\n"
         "- Created an audio master with high-pass, gentle compression and loudness normalization.\n"
-        "- Story text remains the caption authority; word timestamps were aligned from faster-whisper when available, otherwise estimated.\n"
+        "- Story text remains the caption authority; cached local Whisper is used only if already installed with its model, otherwise timings are estimated.\n"
         "- Created a flat-vector Remotion title clip when rendering dependencies were available.\n"
-        "- Generated original procedural one-shot sound effects and an original low suspense bed with pre-shock dips.\n"
-        "- Downloaded Lucide chapter icons when network access was available; the Lucide license is retained alongside the SVG files.\n"
-        "- Motion style: full-frame 16:9 illustrations, slow 100–106.5 percent push-in, predominantly hard cuts, brief shock accents.\n"
+        "- Generated original SFX on scene entrances and story impacts, plus a suspense bed with pre-shock dips.\n"
+        "- Chapter icons are drawn locally with Pillow; no icon or model downloads are attempted.\n"
+        "- Motion style: hybrid whiteboard/card scenes with occasional full-bleed action beats, continuous sub-second pulse/drift, alternating push/pull, and rare scale-pop transitions.\n"
         "- IMPORTANT: source frames have not been semantically classified by a vision model in this script. Review ASSET_CONTACT_SHEET.jpg and the first 10 seconds, rope-snap section, sealed-cave ending and final teaser in CapCut.\n"
         "- Music is an original synthesized suspense bed, not a third-party track. Check audio meters in CapCut before publishing.\n",
         encoding="utf-8",
