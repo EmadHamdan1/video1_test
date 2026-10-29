@@ -32,7 +32,7 @@ The look is an editable whiteboard-style motion-graphics treatment, not a full h
 
 ## Build the Nutty Putty Cave CapCut draft (offline-first)
 
-The story-specific launcher defaults to the full local style: supplied 16:9 illustrations, gentle Ken Burns movement, short chapter titles, animated fact callouts, a low original suspense bed, locally synthesized sound effects, a separate Arabic subtitle file, and a two-second Remotion title when the existing local Remotion installation is already available.
+The story-specific launcher defaults to the full local style: a mostly white canvas with left/center/right illustration cards and occasional full-bleed action beats; continuous 0.72-second scale pulses and position drift; alternating push-in/pull-out, snap zoom and restrained shake on danger beats; short chapter titles and 1–3-word impact callouts; local SFX at every image entrance plus story-impact cues; and an original suspense bed with brief pre-shock dips. Full-sentence narration captions are disabled. A separate Arabic SRT is generated for optional use but is not placed on the timeline.
 
 **No dependency installation or AI-model download is attempted by this launcher.** It uses the existing `.venv`, installed FFmpeg/FFprobe, and installed `capcut` CLI. Chapter badges are drawn locally with Pillow. Whisper alignment is enabled only when faster-whisper and its model are already cached; otherwise timing is estimated from the script and narration duration.
 
