@@ -208,6 +208,44 @@ def _valid_image(path: Path) -> bool:
         return False
 
 
+def _write_contact_sheet(rows: list[dict[str, Any]], project_dir: Path,
+                        log: Callable[[str], None]) -> None:
+    """Make a review sheet of the locally downloaded stock candidates."""
+    usable = [row for row in rows if Path(str(row.get("path", ""))).is_file()]
+    if not usable:
+        return
+    try:
+        from PIL import Image, ImageDraw, ImageOps
+
+        columns, cell_w, cell_h = 4, 320, 250
+        sheet = Image.new("RGB", (columns * cell_w, ((len(usable) + columns - 1) // columns) * cell_h),
+                          (246, 246, 243))
+        draw = ImageDraw.Draw(sheet)
+        resampling = getattr(Image, "Resampling", Image).LANCZOS
+        for index, row in enumerate(usable):
+            x, y = (index % columns) * cell_w, (index // columns) * cell_h
+            try:
+                with Image.open(str(row["path"])) as source:
+                    thumb = ImageOps.contain(ImageOps.exif_transpose(source).convert("RGB"),
+                                             (cell_w - 16, cell_h - 62), method=resampling)
+                sheet.paste(thumb, (x + (cell_w - thumb.width) // 2, y + 4))
+            except Exception as exc:
+                draw.text((x + 8, y + 8), "UNREADABLE STOCK IMAGE", fill=(180, 24, 24))
+                log("Stock contact sheet could not read %s: %s" % (row.get("path"), exc))
+            provider = str(row.get("provider", "source"))
+            query = re.sub(r"\s+", " ", str(row.get("query", ""))).strip()
+            licence = str(row.get("license", "licence unknown"))
+            draw.text((x + 8, y + cell_h - 54), (provider + " | " + licence)[:43], fill=(30, 34, 40))
+            draw.text((x + 8, y + cell_h - 34), query[:42], fill=(68, 73, 80))
+            draw.text((x + 8, y + cell_h - 16), Path(str(row["path"])).name[:43], fill=(92, 95, 99))
+        output = project_dir / "build" / "ASSET_STOCK_CONTACT_SHEET.jpg"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        sheet.save(output, "JPEG", quality=90, optimize=True)
+        log("Stock B-roll contact sheet: " + str(output))
+    except Exception as exc:
+        log("Could not create the stock contact sheet: " + str(exc))
+
+
 def _load_manifest(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
@@ -341,6 +379,7 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                     "Pixabay: https://pixabay.com/ — cache API results and avoid systematic mass downloads.",
                     "Wikimedia Commons: each file has its own licence; verify the recorded licence and source page."])
     (out_dir / "CREDITS.txt").write_text("\n".join(credits).rstrip() + "\n", encoding="utf-8")
+    _write_contact_sheet(manifest, project_dir, log)
     log("Stock media ready: %d local files (manifest: %s)" % (len(manifest), manifest_path))
     return manifest
 
