@@ -699,6 +699,71 @@ def make_spec(
                 if not full_frame:
                     operations.append({"op":"transition","target":frame_ref,"slug":slug,"duration":cut_duration})
 
+    # Brief second-image inserts accent selected high-impact beats while leaving a large
+    # amount of clean white space. They use the next adjacent story illustration as a teaser.
+    secondary_items: list[dict[str, Any]] = []
+    secondary_motion: list[dict[str, Any]] = []
+    if hybrid_mode and len(images) > 1:
+        video_suffixes = {".mp4", ".mov", ".webm", ".m4v"}
+        for index, shot in enumerate(scene_rows):
+            if index == 0:
+                continue
+            shock_level = int(shot.get("shock_level", 0) or 0)
+            if shock_level < 2 and index % 5 != 3:
+                continue
+            source_index = indices[index] if index < len(indices) else index % len(images)
+            next_index = (source_index + 1) % len(images)
+            for _ in range(len(images)):
+                if images[next_index].suffix.lower() not in video_suffixes:
+                    break
+                next_index = (next_index + 1) % len(images)
+            next_path = images[next_index]
+            if next_path == Path(str(shot["image"])):
+                continue
+            shot_duration = float(shot["duration"])
+            overlay_offset = min(0.48, shot_duration * 0.22)
+            overlay_duration = min(0.86, shot_duration - overlay_offset - 0.16)
+            if overlay_duration < 0.30:
+                continue
+            main_x = float(shot.get("base_x", 0.0))
+            if abs(main_x) < 0.10:
+                target_x = 0.58 if index % 2 == 0 else -0.58
+            else:
+                target_x = -0.58 if main_x > 0 else 0.58
+            target_y = -0.04 if index % 2 == 0 else 0.05
+            entry_x = 1.34 if target_x > 0 else -1.34
+            exit_y = 1.28 if index % 2 == 0 else -1.28
+            ref = "secondary_%03d" % (len(secondary_items) + 1)
+            start_at = round(float(shot["start"]) + overlay_offset, 3)
+            overlay_duration = round(overlay_duration, 3)
+            media_type = "video" if next_path.suffix.lower() in video_suffixes else "photo"
+            secondary_items.append({
+                "type": media_type, "path": str(next_path), "start": start_at,
+                "duration": overlay_duration, "ref": ref, "scale": 0.24,
+                "x": target_x, "y": target_y,
+            })
+            secondary_motion.append({
+                "ref": ref, "start": start_at, "duration": overlay_duration,
+                "path": str(next_path), "target_x": target_x, "target_y": target_y,
+                "entry_x": entry_x, "exit_y": exit_y,
+            })
+            enter = min(0.17, overlay_duration * 0.25)
+            settle = min(0.26, enter + 0.07)
+            exit_start = max(settle + 0.08, overlay_duration - 0.16)
+            operations.extend([
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":0.0,"value":0.12},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(enter,3),"value":0.275,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"uniform_scale","time":round(settle,3),"value":0.24,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":0.0,"value":entry_x},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(enter,3),"value":target_x,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":round(exit_start,3),"value":target_x,"easing":"ease-in-out"},
+                {"op":"keyframe","target":ref,"property":"position_x","time":overlay_duration,"value":target_x},
+                {"op":"keyframe","target":ref,"property":"position_y","time":0.0,"value":target_y + 0.10},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(enter,3),"value":target_y,"easing":"ease-out"},
+                {"op":"keyframe","target":ref,"property":"position_y","time":round(exit_start,3),"value":target_y},
+                {"op":"keyframe","target":ref,"property":"position_y","time":overlay_duration,"value":exit_y,"easing":"ease-in"},
+            ])
+
     presenter_items: list[dict[str, Any]] = []
     plate_items: list[dict[str, Any]] = []
     presenter_rows: list[dict[str, Any]] = []
@@ -967,6 +1032,8 @@ def make_spec(
         if not hybrid_mode:
             tracks.append({"type":"video","name":"Whiteboard Scene Frames","items":frame_items})
     tracks.append({"type":"video","name":"Scene Artwork","items":scene_items})
+    if secondary_items:
+        tracks.append({"type":"video","name":"Fast Secondary Image Inserts","items":secondary_items})
 
     horror_items: list[dict[str, Any]] = []
     horror_path_raw = str(settings.get("horror_overlay_path", "")).strip()
@@ -1126,7 +1193,28 @@ def make_spec(
         tracks.append({"type":"text","name":"Chapter Titles","items":chapter_items})
 
     tracks.append({"type":"audio","name":"Narration","items":audio_items})
+    if hybrid_mode and secondary_motion:
+        configured_cues = settings.get("sound_effects", [])
+        for overlay_index, overlay in enumerate(secondary_motion):
+            if any(abs(float(item.get("start", 0.0)) - float(overlay["start"])) <= 0.10 for item in sfx_items):
+                continue
+            if not configured_cues:
+                break
+            chosen = configured_cues[(overlay_index * 3) % len(configured_cues)]
+            cue_path = Path(os.path.expandvars(str(chosen.get("path", "")))).expanduser()
+            if not cue_path.is_file():
+                continue
+            cue_duration = min(0.38, float(overlay["duration"]))
+            if cue_duration <= 0:
+                continue
+            sfx_items.append({
+                "path": str(cue_path.resolve()), "start": float(overlay["start"]),
+                "duration": cue_duration,
+                "volume": min(0.24, max(0.15, float(chosen.get("volume", 0.18)))),
+                "ref": "secondary_entrance_sfx_%03d" % (overlay_index + 1),
+            })
     if sfx_items:
+        sfx_items.sort(key=lambda item: float(item.get("start", 0.0)))
         tracks.append({"type":"audio","name":"Local Sound Effects","items":sfx_items})
     spec = {
         "name":str(config.get("project_name","Video1 Test - Whiteboard Explainer PRO")),
