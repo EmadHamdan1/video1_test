@@ -13,7 +13,7 @@ The story-specific full build uses the hybrid_whiteboard engine:
 - Selective secondary B-roll images chosen from a query attached to the closest story beat, instead of always recycling the next local image.
 - A full-screen, cropped 16:9 stock B-roll hero about every fifth scene when a relevant, unused match exists; the original supplied art is used when no nearby beat match is available.
 - A local ASSET_STOCK_CONTACT_SHEET.jpg lets you review fetched images alongside their provider, query, and licence before publishing.
-- Concise keyword and chapter text styled by scripts/text_system.py: a restrained ink/red/gold palette, three semantic size tiers, safe-area clamping, collision nudging, vertical settle, scale overshoot and scale-out.
+- Concise keyword and chapter text styled by scripts/text_system.py: a restrained ink/red/gold palette, three semantic size tiers, safe-area clamping, collision nudging, and semantic slam/tilt/zoom/pop/directional-slide/rise animations with scale-out.
 - Optional sound accents for selected entrances / story beats. Effects are not forced onto every element.
 - Structural spec QA in scripts/qa_spec.py: invalid/overlong clips, keyframes after clip end, very large or off-safe text, overlapping labels and long gaps between visible starts are logged as QA messages.
 - Source media stays local. A manifest and CREDITS.txt are created for fetched stock images.
