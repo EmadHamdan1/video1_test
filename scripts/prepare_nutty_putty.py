@@ -886,22 +886,42 @@ def create_story_timeline(lines: list[str], rows: list[dict[str, Any]], tokens: 
         chapter = next((item["title"] for item in reversed(chapters) if float(item["start_s"]) <= start), "THE CAVE")
         scene_sfx = [{"file": item["file"], "time_s": item["start"], "volume": item["volume"]}
                      for item in sfx_events if start <= item["start"] < end]
+        full_bleed = (index % 4 == 0) or shock >= 3
+        layout_side = "full_bleed" if full_bleed else ("left" if index % 3 == 0 else ("center" if index % 3 == 1 else "right"))
+        layout_template = {
+            "left": "A_subject-left_host-right",
+            "center": "B_centered-hero",
+            "right": "A_mirrored_subject-right_host-left",
+            "full_bleed": "G_full-illustrated-action",
+        }[layout_side]
         scenes.append({
             "scene_id": "scene_%03d" % (index + 1),
             "start_s": round(start, 3), "end_s": round(end, 3),
             "start_frame": round(start * 30), "end_frame": round(end * 30),
             "trigger_word": trigger, "chapter": chapter, "emotion": emotion, "shock_level": shock,
+            "layout_template": layout_template, "full_bleed": full_bleed,
             "background": str(image),
-            "layers": [{"asset": str(image), "layer": "L0", "position": "full-frame",
-                        "scale": "100% to 106.5%", "entrance": "hard-cut", "exit": "hard-cut",
-                        "idle_loop": "slow push-in"}],
-            "camera": "brief snap / low rotation jolt" if shock >= 3 else "slow push-in with subtle pan",
-            "text": {"focus_word": trigger, "chapter_title": chapter, "max_words": 3},
+            "layers": [{
+                "asset": str(image), "layer": "L0" if full_bleed else "L2",
+                "position": "full-frame" if full_bleed else layout_side + " third / whiteboard canvas",
+                "size_percent_frame_height": 100 if full_bleed else 55,
+                "scale": "100% to 109% with 0.72 s breathing pulses",
+                "entrance": "scale-pop 0.18 s" if index and (index + 1) % 14 == 0 else "hard cut",
+                "exit": "hard-cut",
+                "idle_loop": "continuous micro-zoom and 1–3% position drift",
+                "partial_changes": [
+                    {"type": "trigger-word impact pulse", "trigger_word": trigger, "at_s": round(float(row["start_s"]), 3) if row else round(midpoint, 3)},
+                    {"type": "brief red tint / camera shake", "trigger_word": trigger, "at_s": round(float(row["start_s"]), 3) if row else round(midpoint, 3)} if shock >= 2 else {"type": "subtle scale pulse", "trigger_word": trigger, "at_s": round(midpoint, 3)},
+                ],
+            }],
+            "camera": "snap zoom + decaying shake" if shock >= 2 else "alternating push-in / pull-out with continuous drift",
+            "text": {"content": "", "focus_word": trigger, "chapter_title": chapter, "max_words": 3,
+                     "narration_captions": "disabled; only short designed callouts and chapter titles"},
             "transition_in": "scale-pop entrance" if index and (index + 1) % 14 == 0 else "hard cut",
             "sfx": scene_sfx,
-            "music": {"track": "assets/audio/sfx/suspense_bed.wav", "target_dbfs_approx": -22,
-                      "pre_shock_dip_s": 0.4 if shock >= 3 else 0.0},
-            "notes": "Timing source: " + timing_mode + ". Image subject-to-sentence match needs visual contact-sheet review.",
+            "music": {"track": "assets/audio/sfx/suspense_bed.wav", "target_dbfs_approx": -24,
+                      "duck_db": 6, "pre_shock_dip_s": 0.4 if shock >= 3 else 0.0},
+            "notes": "Timing source: " + timing_mode + ". Check ASSET_CONTACT_SHEET.jpg; subject-to-sentence matching still needs visual review.",
         })
     return {
         "project": "Nutty Putty Cave",
@@ -919,8 +939,11 @@ def create_story_timeline(lines: list[str], rows: list[dict[str, Any]], tokens: 
         "chapter_titles": chapters,
         "scene_timeline": scenes,
         "sound_effect_events": sfx_events,
-        "transition_policy": {"default": "hard cut", "accent": "keyframed scale-pop every 14th cut",
-                              "forbidden": ["wipe", "spin", "cube", "page curl", "glitch pack"]},
+        "transition_policy": {
+            "default": "hard cut ~90%",
+            "accent": "keyframed scale-pop on selected cuts; white flash only on death reveal",
+            "forbidden": ["wipe", "spin", "cube", "page curl", "glitch pack", "decorative zoom blur"],
+        },
         "review_note": "ASSET_CONTACT_SHEET.jpg was generated locally. File metadata is inspectable, but image semantics are not asserted automatically.",
     }
 
@@ -1469,7 +1492,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "- Voiceover source and normalized master: 2",
         "- Original synthesized SFX: " + str(len(sound_paths)),
         "- Suspense music beds: 1",
-        "- Lucide overlays rendered: " + str(len(overlays)),
+        " - Locally drawn chapter icons rendered: " + str(len(overlays),
         "- Animated fact callouts generated: " + str(len(fact_overlays)),
         "- Remotion title clip rendered: " + ("yes" if intro_path else "no"),
         "- Exact duplicate groups detected by SHA-256: " + str(len(duplicates)),
