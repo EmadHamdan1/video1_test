@@ -359,5 +359,67 @@ class MontageTimingTests(unittest.TestCase):
                 BUILDER.BUILD_DIR = previous_build_dir
 
 
+    def test_hybrid_whiteboard_uses_mixed_layouts_continuous_motion_and_no_long_captions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                count = 5
+                duration = 10.0
+                boundaries = [float(index * 2) for index in range(count + 1)]
+                config = {
+                    "project_name": "Hybrid movement test",
+                    "storyboard_boundaries": boundaries,
+                    "scene_texts": ["Full sentence not meant to be displayed"] * count,
+                    "story_beats": [
+                        {"start_s": index * 2.0, "end_s": (index + 1) * 2.0,
+                         "emotion": "scary" if index == 2 else "tense",
+                         "shock_level": 3 if index == 2 else 1,
+                         "trigger_word": "TEST"}
+                        for index in range(count)
+                    ],
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "motion_preset": "nutty_putty_casefile",
+                        "layout_mode": "hybrid_whiteboard",
+                        "use_storyboard_boundaries": True,
+                        "scene_image_scale": 1.0,
+                        "card_scene_scale": 0.55,
+                        "scene_image_x": -0.24,
+                        "scene_image_y": -0.02,
+                        "scene_zoom_start": 1.0,
+                        "scene_zoom_end": 1.09,
+                        "scene_pan_amount": 0.009,
+                        "presenter_overlay": False,
+                        "add_captions_when_transcribed": False,
+                        "show_scene_text_without_transcript": False,
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"),
+                    [Path("scene_%02d.jpg" % index) for index in range(count)],
+                    [], duration,
+                    [{"start": 0.0, "end": 10.0, "text": "This full narration cue must stay hidden"}],
+                    Path("captions.srt"),
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertEqual([row["layout_side"] for row in scenes],
+                                 ["full_bleed", "center", "full_bleed", "left", "full_bleed"])
+                self.assertEqual([item["scale"] for item in tracks["Scene Artwork"]["items"]],
+                                 [1.0, 0.55, 1.0, 0.55, 1.0])
+                self.assertNotIn("Animated Captions", tracks)
+                self.assertFalse(any(track["name"] == "Animated Scene Callouts" for track in spec["tracks"]))
+                self.assertTrue(any(
+                    operation.get("op") == "keyframe"
+                    and operation.get("target") == "scene_002"
+                    and operation.get("property") == "uniform_scale"
+                    and abs(float(operation.get("time", 0.0)) - 0.72) < 0.001
+                    for operation in spec["operations"]
+                ))
+                self.assertTrue(all(row["duration"] <= 2.0 for row in scenes))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
 if __name__ == "__main__":
     unittest.main()
