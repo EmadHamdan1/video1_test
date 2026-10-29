@@ -128,7 +128,7 @@
     },
     "nutty_putty_casefile": {
       "label": "Nutty Putty Cave — Full-frame Illustrated Horror",
-      "description": "Full-screen cartoon story art, 90%+ hard cuts, rare scale-pop entrances, restrained push-ins, short shock flashes, and a low suspense sound bed.",
+      "description": "Pure-white canvas, fast slide-in/slide-out artwork, rotating left/center/right compositions, occasional paired-image inserts, continuous zoom pulses, selective snap-shake beats, and restrained scale-pop replacements.",
       "target_shot_seconds": 2.65,
       "minimum_shot_seconds": 1.25,
       "scene_zoom_start": 1,
@@ -142,9 +142,9 @@
         },
         "accents": [
           {
-            "every": 14,
+            "every": 7,
             "slug": "scale-pop",
-            "duration": 0.18
+            "duration": 0.16
           }
         ]
       },
