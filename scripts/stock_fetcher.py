@@ -208,6 +208,20 @@ def _valid_image(path: Path) -> bool:
         return False
 
 
+def _image_has_transparency(path: Path) -> bool:
+    """Return True only for visible transparent pixels, not merely an RGBA colour model."""
+    try:
+        from PIL import Image
+        with Image.open(path) as image:
+            if "A" in image.getbands():
+                return image.getchannel("A").getextrema()[0] < 255
+            if "transparency" in image.info:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def _write_contact_sheet(rows: list[dict[str, Any]], project_dir: Path,
                         log: Callable[[str], None]) -> None:
     """Make a review sheet of the locally downloaded stock candidates."""
@@ -364,6 +378,7 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                 manifest.append({
                     **candidate, "path": str(destination.resolve()), "query": query["query"],
                     "beat": query["beat"], "sha1": digest,
+                    "alpha_channel": _image_has_transparency(destination) if kind == "photo" else False,
                 })
                 have.add((provider, identifier))
                 known_hashes.add(digest)
