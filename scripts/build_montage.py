@@ -1281,15 +1281,24 @@ def make_spec(
 
 
 def write_scene_csv(path: Path, scenes: list[dict[str, Any]], presenters: list[dict[str, Any]]) -> None:
+    # Keep the established columns first, then preserve any new scene metadata
+    # added by specialised engines (for example stock-source provenance).
+    fieldnames = [
+        "start", "end", "duration", "image", "caption_context",
+        "scene_ref", "frame_ref", "layout", "layout_template", "layout_side",
+        "base_x", "base_y", "full_bleed", "presenter_ref",
+        "emotion", "trigger_word", "shock_level",
+    ]
+    extra_fields = sorted({
+        key
+        for scene in scenes
+        for key in scene
+        if key not in fieldnames
+    })
+    fieldnames.extend(extra_fields)
+
     with path.open("w", newline="", encoding="utf-8-sig") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "start", "end", "duration", "image", "caption_context",
-                "scene_ref", "frame_ref", "layout", "layout_template", "layout_side", "base_x", "base_y", "full_bleed", "presenter_ref",
-                "emotion", "trigger_word", "shock_level",
-            ],
-        )
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for scene in scenes:
             center = (float(scene["start"]) + float(scene["end"])) / 2
