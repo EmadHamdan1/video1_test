@@ -56,7 +56,7 @@ def avoid_collisions(items: list[dict[str, Any]], gap_y: float = 0.12) -> None:
 def text_motion(timeline: Any, ref: str, duration: float, y: float,
                 caps: dict[str, Any] | None = None, enter: float = 0.18,
                 leave: float = 0.14, rise: float = 0.04) -> None:
-    """Use the verified position keyframes; alpha/scale are opt-in after a local CLI probe."""
+    """Use verified position/scale keyframes; opacity remains opt-in until CLI probing."""
     caps = caps or {}
     if duration <= 0:
         return
@@ -73,7 +73,11 @@ def text_motion(timeline: Any, ref: str, duration: float, y: float,
         timeline.key(ref, str(opacity_property), enter, 1.0, "ease-out")
         timeline.key(ref, str(opacity_property), hold_end, 1.0)
         timeline.key(ref, str(opacity_property), duration, 0.0, "ease-in")
-    if caps.get("scale", False):
-        timeline.key(ref, "uniform_scale", 0.0, 0.88)
-        timeline.key(ref, "uniform_scale", enter * 0.75, 1.04, "ease-out")
+    # Scale keyframes are already used by the image pipeline and create a restrained
+    # text overshoot/settle plus a visible exit when no verified opacity property exists.
+    if caps.get("scale", True):
+        timeline.key(ref, "uniform_scale", 0.0, 0.82)
+        timeline.key(ref, "uniform_scale", enter * 0.72, 1.075, "ease-out")
         timeline.key(ref, "uniform_scale", enter, 1.0, "ease-out")
+        timeline.key(ref, "uniform_scale", hold_end, 1.0, "ease-in-out")
+        timeline.key(ref, "uniform_scale", duration, 0.84, "ease-in")
