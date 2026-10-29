@@ -1,4 +1,4 @@
-param([switch]$FullStyle)
+param([switch]$BasicOnly)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -8,63 +8,107 @@ $Project = "projects\nutty-putty-cave"
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
 Write-Host ""
-Write-Host "=== Nutty Putty Cave: local CapCut build ===" -ForegroundColor Cyan
-Write-Host "Updating the shared montage toolchain..."
+Write-Host "=== Nutty Putty Cave: offline-first CapCut build ===" -ForegroundColor Cyan
+Write-Host "This run will not install Python/npm packages or download AI models."
+Write-Host "Updating only the existing GitHub project code..."
 git switch $Branch
 if ($LASTEXITCODE -ne 0) { throw "Could not switch to $Branch." }
 git pull origin $Branch
 if ($LASTEXITCODE -ne 0) { throw "Git pull failed. Resolve Git status before building." }
 
-if (-not (Test-Path $Python)) {
-    Write-Host "Creating the Python environment and installing base requirements..."
-    & (Join-Path $RepoRoot "asset_tool.ps1") --help
-    if ($LASTEXITCODE -ne 0) { throw "Could not initialize the Python environment." }
+# Fail fast rather than creating environments or installing dependencies.
+if (-not (Test-Path -LiteralPath $Python)) {
+    throw "The existing .venv Python was not found. No environment was created. Restore the existing local .venv before running this offline build."
 }
-if (-not (Test-Path $Python)) { throw "Python environment was not created at $Python." }
+$DependencyCheck = & $Python -c "import PIL; print('Pillow ready')" 2>&1
+if ($LASTEXITCODE -ne 0) { throw "Pillow is not available in the existing .venv. No packages were installed. Details: $DependencyCheck" }
+
+foreach ($Name in @("ffmpeg", "ffprobe", "capcut")) {
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "$Name was not found on PATH. No tools or packages were installed. Restore the already-installed $Name command, then rerun."
+    }
+}
 
 $CapCutProcess = Get-Process -Name "CapCut" -ErrorAction SilentlyContinue
 if ($CapCutProcess) {
-    throw "CapCut is currently open. Save any changes, close CapCut completely, then run .\run_nutty_putty.ps1 again. The script will not force-close CapCut."
+    throw "CapCut is currently open. Save changes and close CapCut completely, then run .\run_nutty_putty.ps1 again. The script will not force-close CapCut."
 }
 
-Write-Host ""
-if ($FullStyle) {
-    Write-Host "=== Phase 1: full-style prepare (Remotion, optional Whisper, generated SFX/music) ===" -ForegroundColor Cyan
-    & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project
+$MotionLabPackage = Join-Path $RepoRoot "motion-lab\node_modules\remotion\package.json"
+if (Test-Path -LiteralPath $MotionLabPackage) {
+    Write-Host "Remotion dependencies found: the animated two-second title may render."
 } else {
-    Write-Host "=== Phase 1: BASIC CapCut prepare (no title card, no Whisper, no music/SFX) ===" -ForegroundColor Cyan
-    & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project --simple
+    Write-Host "Remotion dependencies are not present; skipping the title render. No npm install will run." -ForegroundColor Yellow
 }
-if ($LASTEXITCODE -ne 0) { throw "Asset preparation failed. Read the error above; no draft was built." }
+$WhisperPackage = & $Python -c "import importlib.util; print('yes' if importlib.util.find_spec('faster_whisper') else 'no')" 2>$null
+if ($WhisperPackage -match "yes") {
+    Write-Host "faster-whisper package found. The script will use it only if the model is already cached."
+} else {
+    Write-Host "faster-whisper is absent; timing will be estimated from the supplied script. No pip install/model download." -ForegroundColor Yellow
+}
 
 Write-Host ""
-Write-Host "=== Phase 2: validate paths and project settings ===" -ForegroundColor Cyan
-& (Join-Path $RepoRoot "asset_tool.ps1") preflight --project $Project
-if ($LASTEXITCODE -ne 0) { throw ("Preflight failed. Review " + (Join-Path $RepoRoot "$Project\build\preflight_report.json") + ".") }
+if ($BasicOnly) {
+    Write-Host "=== Phase 1: basic preparation (original narration + supplied images) ===" -ForegroundColor Cyan
+    & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project --simple
+} else {
+    Write-Host "=== Phase 1: full-style preparation (local motion, callouts, music, SFX, subtitles) ===" -ForegroundColor Cyan
+    & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project
+}
+if ($LASTEXITCODE -ne 0) { throw "Asset preparation failed. Read the error above; no CapCut draft was built." }
+
+Write-Host ""
+Write-Host "=== Phase 2: offline preflight of all generated media ===" -ForegroundColor Cyan
+$ConfigPath = Join-Path $RepoRoot "$Project\project.json"
+$Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+$AssetPaths = [System.Collections.Generic.List[string]]::new()
+foreach ($Candidate in @($Config.audio, $Config.background_music.path, $Config.settings.flash_overlay_path, $Config.settings.horror_overlay_path)) {
+    if ($Candidate -and ([string]$Candidate).Trim()) { $AssetPaths.Add([string]$Candidate) }
+}
+foreach ($Candidate in @($Config.scene_images)) {
+    if ($Candidate -and ([string]$Candidate).Trim()) { $AssetPaths.Add([string]$Candidate) }
+}
+foreach ($Candidate in @($Config.presenter_images)) {
+    if ($Candidate -and ([string]$Candidate).Trim()) { $AssetPaths.Add([string]$Candidate) }
+}
+foreach ($Item in @($Config.settings.sound_effects)) {
+    if ($Item.path) { $AssetPaths.Add([string]$Item.path) }
+}
+foreach ($Item in @($Config.settings.icon_overlays)) {
+    if ($Item.path) { $AssetPaths.Add([string]$Item.path) }
+}
+foreach ($Item in @($Config.settings.callout_overlays)) {
+    if ($Item.path) { $AssetPaths.Add([string]$Item.path) }
+}
+$MissingPaths = @($AssetPaths | Select-Object -Unique | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
+if ($MissingPaths.Count -gt 0) {
+    $MissingPaths | ForEach-Object { Write-Host "MISSING: $_" -ForegroundColor Red }
+    throw "Offline preflight failed because one or more local files are missing."
+}
+Write-Host ("Preflight passed: " + (@($AssetPaths | Select-Object -Unique).Count) + " local media paths exist.")
 
 Write-Host ""
 Write-Host "=== Phase 3: build editable CapCut draft ===" -ForegroundColor Cyan
-$ConfigPath = Join-Path $RepoRoot "$Project\project.json"
 $BuildDir = Join-Path $RepoRoot "$Project\build"
 & $Python (Join-Path $RepoRoot "scripts\build_montage.py") --config $ConfigPath --build-dir $BuildDir
 $BuildExitCode = $LASTEXITCODE
 
 Write-Host ""
-Write-Host "=== Phase 4: update timeline and QA report ===" -ForegroundColor Cyan
+Write-Host "=== Phase 4: timeline and QA report ===" -ForegroundColor Cyan
 & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage finalize --project $Project --build-exit-code $BuildExitCode
 if ($LASTEXITCODE -ne 0) { throw "Could not write the final QA report." }
-if ($BuildExitCode -ne 0) { throw "CapCut draft build failed. Review build output and QA_REPORT.md before retrying." }
+if ($BuildExitCode -ne 0) { throw "CapCut draft build failed. Review the build output and QA_REPORT.md before retrying." }
 
 Write-Host ""
 Write-Host "BUILD SUCCESSFUL" -ForegroundColor Green
 Write-Host "Project data: $BuildDir"
 Write-Host "QA report: $(Join-Path $BuildDir 'QA_REPORT.md')"
+Write-Host "Asset catalog: $(Join-Path $BuildDir 'ASSET_CATALOG_SUMMARY.md')"
 Write-Host "Contact sheet: $(Join-Path $BuildDir 'ASSET_CONTACT_SHEET.jpg')"
 Write-Host ""
-Write-Host "Open CapCut Desktop and look for the newly registered Nutty Putty Cave draft."
-if ($FullStyle) {
-    Write-Host "Full-style build includes optional Remotion title, word alignment, generated SFX/music, icons and story callouts."
+Write-Host "Open CapCut Desktop and review the new Nutty Putty Cave draft before exporting."
+if ($BasicOnly) {
+    Write-Host "Basic-only mode was selected. It does not include title, captions, music, SFX, or callouts."
 } else {
-    Write-Host "Basic build keeps the original narration and uses supplied images with subtle motion. No title card, Whisper, background music or extra sound effects."
+    Write-Host "Full style was selected. Optional title/Whisper are skipped when their existing local components are unavailable."
 }
-Write-Host "Inspect the generated QA report and review critical moments in CapCut before exporting the MP4."
