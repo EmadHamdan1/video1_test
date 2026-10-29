@@ -5,9 +5,15 @@ from __future__ import annotations
 import math
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import stock_fetcher
+import text_system as ts
+from qa_spec import audit_spec
 
 TAU = math.tau
 VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".m4v"}
@@ -358,6 +364,10 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             "trigger_word": str(beat.get("trigger_word", "")),
         })
 
+    stock_pool = stock_fetcher.load_stock_pool_entries(config, bm["CONFIG_PATH"].parent, log)
+    if stock_pool:
+        log("Licensed stock pool available: %d photo(s)." % len(stock_pool))
+
     sfx_cues: list[tuple[float, list[str]]] = []
     for row in scene_rows:
         kind = entrance_kind[row["scene_ref"]]
@@ -411,21 +421,43 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             sfx_cues.append((start_t, ["whoosh", "pop", "other"]))
             pose += 1
 
-    # ---------------- secondary inserts (small stickers on shock / every 5th) ----------------
+    # ---------------- relevant stock B-roll / secondary inserts ----------------
     insert_items: list[dict[str, Any]] = []
-    if len(images) > 1:
+    inserted_per_beat: dict[int, int] = {}
+    if len(images) > 1 or stock_pool:
+        insert_every = max(2, int(settings.get("insert_every", 3 if stock_pool else 5)))
         for index, row in enumerate(scene_rows):
             if index == 0 or row["scene_ref"] in host_scenes:
                 continue
-            if row["shock_level"] < 2 and index % 5 != 3:
+            if row["shock_level"] < 2 and index % insert_every != 1:
                 continue
-            src = indices[index]
-            nxt = (src + 1) % len(images)
-            for _ in range(len(images)):
-                if images[nxt].suffix.lower() not in VIDEO_SUFFIXES:
-                    break
-                nxt = (nxt + 1) % len(images)
-            if str(images[nxt]) == row["image"]:
+
+            pick: Path | None = None
+            if stock_pool:
+                mid = (float(row["start"]) + float(row["end"])) / 2.0
+                beat_index = next((beat_i for beat_i, beat in enumerate(beats)
+                                   if float(beat.get("start_s", 0.0)) <= mid
+                                   <= float(beat.get("end_s", duration))), None)
+                if beat_index is not None:
+                    distance = min(abs(int(item.get("beat", -1)) - beat_index) for item in stock_pool)
+                    relevant = [item for item in stock_pool
+                                if abs(int(item.get("beat", -1)) - beat_index) == distance]
+                    use_index = inserted_per_beat.get(beat_index, 0) % len(relevant)
+                    pick = Path(str(relevant[use_index]["path"]))
+                    inserted_per_beat[beat_index] = inserted_per_beat.get(beat_index, 0) + 1
+                else:
+                    pick = Path(str(stock_pool[len(insert_items) % len(stock_pool)]["path"]))
+
+            if pick is None:
+                src = indices[index]
+                nxt = (src + 1) % len(images)
+                for _ in range(len(images)):
+                    if images[nxt].suffix.lower() not in VIDEO_SUFFIXES:
+                        break
+                    nxt = (nxt + 1) % len(images)
+                pick = images[nxt]
+
+            if str(pick) == row["image"]:
                 continue
             offset = min(0.48, row["duration"] * 0.22)
             dur = round(min(0.95, row["duration"] - offset - 0.12), 3)
@@ -437,7 +469,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             ref = "secondary_%03d" % (len(insert_items) + 1)
             start_at = round(row["start"] + offset, 3)
             insert_items.append({
-                "type": "photo", "path": str(images[nxt]), "start": start_at, "duration": dur,
+                "type": "photo", "path": str(pick), "start": start_at, "duration": dur,
                 "ref": ref, "scale": 0.22, "x": tx, "y": ty,
             })
             tl.clip(ref, dur)
@@ -570,36 +602,40 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
     horror_items = overlay_track("horror_overlay_path", "horror_overlay_times", "horror_overlay_duration", 0.62, 0.25, 0.72, "horror_tint")
     flash_items = overlay_track("flash_overlay_path", "flash_times", "flash_duration", 0.067, 0.05, 0.09, "shock_flash")
 
-    # ---------------- keyword callouts (replace captions) ----------------
+    # ---------------- concise, collision-aware keyword callouts ----------------
     callout_items: list[dict[str, Any]] = []
+    callout_kinds: dict[str, str] = {}
     if settings.get("keyword_callouts", True):
         min_shock = int(settings.get("keyword_callout_min_shock", 1))
-        font_size = int(settings.get("callout_font_size", 22))
+        font_size = int(settings.get("callout_font_size", 20))
         for index, row in enumerate(scene_rows):
-            word = re.sub(r"\s+", " ", row["trigger_word"]).strip()
+            word = re.sub(r"\s+", " ", str(row.get("trigger_word", ""))).strip()
             if not word or len(word.split()) > 3:
                 continue
-            if row["shock_level"] < min_shock and index % 3 != 0:
+            if int(row.get("shock_level", 0)) < min_shock and index % 3 != 0:
                 continue
-            start_t = row["start"] + 0.22
-            dur = round(min(1.15, row["duration"] - 0.22 - 0.10), 3)
+            start_t = float(row["start"]) + 0.22
+            dur = round(min(1.15, float(row["duration"]) - 0.32), 3)
             if dur < 0.6:
                 continue
-            if row["shock_level"] >= 2:
-                color, style = "#E02424", {"borderWidth": 4.0, "borderColor": "#FFFFFF", "borderAlpha": 1.0}
-            elif re.search(r"\d", word):
-                color, style = "#F6CF45", {"borderWidth": 5.0, "borderColor": "#15191E", "borderAlpha": 1.0}
-            else:
-                color, style = "#15191E", {"borderWidth": 3.0, "borderColor": "#FFFFFF", "borderAlpha": 1.0}
-            S = hero_scale[row["scene_ref"]]
-            y = round(_clamp(row["base_y"] + S + 0.12, 0.0, 0.86), 3)
+            kind = ts.classify(word, int(row.get("shock_level", 0)))
+            scale = hero_scale[row["scene_ref"]]
+            x, y = ts.safe_xy(float(row["base_x"]), float(row["base_y"]) + scale + 0.12)
             ref = "kw_%03d" % (len(callout_items) + 1)
-            callout_items.append({"text": word.upper(), "start": round(start_t, 3), "duration": dur,
-                                  "fontSize": font_size, "color": color, "x": row["base_x"], "y": y, "ref": ref})
-            tl.clip(ref, dur)
-            tl.other.append({"op": "text-style", "target": ref, "style": style})
-            tl.key(ref, "position_y", 0.0, y + 0.04)
-            tl.key(ref, "position_y", 0.16, y, "ease-out")
+            callout_kinds[ref] = kind
+            callout_items.append({
+                "text": word.upper(), "start": round(start_t, 3), "duration": dur,
+                "fontSize": ts.size_for(kind, font_size, word),
+                "color": ts.style_for(kind)[0], "x": x, "y": y, "ref": ref,
+            })
+        ts.avoid_collisions(callout_items)
+        for item in callout_items:
+            tl.clip(item["ref"], item["duration"])
+            tl.other.append({
+                "op": "text-style", "target": item["ref"],
+                "style": ts.style_for(callout_kinds[item["ref"]])[1],
+            })
+            ts.text_motion(tl, item["ref"], item["duration"], item["y"], settings.get("text_caps"))
 
     # ---------------- chapter titles (small, dark, top) ----------------
     chapter_items: list[dict[str, Any]] = []
@@ -613,16 +649,15 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             color = str(chapter.get("color", "#15191E"))
             if color.strip().lower() in {"#fff", "#ffffff", "white"}:
                 color = "#15191E"
-            size = min(int(chapter.get("font_size", 18)), int(settings.get("chapter_font_max", 22)))
-            y = float(chapter.get("y", -0.86))
+            size = ts.size_for("chapter", min(int(chapter.get("font_size", 18)),
+                                               int(settings.get("chapter_font_max", 22))), title)
+            x, y = ts.safe_xy(float(chapter.get("x", 0.0)), float(chapter.get("y", -0.86)))
             ref = "chapter_title_%02d" % index
             chapter_items.append({"text": title, "start": round(c_start, 3), "duration": round(c_end - c_start, 3),
-                                  "fontSize": size, "color": color, "x": float(chapter.get("x", 0.0)), "y": y, "ref": ref})
+                                  "fontSize": size, "color": color, "x": x, "y": y, "ref": ref})
             tl.clip(ref, c_end - c_start)
-            tl.other.append({"op": "text-style", "target": ref, "style": {
-                "borderWidth": 3.0, "borderColor": "#FFFFFF", "borderAlpha": 1.0}})
-            tl.key(ref, "position_y", 0.0, y + 0.03)
-            tl.key(ref, "position_y", 0.16, y, "ease-out")
+            tl.other.append({"op": "text-style", "target": ref, "style": ts.style_for("chapter")[1]})
+            ts.text_motion(tl, ref, c_end - c_start, y, settings.get("text_caps"))
         except (TypeError, ValueError):
             log("Invalid chapter title record skipped: " + repr(chapter))
 
@@ -748,4 +783,6 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
         "width": width, "height": height, "fps": int(canvas.get("fps", 30)),
         "ratio": str(canvas.get("ratio", "16:9")), "tracks": tracks, "operations": tl.ops(),
     }
+    for issue in audit_spec(spec, duration=duration):
+        log("QA: " + issue)
     return spec, scene_rows, presenter_rows
