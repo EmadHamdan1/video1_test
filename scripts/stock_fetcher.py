@@ -10,6 +10,7 @@ import html
 import json
 import os
 import re
+import socket
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -299,6 +300,20 @@ def _load_api_keys() -> dict[str, str]:
     return values
 
 
+def _is_dns_resolution_failure(exc: BaseException) -> bool:
+    """Recognise local DNS lookup errors so a dead network does not spam every query."""
+    reason = getattr(exc, "reason", None)
+    details = " ".join((str(exc), str(reason))).lower()
+    return (
+        isinstance(exc, socket.gaierror)
+        or isinstance(reason, socket.gaierror)
+        or "getaddrinfo failed" in details
+        or "name or service not known" in details
+        or "temporary failure in name resolution" in details
+        or "nodename nor servname provided" in details
+    )
+
+
 def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], None] = print,
                 http_get: Callable[[str], bytes] | None = None) -> list[dict[str, Any]]:
     """Fetch once, cache results, avoid scraping, and preserve credits/licences."""
@@ -324,6 +339,9 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
         if provider not in providers:
             log("Stock provider skipped (no API key in environment): " + str(provider))
 
+    # Circuit-break DNS failures for this run only. A later run retries normally,
+    # but this build will not repeat the same failing hostname lookup for every beat.
+    failed_providers: set[str] = set()
     per_query = max(1, int(cfg.get("per_query", 1)))
     max_total = max(0, int(cfg.get("max_total", 26)))
     min_width = max(320, int(cfg.get("min_width", 1280)))
@@ -349,6 +367,8 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
         for provider in providers:
             if got >= per_query or len(manifest) >= max_total:
                 break
+            if provider in failed_providers:
+                continue
             try:
                 if provider == "openverse" and kind == "photo":
                     candidates = openverse_search(query["query"], per_page=8,
@@ -362,7 +382,14 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                 else:
                     candidates = []
             except Exception as exc:
-                log("Stock search failed (%s, %r): %s" % (provider, query["query"], exc))
+                if _is_dns_resolution_failure(exc):
+                    failed_providers.add(provider)
+                    log(
+                        "Stock provider disabled for the rest of this run after a DNS "
+                        "resolution failure (%s): %s" % (provider, exc)
+                    )
+                else:
+                    log("Stock search failed (%s, %r): %s" % (provider, query["query"], exc))
                 continue
             for candidate in candidates:
                 if got >= per_query or len(manifest) >= max_total:
@@ -406,6 +433,9 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
                 got += 1
         if got == 0 and query_key not in cached_query_counts:
             log("No usable licensed stock results for beat %d query %r; using supplied art for that beat." % (query["beat"], query["query"]))
+        if providers and all(provider in failed_providers for provider in providers):
+            log("All configured stock providers failed DNS resolution; skipping remaining online searches and continuing with supplied local artwork.")
+            break
 
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     credits = sorted({str(item.get("credit", "")) for item in manifest if item.get("credit")})
