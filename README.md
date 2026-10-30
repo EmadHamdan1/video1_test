@@ -26,10 +26,10 @@ The current architecture uses one production plan and several specialised tools:
 
 - Python creates the time-aligned shot/layer plan and performs read-only toolchain detection.
 - CapCut keeps the supplied photos, narration, music and sound effects editable.
-- HyperFrames + GSAP renders compound HTML/SVG/image layers. Its bridge supports titles, callouts, arrows, independent images, vector shapes and labels.
-- Remotion + GSAP renders selected React compositions such as the case-file overlay.
-- Every transparent ProRes output is checked with FFprobe before it becomes a separate CapCut track.
-- The motion catalogue contains 224 deterministic choreography recipes across 16 behaviour families. The director selects by role, emotion, impact and recent use.
+- HyperFrames + GSAP renders compound HTML/SVG/image layers. Every layer receives a selected entrance, a separate camera-drift/hold recipe, and a separate exit/transition recipe.
+- Remotion + GSAP renders selected React compositions such as case-file overlays. Its bridge passes exact scene FPS and duration-in-frames to the renderer.
+- Every transparent ProRes output is checked with FFprobe for alpha pixel format and exact duration before it becomes a separate CapCut track.
+- The motion catalogue contains 224 deterministic choreography variants across 16 behaviour families. The director selects by role, emotion, impact and recent use; CapCut-compatible choices map onto verified native transform keyframes, while richer masks/blur/vector motion stay in GSAP renderers.
 - Narration remains internal timing/reference data. The production plan explicitly disables transcript/subtitle overlays.
 
 The generated reports are written to the project's build folder: `production_plan.json`, `TOOLCHAIN_REPORT.md`, `RENDERER_MANIFEST.json`, `ASSET_DEPARTMENT_REPORT.json/.md`, `ASSET_GENERATION_QUEUE.json`, and `QA_REPORT.md`. These reports validate structure and metadata; they do not replace review of the actual CapCut preview.
@@ -122,11 +122,13 @@ Example config fragment:
 }
 ```
 
-The bridge renders one full-duration transparent ProRes 4444 MOV and appends it as a separate topmost CapCut video track. FFprobe verifies the codec and alpha pixel format before the draft is compiled. Rendering uses the pinned HyperFrames CLI and prefers a local GSAP bundle from motion-lab; a version-pinned CDN is only the fallback when the local bundle is absent. Verify alpha import in the installed CapCut version before enabling this in a production project.
+The bridge renders one full-duration transparent ProRes 4444 MOV and appends it as a separate topmost CapCut video track. Each image, shape, text, title, callout and arrow gets its own GSAP timeline with three coordinated decisions: entrance, camera drift while visible, and transition/exit. The motion recipes are selected deterministically from the shared catalogue. FFprobe verifies the codec, alpha pixel format and output duration before the draft is compiled.
 
-The renderer consumes reviewed graphic instructions. Story-beat planning is generated automatically, but factual image recognition and automatic cutout generation still require a reviewed vision/asset provider. The universal story planner and image-aware motion analysis remain separate implementation phases.
+The bridge uses the existing local `hyperframes-engine/hyperframes.json` when present, but does not require that untracked folder: a minimal build-local HyperFrames project config is created automatically when it is absent. The user's local template is never modified. Rendering prefers the local GSAP bundle from `motion-lab/node_modules`; a version-pinned CDN is the fallback. Verify alpha import in the installed CapCut version before publication.
 
-To verify the local renderer without changing a real project's config or CapCut draft, run:
+The renderer consumes story-specific graphic instructions from the project configuration. The asset department can prepare beat-specific prompts and route selected, source/license-reviewed image assets into the matching beat. Semantic image recognition is not claimed automatically: source-to-beat relevance and generated/cutout edge quality still require visual review.
+
+To render a smoke-test composition without changing a real project's config or CapCut draft, run:
 
 ```powershell
 python .\scripts\render_hyperframes_demo.py
@@ -164,6 +166,6 @@ Run tests from the repository root:
 
        .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
-GitHub Actions also checks Python compilation, timing/asset tests, Windows PowerShell parsing and Motion Lab types. These checks validate source code, not a locally rendered video; a final visual review of the newest CapCut project and exported MP4 is still required.
+GitHub Actions checks Python compilation and tests, Windows PowerShell parsing, Motion Lab types, a real Remotion ProRes-alpha render, and a real layered HyperFrames ProRes-alpha render. These are renderer smoke tests, not a final quality judgement of the complete documentary; review the newest CapCut draft and exported MP4 before publication.
 
 The persistent AI editing brief lives at .agents/skills/montage-director/SKILL.md. The detailed style / quality workflow is in docs/MONTAGE_UPGRADE.md; the GitHub motion research and keyframe recipe design are in docs/MOTION_REFERENCES.md.
