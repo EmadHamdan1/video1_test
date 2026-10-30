@@ -21,6 +21,8 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+import prepare_assets
+
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "projects" / "nutty-putty-cave"
 AUDIO_SOURCE = Path(r"D:\Videos Chanel\v2\p1\ElevenLabs_2026-06-03T09_19_08_Mark - Natural Conversations_pvc_sp100_s39_sb75_se0_b_m2.mp3")
@@ -1585,6 +1587,14 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     config["settings"]["horror_overlay_times"] = horror_times
     (PROJECT / "project.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (PROJECT / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # Create the scene plan required by the existing, cost-gated image-generation
+    # tool. Preserve a manually reviewed plan on subsequent runs.
+    scene_plan_path = PROJECT / "scene_plan.csv"
+    if not scene_plan_path.is_file():
+        prepare_assets.make_scene_plan(str(PROJECT))
+    else:
+        log("Preserving existing reviewed scene plan: " + str(scene_plan_path))
 
     source_origins = {}
     for group in source_map.values():
