@@ -95,5 +95,5 @@ def render_alpha_composition(spec: dict[str, Any], build_dir: Path,
         "width": int(stream.get("width", 1920)),
         "height": int(stream.get("height", 1080)),
         "duration": float(duration),
-        "source_duration": float(stream.get("duration", duration)),
+        "source_duration": float(stream.get("duration") or duration),
     }
