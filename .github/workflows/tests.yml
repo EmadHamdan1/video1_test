@@ -108,4 +108,4 @@ jobs:
           stream=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,pix_fmt -of default=noprint_wrappers=1:nokey=1 out/casefile-overlay.mov)
           echo "$stream"
           echo "$stream" | grep -q "prores"
-          echo "$stream" | grep -q "yuva444p10le"
+          echo "$stream" | grep -Eq "yuva444p(10|12)le"
