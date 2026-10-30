@@ -47,7 +47,7 @@ def _load_json(path: Path, fallback: Any) -> Any:
 
 
 def _load_selected_reviewed_assets(project_dir: Path) -> list[dict[str, Any]]:
-    """Return only AI-generated local files a person selected and explicitly license-reviewed."""
+    """Return only local image files a person selected and explicitly source/license-reviewed."""
     manifest = project_dir / "media_candidates.csv"
     if not manifest.is_file():
         return []
@@ -76,7 +76,7 @@ def _load_selected_reviewed_assets(project_dir: Path) -> list[dict[str, Any]]:
             "query": str(item.get("query", "")),
             "beat": int(match.group(1)) - 1,
             "alpha_channel": inspect_asset(str(path))["alpha_channel"],
-            "asset_origin": "selected_and_license_reviewed_local_assets_asset",
+            "asset_origin": "selected_and_license_reviewed_local_asset",
         })
     return assets
 
@@ -194,7 +194,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
             and Path(str(item.get("path", ""))).is_file()
         ]
         stock_candidates.extend([
-            {**item, "origin": "reviewed_local_assets_asset"}
+            {**item, "origin": "selected_reviewed_local_asset"}
             for item in reviewed_local_assets
             if abs(int(item.get("beat", -1)) - beat_index) <= 1
             and Path(str(item.get("path", ""))).is_file()
@@ -255,7 +255,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
                 "use_requires_selection_and_license_review": True,
                 "alpha_policy": (
                     "Accept only a verified real alpha channel for a cutout layer. "
-                    "If the generated file is opaque, use it only as an opaque image layer; "
+                    "If the selected file is opaque, use it only as an opaque image layer; "
                     "never simulate transparency with a white or black matte."
                 ),
                 "background_removal_available": rembg_available,
@@ -270,8 +270,8 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
             "transparent_cutouts_require_real_alpha": True,
             "automatic_semantic_recognition": False,
             "manual_review_required": True,
-            "generated_assets_require_explicit_cost_confirmation": True,
-            "generated_assets_are_not_used_until_selected_and_license_reviewed": True,
+            "ai_generation_requires_explicit_cost_confirmation": True,
+            "local_assets_are_not_used_until_selected_and_source_license_reviewed": True,
         },
         "generation_tools": {
             "huggingface_hub_installed": hf_available,
@@ -283,7 +283,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
         "source_image_count": len(config.get("scene_images", [])),
         "stock_manifest": str(manifest_path),
         "stock_asset_count": len(stock_manifest),
-        "reviewed_local_assets_asset_count": len(reviewed_local_assets),
+        "reviewed_local_asset_count": len(reviewed_local_assets),
         "scenes": planned,
         "visual_gaps": gaps,
         "asset_generation_queue": generation_queue,
@@ -293,7 +293,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
             "scenes_with_supporting_layers": sum(bool(row["supporting_layers_used"]) for row in planned),
             "visual_gaps": len(gaps),
             "stock_assets": len(stock_manifest),
-            "reviewed_local_assets_assets": len(reviewed_local_assets),
+            "reviewed_local_assets": len(reviewed_local_assets),
             "generation_queue_items": len(generation_queue),
         },
     }
@@ -317,7 +317,7 @@ def render_asset_report(report: dict[str, Any]) -> str:
         f"- Scenes with supporting layers: {summary.get('scenes_with_supporting_layers', 0)}",
         f"- Visual gaps: {summary.get('visual_gaps', 0)}",
         f"- Licensed stock assets cached: {summary.get('stock_assets', 0)}",
-        f"- Selected and reviewed local assets ready for beat matching: {summary.get('reviewed_local_assets_assets', 0)}",
+        f"- Selected and reviewed local assets ready for beat matching: {summary.get('reviewed_local_assets', 0)}",
         f"- Suggested AI asset prompts: {summary.get('generation_queue_items', 0)}",
         "",
         "## Generation capability",
