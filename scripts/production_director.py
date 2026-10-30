@@ -25,8 +25,65 @@ def _beat_for_scene(scene: dict[str, Any], beats: list[dict[str, Any]], duration
     )
 
 
+def _intersects(start: float, end: float, item_start: float, item_duration: float) -> bool:
+    return item_start < end and item_start + item_duration > start
+
+
+def _layers_for_scene(config: dict[str, Any], spec: dict[str, Any] | None,
+                      start: float, end: float) -> dict[str, list[dict[str, Any]]]:
+    graphics: list[dict[str, Any]] = []
+    supporting: list[dict[str, Any]] = []
+
+    for renderer_name, key in (("hyperframes", "elements"), ("remotion", "compositions")):
+        renderer = config.get(renderer_name, {})
+        if not isinstance(renderer, dict) or not renderer.get("enabled", False):
+            continue
+        values = renderer.get(key, [])
+        if not isinstance(values, list):
+            continue
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            item_start = max(0.0, float(item.get("start", 0.0)))
+            item_duration = max(0.0, float(item.get("duration", 0.0)))
+            if item_duration <= 0 or not _intersects(start, end, item_start, item_duration):
+                continue
+            graphics.append({
+                "renderer": renderer_name,
+                "id": str(item.get("id", item.get("ref", ""))),
+                "type": str(item.get("type", item.get("id", "composition"))),
+                "start": item_start,
+                "duration": item_duration,
+                "purpose": str(item.get("visual_purpose", item.get("title", item.get("text", "")))),
+                "asset": str(item.get("path", item.get("src", ""))),
+                "independent_layer": True,
+            })
+
+    if spec:
+        for track in spec.get("tracks", []):
+            name = str(track.get("name", ""))
+            if name not in {"Fast Secondary Image Inserts", "Story Fact Callouts", "Icon Overlays"}:
+                continue
+            for item in track.get("items", []):
+                item_start = max(0.0, float(item.get("start", 0.0)))
+                item_duration = max(0.0, float(item.get("duration", 0.0)))
+                if item_duration <= 0 or not _intersects(start, end, item_start, item_duration):
+                    continue
+                supporting.append({
+                    "track": name,
+                    "ref": str(item.get("ref", "")),
+                    "asset": str(item.get("path", item.get("text", ""))),
+                    "start": item_start,
+                    "duration": item_duration,
+                    "media_type": str(item.get("type", track.get("type", ""))),
+                    "independent_layer": True,
+                })
+    return {"supporting": supporting, "graphics": graphics}
+
+
 def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
-                          duration: float, toolchain: dict[str, Any] | None = None) -> dict[str, Any]:
+                          duration: float, toolchain: dict[str, Any] | None = None,
+                          spec: dict[str, Any] | None = None) -> dict[str, Any]:
     beats = config.get("story_beats", [])
     beats = beats if isinstance(beats, list) else []
     planned: list[dict[str, Any]] = []
@@ -61,7 +118,10 @@ def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
         recent_motion.extend([enter["id"], camera["id"], transition["id"]])
         recent_motion = recent_motion[-15:]
 
-        supporting: list[dict[str, Any]] = []
+        scene_start = round(float(scene.get("start", 0.0)), 3)
+        scene_end = round(float(scene.get("end", duration)), 3)
+        layers = _layers_for_scene(config, spec, scene_start, scene_end)
+        supporting: list[dict[str, Any]] = list(layers["supporting"])
         if stock:
             supporting.append({
                 "asset": stock,
@@ -72,8 +132,8 @@ def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
         planned.append({
             "scene_id": scene_id,
             "beat_id": beat_id,
-            "start": round(float(scene.get("start", 0.0)), 3),
-            "end": round(float(scene.get("end", duration)), 3),
+            "start": scene_start,
+            "end": scene_end,
             "duration": round(float(scene.get("duration", 0.0)), 3),
             "narration_reference": {
                 "text": str(beat.get("text", scene.get("caption_context", ""))),
@@ -85,6 +145,7 @@ def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
             "visual_purpose": str(beat.get("visual_purpose", beat.get("stock_query", ""))),
             "primary_asset": primary,
             "supporting_assets": supporting,
+            "graphics_layers": layers["graphics"],
             "composition": {
                 "layout": str(scene.get("layout", "full-frame")),
                 "focal_region": scene.get("focal_region"),
