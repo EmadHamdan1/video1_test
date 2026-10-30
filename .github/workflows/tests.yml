@@ -55,8 +55,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Install Remotion and GSAP dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install pinned Remotion and GSAP dependencies
+        run: npm ci --no-audit --no-fund
       - name: Type-check reusable motion compositions
         run: npm run typecheck
       - name: Ensure Remotion headless browser
