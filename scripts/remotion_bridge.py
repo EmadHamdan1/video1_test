@@ -38,8 +38,11 @@ def render_alpha_composition(spec: dict[str, Any], build_dir: Path,
         raise ValueError("Each remotion.compositions entry needs an id.")
     start = float(spec.get("start", 0.0))
     duration = float(spec.get("duration", 5.0))
-    if start < 0 or duration <= 0:
-        raise ValueError(f"Invalid Remotion start/duration for {composition}.")
+    fps = int(spec.get("fps", 30))
+    if start < 0 or duration <= 0 or fps < 1 or fps > 120:
+        raise ValueError(f"Invalid Remotion start/duration/fps for {composition}.")
+    duration_frames = max(1, int(round(duration * fps)))
+    expected_duration = duration_frames / fps
     props = spec.get("props", {})
     if not isinstance(props, dict):
         raise ValueError(f"Remotion props for {composition} must be a JSON object.")
@@ -56,6 +59,8 @@ def render_alpha_composition(spec: dict[str, Any], build_dir: Path,
         "--prores-profile", "4444",
         "--pixel-format", "yuva444p10le",
         "--image-format", "png",
+        "--fps", str(fps),
+        "--duration", str(duration_frames),
     ]
     # Windows cannot launch .cmd shims through CreateProcess directly with shell=False.
     # Use cmd.exe explicitly while keeping every argument separately quoted by subprocess.
@@ -83,9 +88,16 @@ def render_alpha_composition(spec: dict[str, Any], build_dir: Path,
         raise RuntimeError("FFprobe failed on Remotion output: " + probe.stderr[-1500:])
     stream = (json.loads(probe.stdout).get("streams") or [{}])[0]
     codec, pixel_format = str(stream.get("codec_name", "")), str(stream.get("pix_fmt", ""))
+    source_duration = float(stream.get("duration") or expected_duration)
     if codec != "prores" or "a" not in pixel_format:
         raise RuntimeError(
             f"Remotion alpha verification failed for {composition}: codec={codec}, pix_fmt={pixel_format}."
+        )
+    if abs(source_duration - expected_duration) > (1.0 / fps) + 0.02:
+        raise RuntimeError(
+            f"Remotion duration verification failed for {composition}: "
+            f"expected {expected_duration:.3f}s ({duration_frames} frames at {fps} fps), "
+            f"got {source_duration:.3f}s."
         )
     return {
         "path": str(output.resolve()),
@@ -94,6 +106,8 @@ def render_alpha_composition(spec: dict[str, Any], build_dir: Path,
         "pixel_format": pixel_format,
         "width": int(stream.get("width", 1920)),
         "height": int(stream.get("height", 1080)),
-        "duration": float(duration),
-        "source_duration": float(stream.get("duration") or duration),
+        "fps": fps,
+        "duration_frames": duration_frames,
+        "duration": expected_duration,
+        "source_duration": source_duration,
     }
