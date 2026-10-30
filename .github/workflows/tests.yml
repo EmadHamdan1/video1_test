@@ -59,6 +59,10 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Type-check reusable motion compositions
         run: npm run typecheck
+      - name: Install FFmpeg tools for alpha verification
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
       - name: Ensure Remotion headless browser
         run: npx remotion browser ensure
       - name: Render transparent GSAP composition
