@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asset_director
 import importlib.util
 import csv
 import json
@@ -1425,7 +1426,7 @@ def main(argv: list[str] | None = None) -> int:
     graphics_outputs = renderer_router.render_selected_graphics(
         config, BUILD_DIR, duration, ROOT
     )
-    renderer_router.attach_graphics_tracks(spec, graphics_outputs)
+    renderer_router.attach_graphics_tracks(spec, graphics_outputs, total_duration=duration)
     (BUILD_DIR / "RENDERER_MANIFEST.json").write_text(
         json.dumps(graphics_outputs, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -1435,6 +1436,16 @@ def main(argv: list[str] | None = None) -> int:
             + " overlay ready: " + str(item["path"])
             + " (" + str(item.get("pixel_format", "alpha checked")) + ")"
         )
+
+    asset_report = asset_director.build_asset_report(
+        config, scenes, spec, CONFIG_PATH.parent
+    )
+    (BUILD_DIR / "ASSET_DEPARTMENT_REPORT.json").write_text(
+        json.dumps(asset_report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (BUILD_DIR / "ASSET_DEPARTMENT_REPORT.md").write_text(
+        asset_director.render_asset_report(asset_report), encoding="utf-8"
+    )
 
     spec_path = BUILD_DIR / "compile-spec.json"
     spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
