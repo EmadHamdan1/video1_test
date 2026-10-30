@@ -40,10 +40,17 @@ def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
         shock = max(0, min(3, int(beat.get("shock_level", scene.get("shock_level", 0)) or 0))
         primary = str(scene.get("source_image") or scene.get("image") or "")
         stock = str(scene.get("stock_source_path") or "")
-        enter = motion_library.choose_recipe("entrance", emotion, shock, scene_id + ":in", recent_motion)
-        exit_recipe = motion_library.choose_recipe("exit", emotion, shock, scene_id + ":out", recent_motion)
+        planned_entrance_id = str(scene.get("motion_recipe_id", "")).strip()
+        enter = (
+            motion_library.get_recipe(planned_entrance_id)
+            if planned_entrance_id in motion_library.CATALOG
+            else motion_library.choose_recipe("entrance", emotion, shock, scene_id, recent_motion)
+        )
+        # The selected recipe contains its paired exit choreography. Do not choose
+        # a second unrelated exit and let the report disagree with the CapCut timeline.
+        exit_recipe = enter
         camera = motion_library.choose_recipe("camera", emotion, shock, scene_id + ":camera", recent_motion)
-        recent_motion.extend([enter["id"], exit_recipe["id"], camera["id"]])
+        recent_motion.extend([enter["id"], camera["id"]])
         recent_motion = recent_motion[-15:]
 
         supporting: list[dict[str, Any]] = []
