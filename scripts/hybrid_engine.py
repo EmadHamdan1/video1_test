@@ -456,7 +456,10 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
         entrance_kind[ref] = scene_motion(
             tl, ref, clip_len, S, bx, by, index, edge, shock, is_last, pan_amount, push,
             emotion=str(beat.get("emotion", "")), trigger_word=str(beat.get("trigger_word", "")),
-            forced_kind=motion_library.hero_entrance_style(chosen_motion),
+            forced_kind=(
+                "pop" if index == 0 and shock < 3
+                else motion_library.hero_entrance_style(chosen_motion)
+            ),
         )
         recent_motion_ids.append(chosen_motion["id"])
         recent_motion_ids = recent_motion_ids[-15:]
