@@ -570,12 +570,15 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 pick = candidate_path
                 break
 
-            # Local artwork remains the reliable fallback when a suitable licensed image
-            # is unavailable. Choose a different image from the hero layer.
-            if pick is None:
+            # Reuse a supplied neighbouring illustration only when the story author has
+            # explicitly confirmed chronological image ordering. Never fill the frame with
+            # an unrelated local image merely because the stock search returned nothing.
+            if pick is None and settings.get("allow_adjacent_local_support", False):
                 src = indices[index] if index < len(indices) else index % len(images)
-                for step in range(1, len(images) + 1):
-                    candidate_path = images[(src + step) % len(images)].resolve()
+                for candidate_index in (src - 1, src + 1):
+                    if not 0 <= candidate_index < len(images):
+                        continue
+                    candidate_path = images[candidate_index].resolve()
                     if candidate_path.suffix.lower() in VIDEO_SUFFIXES:
                         continue
                     if str(candidate_path) not in avoid_paths:
@@ -605,10 +608,12 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                             continue
                         layer_path = candidate_path
                         break
-                    if layer_path is None:
+                    if layer_path is None and settings.get("allow_adjacent_local_support", False):
                         src = indices[index] if index < len(indices) else index % len(images)
-                        for step in range(2, len(images) + 2):
-                            candidate_path = images[(src + step) % len(images)].resolve()
+                        for candidate_index in (src - 1, src + 1):
+                            if not 0 <= candidate_index < len(images):
+                                continue
+                            candidate_path = images[candidate_index].resolve()
                             if candidate_path.suffix.lower() in VIDEO_SUFFIXES:
                                 continue
                             if str(candidate_path) not in avoid_paths and candidate_path != pick:
