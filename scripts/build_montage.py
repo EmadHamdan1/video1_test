@@ -1438,13 +1438,17 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     asset_report = asset_director.build_asset_report(
-        config, scenes, spec, CONFIG_PATH.parent
+        config, scenes, spec, CONFIG_PATH.parent, toolchain=toolchain
     )
     (BUILD_DIR / "ASSET_DEPARTMENT_REPORT.json").write_text(
         json.dumps(asset_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     (BUILD_DIR / "ASSET_DEPARTMENT_REPORT.md").write_text(
         asset_director.render_asset_report(asset_report), encoding="utf-8"
+    )
+    (BUILD_DIR / "ASSET_GENERATION_QUEUE.json").write_text(
+        json.dumps(asset_report.get("asset_generation_queue", []), ensure_ascii=False, indent=2),
+        encoding="utf-8",
     )
 
     spec_path = BUILD_DIR / "compile-spec.json"
