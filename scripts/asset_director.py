@@ -114,7 +114,8 @@ def _generation_prompt(query: str, style_guide: str, sentence: str) -> str:
 
 def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
                        spec: dict[str, Any], project_dir: Path,
-                       toolchain: dict[str, Any] | None = None) -> dict[str, Any]:
+                       toolchain: dict[str, Any] | None = None,
+                       production_plan: dict[str, Any] | None = None) -> dict[str, Any]:
     project_dir = project_dir.resolve()
     manifest_path = project_dir / "assets" / "stock" / "stock_manifest.json"
     stock_manifest = _load_json(manifest_path, [])
@@ -149,6 +150,10 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
 
     planned: list[dict[str, Any]] = []
     gaps: list[dict[str, Any]] = []
+    plan_by_scene = {
+        str(item.get("scene_id", "")): item
+        for item in (production_plan or {}).get("scenes", [])
+    }
     generation_queue: list[dict[str, Any]] = []
 
     for scene_index, scene in enumerate(scenes):
@@ -197,6 +202,9 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
         scene_id = str(scene.get("scene_ref", f"scene_{scene_index + 1:03d}"))
         beat_id = str(beat.get("scene_id", f"beat_{beat_index + 1:03d}"))
         visual_query = str(beat.get("stock_query") or beat.get("visual_purpose") or "")
+        planned_scene = plan_by_scene.get(scene_id, {})
+        graphics_layers = planned_scene.get("graphics_layers", [])
+        planned_support_layers = planned_scene.get("supporting_assets", [])
         row = {
             "scene_id": scene_id,
             "beat_id": beat_id,
@@ -207,12 +215,14 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
             "displayed_asset": inspect_asset(displayed_asset),
             "full_bleed_stock_source": str(scene.get("stock_source_path") or ""),
             "supporting_layers_used": support_used,
+            "planned_supporting_assets": planned_support_layers,
+            "graphics_layers": graphics_layers,
             "matching_stock_candidates": stock_candidates,
             "semantic_match_status": "requires_visual_review",
         }
         planned.append(row)
 
-        if not support_used and not scene.get("stock_source_path") and visual_query:
+        if not support_used and not planned_support_layers and not graphics_layers and not scene.get("stock_source_path") and visual_query:
             gap = {
                 "scene_id": scene_id,
                 "beat_id": beat_id,
