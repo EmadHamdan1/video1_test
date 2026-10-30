@@ -49,10 +49,8 @@ if (-not $SkipMotionLabCheck -and (
     throw "Remotion, @remotion/gsap, and GSAP are not all installed in motion-lab. Review motion-lab\package.json, then run 'npm ci' inside motion-lab. This launcher will not install them automatically."
 }
 
-$HyperFramesTemplate = Join-Path $RepoRoot "hyperframes-engine\hyperframes.json"
-if (-not (Test-Path -LiteralPath $HyperFramesTemplate)) {
-    throw "The local HyperFrames template is missing: $HyperFramesTemplate. Keep the existing hyperframes-engine folder; initialize it before building."
-}
+# The bridge uses the existing local HyperFrames template when present;
+# otherwise it creates a build-local default without modifying user files.
 
 Write-Host ""
 Write-Host "=== Phase 1: prepare source assets, narration timing and visual requirements ===" -ForegroundColor Cyan
