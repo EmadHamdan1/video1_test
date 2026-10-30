@@ -50,7 +50,16 @@ The generated file is not inserted merely because it exists. Review the model/pr
 .\.venv\Scripts\python.exe .\scripts\prepare_assets.py review-license --project projects\nutty-putty-cave --id C0001 --notes "Reviewed model card and provider terms; approved for this video."
 ```
 
-Use the actual candidate ID returned by the asset manifest. The candidate must remain selected and have `license_reviewed=yes` before the engine can consider it for the matching story beat. Opaque illustrations remain ordinary image layers; only files with real transparent pixels may be used as cutouts. Background removal is reported as an optional local capability and is never faked with a white/black matte.
+Use the actual candidate ID returned by the asset manifest. The candidate must remain selected and have `license_reviewed=yes` before the engine can consider it for the matching story beat.
+
+To create a real transparent cutout from a selected and reviewed local image, install the optional dependency only when needed:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-cutout.txt
+.\.venv\Scripts\python.exe .\scripts\prepare_assets.py remove-background --project projects/nutty-putty-cave --id C0001 --confirm-model-download
+```
+
+Use the actual candidate ID. The first run may download a local segmentation model. The command requires explicit acknowledgement, preserves the source licence review, verifies visible transparent pixels, and creates a new selected PNG candidate. Inspect the cutout edges before using it. Opaque illustrations remain ordinary image layers; only files with real transparent pixels may be used as cutouts. The engine never fakes transparency with a white/black matte.
 
 ## Run the latest version
 
