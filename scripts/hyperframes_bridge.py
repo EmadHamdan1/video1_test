@@ -42,21 +42,33 @@ def _color(value: Any, label: str = "accent") -> str:
 
 
 def _motion_for(raw: dict[str, Any], ident: str, kind: str) -> dict[str, Any]:
+    emotion = str(raw.get("emotion", "neutral"))
+    shock = int(raw.get("shock_level", 0) or 0)
+    default_role = "element" if kind in {"shape", "text"} else "entrance"
+    role = str(raw.get("motion_role", default_role)).strip().lower()
+    if role not in {"entrance", "element"}:
+        raise ValueError(f"{ident}.motion_role must be entrance or element.")
+
     supplied = raw.get("motion_recipe")
-    if supplied:
-        recipe = motion_library.get_recipe(str(supplied))
-    else:
-        role = "element" if kind in {"image", "shape", "text"} else "entrance"
-        recipe = motion_library.choose_recipe(
-            role,
-            str(raw.get("emotion", "neutral")),
-            int(raw.get("shock_level", 0) or 0),
-            ident,
-        )
+    recipe = (
+        motion_library.get_recipe(str(supplied))
+        if supplied else
+        motion_library.choose_recipe(role, emotion, shock, ident)
+    )
+    camera = motion_library.choose_recipe("camera", emotion, shock, ident + ":camera")
+    transition = (
+        motion_library.get_recipe(str(raw["transition_recipe"]))
+        if raw.get("transition_recipe") else
+        motion_library.choose_recipe("transition", emotion, shock, ident + ":transition")
+    )
     return {
         "id": recipe["id"],
         "enter": recipe["enter"],
         "exit": recipe["exit"],
+        "hold_id": camera["id"],
+        "hold": camera["exit"]["to"],
+        "transition_id": transition["id"],
+        "transition": transition["exit"]["to"],
     }
 
 
@@ -248,6 +260,8 @@ def build_composition_html(total_duration: float, elements: Any,
             "start": item["start"],
             "duration": item["duration"],
             "motion": item["motion"],
+            "hold": item["motion"]["hold"],
+            "transition": item["motion"]["transition"],
             "motionIn": item["motion_in"],
             "motionOut": item["motion_out"],
         }
@@ -299,8 +313,13 @@ def build_composition_html(total_duration: float, elements: Any,
    const label=root.querySelector(".hf-arrow-label");
    if(label) {{
     tl.fromTo(label,{{autoAlpha:0,y:8}},{{autoAlpha:1,y:0,duration:.3,ease:"power2.out"}},at+.42);
-    tl.to(label,{{autoAlpha:0,duration:.22}},Math.max(at+.65,end-.28));
    }}
+   const transition={{...row.transition}};
+   const transitionDuration=transition.duration||.5;
+   const transitionEase=transition.ease||"power2.in";
+   delete transition.duration; delete transition.ease;
+   tl.to(root,{{...transition,duration:transitionDuration,ease:transitionEase}},
+     Math.max(at+.65,end-row.motionOut-transitionDuration));
    continue;
   }}
   const target=(root.matches(".hf-card,.hf-text")?root:(root.querySelector("[data-hf-content]")||root));
@@ -308,10 +327,35 @@ def build_composition_html(total_duration: float, elements: Any,
   const enterTo={{...enter.to,duration:enter.to.duration||.65,ease:enter.to.ease||"power3.out"}};
   const enterFrom={{...enter.from}};
   delete enterTo.ease; const easeIn=enter.to.ease||"power3.out";
-  tl.fromTo(target,enterFrom,{{...enterTo,ease:easeIn}},at+row.motionIn);
-  const out={{...exit.to}}, outDuration=out.duration||.5, outEase=out.ease||"power2.in";
-  delete out.duration; delete out.ease;
-  tl.to(target,{{...out,duration:outDuration,ease:outEase}},Math.max(at+row.motionIn+.08,end-row.motionOut-outDuration));
+  const enterAt=at+row.motionIn;
+  const enterDuration=enterTo.duration;
+  const enterEnd=enterAt+enterDuration;
+  tl.fromTo(target,enterFrom,{{...enterTo,ease:easeIn}},enterAt);
+  const hold={{...row.hold}};
+  const holdDurationHint=hold.duration||1.0;
+  const transition={{...row.transition}};
+  const outDuration=transition.duration||exit.to.duration||.5;
+  const outEase=transition.ease||exit.to.ease||"power2.in";
+  delete hold.duration; delete hold.ease;
+  delete transition.duration; delete transition.ease;
+  const exitAt=Math.max(enterEnd+.05,end-row.motionOut-outDuration);
+  const holdDuration=exitAt-enterEnd;
+  if(holdDuration>.55) {{
+   const holdProperties={{}};
+   for (const key of ["x","y","scale","rotation"]) {{
+    if (hold[key]!==undefined) holdProperties[key]=hold[key];
+   }}
+   if(Object.keys(holdProperties).length) {{
+    const firstHalf=holdDuration*.5;
+    tl.to(target,{{...holdProperties,duration:firstHalf,ease:"sine.inOut"}},enterEnd);
+    const settle={{}};
+    for (const key of Object.keys(holdProperties)) {{
+     settle[key]=(key==="scale"?1:0);
+    }}
+    tl.to(target,{{...settle,duration:holdDuration-firstHalf,ease:"sine.inOut"}},enterEnd+firstHalf);
+   }}
+  }}
+  tl.to(target,{{...transition,duration:outDuration,ease:outEase}},exitAt);
  }}
  window.__timelines=window.__timelines||{{}};
  window.__timelines["main"]=tl;
