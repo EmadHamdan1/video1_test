@@ -38,6 +38,7 @@ class RendererRouterTests(unittest.TestCase):
         self.assertEqual(outputs[0]["start"], 4)
         self.assertEqual(outputs[0]["duration"], 6)
         self.assertEqual(render.call_args.args[0]["duration"], 6)
+        self.assertEqual(render.call_args.args[0]["fps"], 30)
 
     def test_invalid_remotion_composition_list_is_rejected(self):
         with self.assertRaises(ValueError):
