@@ -853,14 +853,6 @@ def remove_background(
             "Background removal may download a local model on first use. "
             "Re-run with --confirm-model-download after reviewing the model/download size."
         )
-    try:
-        from rembg import remove
-    except ImportError as exc:
-        raise RuntimeError(
-            "The optional rembg package is not installed. No package was installed automatically. "
-            "Review the optional cutout requirements and install it into the existing .venv only when needed."
-        ) from exc
-
     paths = project_paths(project)
     rows = read_csv(paths["manifest"])
     source = next((row for row in rows if row.get("id", "").upper() == candidate_id.upper()), None)
@@ -881,6 +873,14 @@ def remove_background(
     from PIL import Image
     if not _valid_image(source_path):
         raise ValueError("Selected image is not a valid readable image.")
+
+    try:
+        from rembg import remove
+    except ImportError as exc:
+        raise RuntimeError(
+            "The optional rembg package is not installed. No package was installed automatically. "
+            "Review the optional cutout requirements and install it into the existing .venv only when needed."
+        ) from exc
 
     log("Removing background locally. The first run may download the rembg model.")
     output_bytes = remove(source_path.read_bytes())
