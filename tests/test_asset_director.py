@@ -30,6 +30,40 @@ class AssetDirectorTests(unittest.TestCase):
             self.assertEqual(report["scenes"][0]["semantic_match_status"], "requires_visual_review")
             self.assertEqual(report["missing_asset_requests"][0]["asset"], "rescue pulley")
 
+
+    def test_does_not_queue_ai_generation_when_a_matching_stock_candidate_exists(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stock_dir = root / "assets" / "stock"
+            stock_dir.mkdir(parents=True)
+            (root / "build").mkdir()
+            image_path = stock_dir / "cave-rescue.jpg"
+            image_path.write_bytes(b"reviewed mock image")
+            (stock_dir / "stock_manifest.json").write_text(
+                json.dumps([{
+                    "path": str(image_path),
+                    "provider": "Wikimedia Commons",
+                    "license": "CC BY 4.0",
+                    "credit": "Photographer",
+                    "query": "cave rescue",
+                    "beat": 0,
+                    "alpha_channel": False,
+                }]),
+                encoding="utf-8",
+            )
+            config = {
+                "project_name": "Test",
+                "story_beats": [{
+                    "scene_id": "beat-1", "start_s": 0, "end_s": 5,
+                    "stock_query": "cave rescue",
+                }],
+            }
+            scenes = [{"scene_ref": "scene-1", "start": 0, "end": 5, "image": "primary.png"}]
+            report = asset_director.build_asset_report(config, scenes, {"tracks": []}, root)
+            self.assertEqual(report["summary"]["visual_gaps"], 1)
+            self.assertEqual(report["visual_gaps"][0]["available_candidates"], 1)
+            self.assertEqual(report["asset_generation_queue"], [])
+
     def test_marks_supporting_layer_when_selected_on_timeline(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
