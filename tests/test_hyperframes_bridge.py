@@ -164,6 +164,36 @@ class HyperFramesBridgeTests(unittest.TestCase):
                   "path_d": '<script>alert(1)</script>', "start": 0, "duration": 2}],
             )
 
+
+    def test_verifies_hyperframes_prores_alpha_and_exact_duration(self):
+        metadata = bridge.verify_render_metadata({
+            "streams": [{
+                "codec_name": "prores", "pix_fmt": "yuva444p12le",
+                "width": 1920, "height": 1080, "duration": "6.000000",
+            }]
+        }, 6.0, fps=30)
+        self.assertEqual(metadata["pixel_format"], "yuva444p12le")
+        self.assertEqual(metadata["duration"], 6.0)
+        self.assertEqual(metadata["fps"], 30)
+
+    def test_rejects_hyperframes_overlay_with_wrong_duration(self):
+        with self.assertRaisesRegex(RuntimeError, "duration verification failed"):
+            bridge.verify_render_metadata({
+                "streams": [{
+                    "codec_name": "prores", "pix_fmt": "yuva444p10le",
+                    "width": 1920, "height": 1080, "duration": "5.000000",
+                }]
+            }, 6.0, fps=30)
+
+    def test_rejects_prores_output_without_alpha(self):
+        with self.assertRaisesRegex(RuntimeError, "alpha verification failed"):
+            bridge.verify_render_metadata({
+                "streams": [{
+                    "codec_name": "prores", "pix_fmt": "yuv444p10le",
+                    "width": 1920, "height": 1080, "duration": "6.000000",
+                }]
+            }, 6.0, fps=30)
+
     def test_disabled_bridge_does_not_require_local_hyperframes_project(self):
         self.assertIsNone(
             bridge.render_hyperframes_overlay(
