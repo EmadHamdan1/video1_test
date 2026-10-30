@@ -227,6 +227,42 @@ def hero_entrance_style(recipe: dict[str, Any]) -> str:
     return "pop"
 
 
+def capcut_transition_exit(recipe: dict[str, Any]) -> str:
+    """Map a selected transition family to the corresponding CapCut exit keyframes."""
+    family, direction = str(recipe["family"]), str(recipe["direction"])
+    if family == "whip_pan":
+        return "slide_out_left" if direction in {"left", "up"} else "slide_out_right"
+    if family == "push_transition":
+        return "slide_out_right" if direction in {"left", "up"} else "slide_out_left"
+    if family == "mask_uncover":
+        return "shrink" if direction in {"up", "down"} else "zoom_away"
+    return "shrink"
+
+
+def capcut_hold_profile(recipe: dict[str, Any]) -> dict[str, float]:
+    """Scale the existing smooth camera drift without adding unsupported properties."""
+    family = str(recipe["family"])
+    profiles = {
+        "parallax_drift": (1.65, 0.55),
+        "float_drift": (0.55, 0.25),
+        "scale_focus": (0.40, 1.35),
+        "depth_dolly": (0.35, 1.55),
+        "pan_reveal": (1.45, 0.60),
+        "path_follow": (1.35, 0.70),
+        "whip_pan": (0.45, 0.30),
+    }
+    pan_factor, push_factor = profiles.get(family, (1.0, 1.0))
+    if recipe["direction"] in {"up", "down"}:
+        pan_factor *= 0.70
+    if recipe["energy"] == "subtle":
+        pan_factor *= 0.65
+        push_factor *= 0.65
+    elif recipe["energy"] == "dramatic":
+        pan_factor *= 1.20
+        push_factor *= 1.15
+    return {"pan_factor": pan_factor, "push_factor": push_factor}
+
+
 def layer_entrance_style(recipe: dict[str, Any]) -> str:
     """Map common motion intent to the tested layered-image choreography."""
     family, direction = str(recipe["family"]), str(recipe["direction"])
