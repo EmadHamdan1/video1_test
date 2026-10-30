@@ -325,6 +325,50 @@ class MontageTimingTests(unittest.TestCase):
             finally:
                 BUILDER.BUILD_DIR = previous_build_dir
 
+
+    def test_project_text_policy_hides_spoken_transcript_but_keeps_designed_story_labels(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "No narration subtitles",
+                    "text_policy": {
+                        "narration_subtitles": False,
+                        "spoken_transcript_on_screen": False,
+                        "allow_story_labels": True,
+                    },
+                    "scene_texts": ["THE CORKSCREW"],
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 3.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        # Deliberately conflicting legacy switches: the project-level policy wins.
+                        "show_captions": True,
+                        "add_captions_when_transcribed": True,
+                        "show_scene_text_without_transcript": True,
+                    },
+                }
+                spec, _, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0,
+                    [{"start": 0.0, "end": 3.0, "text": "John entered the dangerous passage"}],
+                    Path("captions.srt"),
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertNotIn("Animated Captions", tracks)
+                self.assertIn("Animated Scene Callouts", tracks)
+                rendered_text = [
+                    item.get("text", "")
+                    for track in spec["tracks"]
+                    for item in track.get("items", [])
+                    if track.get("type") == "text"
+                ]
+                self.assertIn("THE CORKSCREW", rendered_text)
+                self.assertNotIn("John entered the dangerous passage", rendered_text)
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
     def test_scene_text_creates_callouts_without_whisper(self):
         with tempfile.TemporaryDirectory() as temporary:
             previous_build_dir = BUILDER.BUILD_DIR
