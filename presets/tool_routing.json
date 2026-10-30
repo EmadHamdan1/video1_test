@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "design-contract-not-runtime",
+  "status": "bridge-implementation-in-progress",
   "project_mode": "reusable",
   "primary_timeline_backend": "capcut",
   "visual_insert_backend": "hyperframes",
@@ -25,13 +25,16 @@
     },
     "hyperframes": {
       "enabled": true,
-      "role": "html_svg_canvas_motion_graphics_and_gap_filling_inserts",
-      "transparent_format": "mov_prores_4444"
+      "role": "optional transparent HTML/SVG motion-graphics inserts",
+      "transparent_format": "mov_prores_4444",
+      "config_key": "hyperframes",
+      "default_enabled": false
     },
     "gsap": {
       "enabled": true,
       "host": "hyperframes",
-      "role": "deterministic_animation_timeline"
+      "role": "seek-synchronized deterministic animation timelines",
+      "version": "3.14.2"
     },
     "d3": {
       "enabled": false,

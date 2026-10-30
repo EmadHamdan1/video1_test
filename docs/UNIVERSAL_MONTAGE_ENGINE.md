@@ -150,6 +150,10 @@ HyperFrames is a renderer, not an automatic image-understanding or photorealisti
 - AI-generated images are a separate optional provider, with explicit cost and model/licence review.
 - If an image cannot be safely interpreted, do not add a misleading diagram; use a restrained text or neutral transition.
 
+## First integration increment
+
+The optional HyperFrames bridge is now implemented in code: a project can describe reviewed title/callout/arrow elements, HyperFrames renders them into a transparent ProRes 4444 MOV, FFprobe checks the alpha pixel format, and the CapCut compile spec receives a separate video track. It remains disabled by default. This increment does not yet implement automatic story understanding, object detection, missing-visual discovery, or factual diagram generation. The MOV's alpha import must still be checked in the target desktop CapCut build.
+
 ## Phased implementation
 
 1. Universal project schema and engine/renderer boundaries; preserve the current CapCut output.

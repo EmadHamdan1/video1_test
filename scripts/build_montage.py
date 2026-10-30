@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import hyperframes_bridge as hyperframes_bridge
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config.json"
@@ -1400,6 +1402,24 @@ def main(argv: list[str] | None = None) -> int:
     spec, scenes, presenter_rows = make_spec(
         config, audio, images, presenters, duration, captions, captions_path
     )
+
+    # Optional transparent motion-graphics layer. Original photos, narration and
+    # native CapCut keyframes remain separate and editable.
+    hyperframes_result = hyperframes_bridge.render_hyperframes_overlay(
+        config.get("hyperframes", {}),
+        BUILD_DIR,
+        duration,
+        project_template=ROOT / "hyperframes-engine",
+    )
+    if hyperframes_result:
+        hyperframes_bridge.add_overlay_track(spec, hyperframes_result, duration)
+        log(
+            "HyperFrames overlay ready: "
+            + hyperframes_result["path"]
+            + " ("
+            + hyperframes_result["pixel_format"]
+            + ")"
+        )
 
     spec_path = BUILD_DIR / "compile-spec.json"
     spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")

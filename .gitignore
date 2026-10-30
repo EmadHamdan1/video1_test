@@ -26,3 +26,6 @@ motion-lab/node_modules/
 motion-lab/out/
 motion-lab/.remotion/
 *.svg
+
+# Local HyperFrames template created with the CLI; renders stay under build/
+hyperframes-engine/

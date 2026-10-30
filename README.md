@@ -36,6 +36,56 @@ The full build adds concrete English stock-search terms to each prepared story b
 
 The command .\run_nutty_putty.ps1 -BasicOnly deliberately produces a minimal draft without stock fetching, title card, Whisper, music, sound effects or captions; use it only for diagnosing basic project creation.
 
+## Optional HyperFrames graphics bridge
+
+The main CapCut timeline remains the editable assembly. HyperFrames is an optional renderer for transparent titles, callouts and connecting arrows. It does not replace the source-photo tracks or the Python keyframe engine.
+
+The bridge is disabled unless the project config contains a top-level `hyperframes` object with `enabled: true` and a reviewed `elements` list. The first version accepts `title`, `callout`, and `arrow` items. A future story planner can populate that list from narration beats and verified relationships.
+
+Example config fragment:
+
+```json
+{
+  "hyperframes": {
+    "enabled": true,
+    "version": "0.8.221",
+    "workers": 2,
+    "elements": [
+      {
+        "id": "corkscrew-title",
+        "type": "title",
+        "start": 8.4,
+        "duration": 3.1,
+        "kicker": "CASE FILE",
+        "title": "THE CORKSCREW",
+        "note": "Illustrative reconstruction",
+        "x": 0.06,
+        "y": 0.70,
+        "width": 0.68,
+        "font_size": 52,
+        "accent": "#D94C42"
+      },
+      {
+        "id": "rope-direction",
+        "type": "arrow",
+        "start": 12.0,
+        "duration": 2.2,
+        "x1": 0.22,
+        "y1": 0.44,
+        "x2": 0.66,
+        "y2": 0.55,
+        "label": "LOAD DIRECTION",
+        "accent": "#D94C42"
+      }
+    ]
+  }
+}
+```
+
+The bridge renders one full-duration transparent ProRes 4444 MOV and appends it as a separate topmost CapCut video track. FFprobe verifies the codec and alpha pixel format before the draft is compiled. Rendering uses the pinned HyperFrames CLI and the GSAP CDN script, so network access is required for a first render. Verify alpha import in the installed CapCut version before enabling this in a production project.
+
+This first version consumes reviewed graphic instructions. It does not yet infer factual arrows, detect missing objects, or generate a diagram from narration by itself. The universal story planner and image-aware motion analysis remain separate implementation phases.
+
 ## Stock sources, keys, licences and credits
 
 - **Openverse:** openly licensed photo search; no API key in this pipeline. See https://api.openverse.org/v1/.

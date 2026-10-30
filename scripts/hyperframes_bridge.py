@@ -1,0 +1,289 @@
+"""Optional HyperFrames-to-CapCut transparent graphics bridge."""
+from __future__ import annotations
+
+import html
+import json
+import math
+import os
+import re
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_VERSION = "0.8.221"
+GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"
+
+
+def _num(value: Any, label: str, low: float, high: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be numeric.") from exc
+    if not math.isfinite(number) or not low <= number <= high:
+        raise ValueError(f"{label} must be between {low} and {high}.")
+    return number
+
+
+def _safe_id(value: Any, fallback: str) -> str:
+    result = re.sub(r"[^a-zA-Z0-9_-]+", "-", str(value or fallback)).strip("-_")
+    return result[:48] or fallback
+
+
+def _color(value: Any) -> str:
+    result = str(value or "#D94C42")
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", result):
+        raise ValueError("accent must use #RRGGBB.")
+    return result
+
+
+def normalize_elements(elements: Any, total_duration: float) -> list[dict[str, Any]]:
+    if not isinstance(elements, list) or len(elements) > 80:
+        raise ValueError("hyperframes.elements must be a list with at most 80 items.")
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(elements, 1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"Element {index} must be an object.")
+        kind = str(raw.get("type", "")).lower()
+        if kind not in {"title", "callout", "arrow"}:
+            raise ValueError(f"Unsupported HyperFrames element type: {kind}.")
+        ident = _safe_id(raw.get("id"), f"element-{index:03d}")
+        if ident in seen:
+            raise ValueError(f"Duplicate element id: {ident}.")
+        seen.add(ident)
+        start = _num(raw.get("start", 0), f"{ident}.start", 0, total_duration)
+        duration = _num(raw.get("duration"), f"{ident}.duration", 0.15, total_duration)
+        if start + duration > total_duration + 0.001:
+            raise ValueError(f"{ident} ends after the project duration.")
+        item: dict[str, Any] = {
+            "id": ident, "type": kind, "start": start,
+            "duration": duration, "accent": _color(raw.get("accent")),
+        }
+        if kind in {"title", "callout"}:
+            heading = str(raw.get("title") or raw.get("text") or "").strip()
+            if not heading or len(heading) > 110:
+                raise ValueError(f"{ident}.title/text must contain 1–110 characters.")
+            item.update({
+                "title": html.escape(heading, quote=True),
+                "kicker": html.escape(str(raw.get("kicker", ""))[:70], quote=True),
+                "note": html.escape(str(raw.get("note", ""))[:100], quote=True),
+                "x": _num(raw.get("x", 0.06), f"{ident}.x", 0.02, 0.88),
+                "y": _num(raw.get("y", 0.70), f"{ident}.y", 0.05, 0.88),
+                "width": _num(raw.get("width", 0.70), f"{ident}.width", 0.20, 0.90),
+                "font_size": int(_num(raw.get("font_size", 52), f"{ident}.font_size", 24, 72)),
+            })
+        else:
+            for coordinate in ("x1", "y1", "x2", "y2"):
+                item[coordinate] = _num(raw.get(coordinate), f"{ident}.{coordinate}", 0.02, 0.98)
+            if math.hypot(item["x2"] - item["x1"], item["y2"] - item["y1"]) < 0.025:
+                raise ValueError(f"{ident} arrow endpoints are too close.")
+            item["label"] = html.escape(str(raw.get("label", ""))[:70], quote=True)
+            item["stroke_width"] = int(_num(raw.get("stroke_width", 5), f"{ident}.stroke_width", 2, 12))
+        result.append(item)
+    return result
+
+
+def build_composition_html(total_duration: float, elements: Any,
+                           width: int = 1920, height: int = 1080) -> str:
+    total_duration = _num(total_duration, "total_duration", 0.2, 21600)
+    if not (320 <= width <= 7680 and 320 <= height <= 7680):
+        raise ValueError("Canvas dimensions must be between 320 and 7680.")
+    items = normalize_elements(elements, total_duration)
+    clips: list[str] = []
+    motions: list[dict[str, Any]] = []
+
+    for item in items:
+        ident, kind = item["id"], item["type"]
+        start, duration, accent = item["start"], item["duration"], item["accent"]
+        if kind in {"title", "callout"}:
+            label_html = (
+                f'<p class="hf-note">{item["note"]}</p>' if item["note"] else ""
+            )
+            clips.append(
+                f'<section id="{ident}" class="clip hf-card" data-start="{start:.3f}" '
+                f'data-duration="{duration:.3f}" data-track-index="0" '
+                f'style="left:{item["x"] * 100:.2f}%;top:{item["y"] * 100:.2f}%;'
+                f'width:{item["width"] * 100:.2f}%">'
+                f'<div class="hf-card-inner" data-hf-content>'
+                f'<p class="hf-kicker">{item["kicker"]}</p>'
+                f'<span class="hf-rule" style="background:{accent}"></span>'
+                f'<h1 style="font-size:{item["font_size"]}px">{item["title"]}</h1>'
+                f'{label_html}</div></section>'
+            )
+        else:
+            x1, y1 = item["x1"] * width, item["y1"] * height
+            x2, y2 = item["x2"] * width, item["y2"] * height
+            arrow_label = (
+                f'<span class="hf-arrow-label">{item["label"]}</span>'
+                if item["label"] else ""
+            )
+            clips.append(
+                f'<section id="{ident}" class="clip hf-arrow" data-start="{start:.3f}" '
+                f'data-duration="{duration:.3f}" data-track-index="1">'
+                f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none">'
+                f'<defs><marker id="head-{ident}" markerWidth="14" markerHeight="14" '
+                f'refX="10" refY="5" orient="auto" markerUnits="userSpaceOnUse">'
+                f'<path d="M0,0 L10,5 L0,10 Z" fill="{accent}"/></marker></defs>'
+                f'<path class="hf-arrow-path" d="M{x1:.2f},{y1:.2f} L{x2:.2f},{y2:.2f}" '
+                f'fill="none" stroke="{accent}" stroke-width="{item["stroke_width"]}" '
+                f'stroke-linecap="round" marker-end="url(#head-{ident})"/>'
+                f'</svg>{arrow_label}</section>'
+            )
+        motions.append({"id": ident, "type": kind, "start": start, "duration": duration})
+
+    motion_json = json.dumps(motions, ensure_ascii=False, separators=(",", ":"))
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width={width}, height={height}">
+<script src="{GSAP_CDN}"></script>
+<style>
+*{{box-sizing:border-box}} html,body{{margin:0;width:{width}px;height:{height}px;overflow:hidden;background:transparent}}
+#root{{position:relative;width:{width}px;height:{height}px;overflow:hidden;background:transparent}}
+.hf-card{{position:absolute;display:flex;align-items:flex-end;pointer-events:none}}
+.hf-card-inner{{width:100%;padding:23px 30px 25px 34px;border-left:4px solid #D94C42;
+ background:linear-gradient(90deg,rgba(8,13,18,.88),rgba(8,13,18,.62) 76%,rgba(8,13,18,0));
+ color:#fff;font-family:Arial,Helvetica,sans-serif;transform-origin:left bottom}}
+.hf-kicker{{margin:0 0 11px;color:#e2e5e6;font-size:17px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}}
+.hf-rule{{display:block;width:104px;height:4px;margin:0 0 14px;border-radius:3px}}
+.hf-card h1{{margin:0;color:#fff;font-family:Arial,Helvetica,sans-serif;font-weight:800;line-height:1.02;
+ letter-spacing:-.035em;text-shadow:0 3px 18px rgba(0,0,0,.42);overflow-wrap:anywhere}}
+.hf-note{{margin:12px 0 0;color:#d5dadd;font-size:16px;font-weight:600;letter-spacing:.11em;text-transform:uppercase}}
+.hf-arrow{{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}}
+.hf-arrow svg{{display:block;width:100%;height:100%;overflow:visible}}
+.hf-arrow-path{{filter:drop-shadow(0 2px 7px rgba(0,0,0,.38))}}
+.hf-arrow-label{{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+ padding:8px 13px;border-radius:7px;background:rgba(8,13,18,.88);color:#fff;
+ font:700 16px Arial,Helvetica,sans-serif;letter-spacing:.04em}}
+</style></head><body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="{total_duration:.3f}"
+ data-width="{width}" data-height="{height}">{"".join(clips)}</div>
+<script>
+(() => {{
+ const rows={motion_json}; const tl=gsap.timeline({{paused:true}});
+ for (const row of rows) {{
+  const root=document.getElementById(row.id); if(!root) continue;
+  const at=row.start, end=row.start+row.duration;
+  if(row.type==="arrow") {{
+   const path=root.querySelector(".hf-arrow-path");
+   if(path) {{
+    const length=path.getTotalLength();
+    gsap.set(path,{{strokeDasharray:length,strokeDashoffset:length}});
+    tl.to(path,{{strokeDashoffset:0,duration:Math.min(.85,row.duration*.42),ease:"power2.inOut"}},at+.12);
+   }}
+   const label=root.querySelector(".hf-arrow-label");
+   if(label) {{
+    tl.fromTo(label,{{autoAlpha:0,y:8}},{{autoAlpha:1,y:0,duration:.3,ease:"power2.out"}},at+.42);
+    tl.to(label,{{autoAlpha:0,duration:.22}},Math.max(at+.65,end-.28));
+   }}
+  }} else {{
+   const content=root.querySelector("[data-hf-content]"); if(!content) continue;
+   tl.fromTo(content,{{autoAlpha:0,y:24,scale:.985,filter:"blur(6px)"}},
+    {{autoAlpha:1,y:0,scale:1,filter:"blur(0px)",duration:.56,ease:"power3.out"}},at+.05);
+   tl.to(content,{{autoAlpha:0,y:-10,duration:.32,ease:"power2.in"}},Math.max(at+.62,end-.38));
+  }}
+ }}
+ window.__timelines=window.__timelines||{{}};
+ window.__timelines["main"]=tl;
+}})();
+</script></body></html>
+"""
+
+
+def render_hyperframes_overlay(config: dict[str, Any], build_dir: Path,
+                               total_duration: float, project_template: Path | None = None) -> dict[str, Any] | None:
+    if not isinstance(config, dict) or not config.get("enabled", False) or not config.get("elements"):
+        return None
+    width, height = int(config.get("width", 1920)), int(config.get("height", 1080))
+    document = build_composition_html(total_duration, config["elements"], width, height)
+    template = (project_template or ROOT / "hyperframes-engine").resolve()
+    if not (template / "hyperframes.json").is_file():
+        raise FileNotFoundError(
+            f"HyperFrames template missing at {template}; initialize it from the repository root."
+        )
+
+    generated = (build_dir / "hyperframes" / "render-project").resolve()
+    output = (build_dir / "hyperframes" / "overlay.mov").resolve()
+    if generated.exists():
+        shutil.rmtree(generated)
+    generated.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(template / "hyperframes.json", generated / "hyperframes.json")
+    if (template / "package.json").is_file():
+        shutil.copy2(template / "package.json", generated / "package.json")
+    (generated / "meta.json").write_text(
+        json.dumps({"id": "video1-overlay", "name": "Video1 transparent overlay"}, indent=2),
+        encoding="utf-8",
+    )
+    (generated / "index.html").write_text(document, encoding="utf-8")
+
+    version = str(config.get("version", DEFAULT_VERSION))
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("hyperframes.version must be a pinned version such as 0.8.221.")
+    workers = int(_num(config.get("workers", 2), "hyperframes.workers", 1, 4))
+    timeout = int(_num(config.get("timeout_seconds", 1800), "hyperframes.timeout_seconds", 60, 7200))
+    npx, ffprobe = shutil.which("npx"), shutil.which("ffprobe")
+    if not npx or not ffprobe:
+        raise RuntimeError("Both npx and ffprobe must be available on PATH.")
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    chrome_candidates = [
+        env.get("HYPERFRAMES_BROWSER_PATH", ""),
+        os.path.join(env.get("ProgramFiles", r"C:\Program Files"), "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(env.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(env.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe"),
+    ]
+    chrome = next((p for p in chrome_candidates if p and Path(p).is_file()), None)
+    if chrome:
+        env["HYPERFRAMES_BROWSER_PATH"] = chrome
+
+    command = [
+        npx, "--yes", f"hyperframes@{version}", "render", str(generated),
+        "--format", "mov", "--output", str(output), "--resolution", "landscape",
+        "--workers", str(workers), "--strict",
+    ]
+    rendered = subprocess.run(
+        command, cwd=str(ROOT), env=env, text=True, capture_output=True,
+        timeout=timeout, check=False,
+    )
+    if rendered.returncode != 0 or not output.is_file():
+        details = (rendered.stderr or rendered.stdout or "No renderer output.").strip()
+        raise RuntimeError("HyperFrames render failed:\n" + details[-5000:])
+
+    probe = subprocess.run(
+        [ffprobe, "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=codec_name,pix_fmt,width,height", "-of", "json", str(output)],
+        text=True, capture_output=True, check=False,
+    )
+    if probe.returncode != 0:
+        raise RuntimeError("ffprobe could not inspect the HyperFrames MOV: " + probe.stderr[-2000:])
+    streams = json.loads(probe.stdout).get("streams", [])
+    stream = streams[0] if streams else {}
+    codec, pixel_format = str(stream.get("codec_name", "")), str(stream.get("pix_fmt", ""))
+    if codec != "prores" or "a" not in pixel_format:
+        raise RuntimeError(
+            f"HyperFrames alpha verification failed: codec={codec!r}, pix_fmt={pixel_format!r}."
+        )
+    return {
+        "path": str(output), "codec": codec, "pixel_format": pixel_format,
+        "width": int(stream.get("width", width)), "height": int(stream.get("height", height)),
+        "elements": len(normalize_elements(config["elements"], total_duration)),
+        "duration": round(total_duration, 3),
+    }
+
+
+def add_overlay_track(spec: dict[str, Any], render: dict[str, Any], total_duration: float) -> None:
+    tracks = spec.setdefault("tracks", [])
+    if not isinstance(tracks, list):
+        raise ValueError("CapCut compile spec tracks must be a list.")
+    tracks.append({
+        "type": "video",
+        "name": "HyperFrames Motion Graphics",
+        "items": [{
+            "type": "video", "path": render["path"], "start": 0.0,
+            "duration": round(float(total_duration), 3),
+            "ref": "hyperframes_motion_graphics",
+            "scale": 1.0, "x": 0.0, "y": 0.0, "rotation": 0,
+        }],
+    })
