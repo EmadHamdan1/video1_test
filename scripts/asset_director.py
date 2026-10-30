@@ -58,9 +58,11 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
         requested = []
 
     secondary = [
-        item
+        {**item, "_track_name": str(track.get("name", "supporting_layer"))}
         for track in spec.get("tracks", [])
-        if track.get("name") in {"Fast Secondary Image Inserts", "HyperFrames Motion Graphics", "Story Fact Callouts"}
+        if track.get("name") in {
+            "Fast Secondary Image Inserts", "Story Fact Callouts", "Icon Overlays"
+        }
         for item in track.get("items", [])
     ]
     beats = config.get("story_beats", [])
@@ -83,7 +85,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
                 "path": str(item.get("path", "")),
                 "start": float(item.get("start", 0.0)),
                 "duration": float(item.get("duration", 0.0)),
-                "track": str(item.get("track_name", "supporting_layer")),
+                "track": str(item.get("_track_name", "supporting_layer")),
             }
             for item in secondary
             if float(item.get("start", 0.0)) < end
