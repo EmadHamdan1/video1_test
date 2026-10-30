@@ -985,9 +985,19 @@ def make_spec(
     caption_items: list[dict[str, Any]] = []
     text_preset_name = str(motion.get("text_preset", "marker_caption"))
     text_preset = load_text_animation_preset(text_preset_name)
+    text_policy = config.get("text_policy", {})
+    if not isinstance(text_policy, dict):
+        text_policy = {}
+    allow_narration_subtitles = bool(
+        text_policy.get("narration_subtitles", True)
+        and text_policy.get("spoken_transcript_on_screen", True)
+    )
+    allow_story_labels = bool(text_policy.get("allow_story_labels", True))
     transcript_enabled = bool(
-        settings.get("show_captions", False)
-        and settings.get("add_captions_when_transcribed", True) and captions_path and captions
+        allow_narration_subtitles
+        and settings.get("show_captions", False)
+        and settings.get("add_captions_when_transcribed", True)
+        and captions_path and captions
     )
     caption_sources: list[dict[str, Any]] = []
     max_words = int(settings.get("caption_words_per_chunk", text_preset.get("words_per_chunk", 5)))
@@ -998,7 +1008,12 @@ def make_spec(
             cue_end = min(duration, float(cue.get("end", 0.0)))
             caption_sources.extend(split_timed_text(cue_start, cue_end, str(cue.get("text", "")), max_words, min_hold))
         caption_track_name = "Animated Captions"
-    elif settings.get("show_captions", False) and settings.get("show_scene_text_without_transcript", True) and config.get("scene_texts"):
+    elif (
+        allow_story_labels
+        and settings.get("show_captions", False)
+        and settings.get("show_scene_text_without_transcript", True)
+        and config.get("scene_texts")
+    ):
         texts = config.get("scene_texts", [])
         for index, scene in enumerate(scene_rows):
             if index >= len(texts) or not str(texts[index]).strip():
