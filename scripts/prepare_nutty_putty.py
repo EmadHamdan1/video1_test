@@ -1324,12 +1324,23 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     settings = {
         "motion_preset": "nutty_putty_casefile",
         "layout_mode": "hybrid_whiteboard",
-        # Keep the previous keyframed hero-motion engine, but remove layers that
-        # caused unrelated images, badges and oversized callouts to collide.
-        "stock_media": {"enabled": False, "providers": [], "per_query": 0,
-                        "max_total": 0, "max_queries": 0, "hero_every": 0,
-                        "min_width": 1280, "allow_video": False, "allow_share_alike": False},
-        "secondary_image_inserts": False,
+        # Existing story artwork remains the primary visual. Licensed stock and
+        # independently animated graphics fill only verified story-beat gaps.
+        "stock_media": {
+            "enabled": True,
+            "providers": ["openverse", "wikimedia", "pexels", "pixabay"],
+            "per_query": 1,
+            "max_total": 24,
+            "max_queries": 26,
+            "hero_every": 0,
+            "min_width": 1280,
+            "min_cutout_width": 640,
+            "allow_video": True,
+            "allow_share_alike": False,
+        },
+        "secondary_image_inserts": True,
+        "insert_every": 3,
+        "allow_adjacent_local_support": False,
         "show_motion_badges": False,
         "show_fact_callouts": False,
         "keyword_callouts": False,
@@ -1458,6 +1469,100 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "background_music": {"path": str(music_path.resolve()), "start": 0.0,
                               "duration": round(duration, 3), "volume": 0.16},
         "settings": settings,
+        "text_policy": {
+            "narration_subtitles": False,
+            "spoken_transcript_on_screen": False,
+            "allow_story_labels": True,
+        },
+    }
+
+    # Route selected, story-specific graphics to different specialist renderers.
+    # HyperFrames creates SVG/vector/image layers; Remotion handles a reusable React case-file composition.
+    def phrase_start(phrase: str, fallback_index: int) -> float:
+        match = find_phrase(tokens, phrase)
+        if match:
+            return max(0.0, min(duration - 0.2, float(match[0])))
+        return float(rows[min(fallback_index, len(rows) - 1)]["start_s"])
+
+    corkscrew_start = phrase_start("CORKSCREW", 5)
+    dimensions_start = phrase_start("EIGHTEEN INCHES", 11)
+    rescue_start = phrase_start("TEAMS ARRIVED", 15)
+    rope_start = phrase_start("ROPE SNAPPED", 19)
+    # A simplified schematic: it is explanatory artwork, not a surveyed cave map.
+    config["hyperframes"] = {
+        "enabled": True,
+        "version": "0.8.221",
+        "workers": 2,
+        "elements": [
+            {
+                "id": "corkscrew-casefile",
+                "type": "title",
+                "start": corkscrew_start,
+                "duration": min(4.2, duration - corkscrew_start),
+                "kicker": "CAVE PROFILE",
+                "title": "THE CORKSCREW",
+                "note": "ILLUSTRATIVE / NOT TO SCALE",
+                "x": 0.055, "y": 0.66, "width": 0.44,
+                "font_size": 46, "accent": "#D94C42",
+                "emotion": "tense", "shock_level": 2,
+            },
+            {
+                "id": "corkscrew-passage-outline",
+                "type": "shape",
+                "shape": "path",
+                "path_d": "M0 210 C60 25 145 18 220 155 C285 258 375 255 510 82",
+                "start": corkscrew_start + 0.3,
+                "duration": min(3.8, duration - corkscrew_start - 0.3),
+                "x": 0.48, "y": 0.32, "width": 0.31, "height": 0.25,
+                "fill": "#FFFFFF", "stroke": "#D94C42",
+                "stroke_width": 10, "emotion": "mysterious",
+            },
+            {
+                "id": "corkscrew-descent-arrow",
+                "type": "arrow",
+                "start": corkscrew_start + 0.65,
+                "duration": min(2.8, duration - corkscrew_start - 0.65),
+                "x1": 0.57, "y1": 0.48, "x2": 0.70, "y2": 0.61,
+                "label": "DESCENT PATH", "accent": "#D94C42",
+            },
+            {
+                "id": "opening-dimensions",
+                "type": "text",
+                "start": dimensions_start,
+                "duration": min(2.8, duration - dimensions_start),
+                "text": "18 IN × 10 IN",
+                "x": 0.68, "y": 0.76, "width": 0.25,
+                "font_size": 31, "accent": "#F6CF45",
+                "emotion": "tense", "shock_level": 2,
+            },
+            {
+                "id": "rope-pulley-ring",
+                "type": "shape",
+                "shape": "circle",
+                "start": rope_start + 0.2,
+                "duration": min(2.7, duration - rope_start - 0.2),
+                "x": 0.72, "y": 0.34, "width": 0.10, "height": 0.18,
+                "fill": "#15191E", "stroke": "#D94C42", "stroke_width": 9,
+                "emotion": "urgent", "shock_level": 3,
+            },
+        ],
+    }
+    config["remotion"] = {
+        "enabled": True,
+        "compositions": [
+            {
+                "id": "CaseFileOverlay",
+                "track_name": "Remotion - Rescue Case File",
+                "start": rescue_start,
+                "duration": min(5.0, duration - rescue_start),
+                "props": {
+                    "kicker": "RESCUE OPERATION",
+                    "heading": "27 HOURS",
+                    "note": "NOVEMBER 24–25, 2009",
+                    "accent": "#D94C42",
+                },
+            },
+        ],
     }
     config["settings"]["icon_overlays"] = overlays
     config["settings"]["callout_overlays"] = fact_overlays
