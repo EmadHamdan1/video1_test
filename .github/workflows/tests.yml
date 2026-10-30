@@ -59,3 +59,15 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Type-check reusable motion compositions
         run: npm run typecheck
+      - name: Ensure Remotion headless browser
+        run: npx remotion browser ensure
+      - name: Render transparent GSAP composition
+        run: npm run render:casefile:alpha
+      - name: Verify ProRes 4444 alpha output
+        shell: bash
+        run: |
+          test -f out/casefile-overlay.mov
+          stream=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,pix_fmt -of default=noprint_wrappers=1:nokey=1 out/casefile-overlay.mov)
+          echo "$stream"
+          echo "$stream" | grep -q "prores"
+          echo "$stream" | grep -q "yuva444p10le"
