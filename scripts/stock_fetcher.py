@@ -5,6 +5,7 @@ and writes per-asset provenance into assets/stock/stock_manifest.json + CREDITS.
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import html
 import json
@@ -472,10 +473,75 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
     return manifest
 
 
+def _load_reviewed_generated_entries(project_dir: Path,
+                                      log: Callable[[str], None] = print) -> list[dict[str, Any]]:
+    """Load only explicitly selected, license-reviewed AI illustrations from the asset tool."""
+    manifest_path = project_dir / "media_candidates.csv"
+    if not manifest_path.is_file():
+        return []
+    generated: list[dict[str, Any]] = []
+    try:
+        with manifest_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except OSError as exc:
+        log("Could not read generated-asset manifest: " + str(exc))
+        return []
+
+    for row in rows:
+        if str(row.get("kind", "")).lower() not in {"image", "photo"}:
+            continue
+        if str(row.get("selected", "")).strip().lower() not in {"yes", "true", "1"}:
+            continue
+        if str(row.get("license_reviewed", "")).strip().lower() not in {"yes", "true", "1"}:
+            continue
+        path = Path(str(row.get("downloaded_path", "")).strip()).expanduser()
+        if not path.is_file() or path.suffix.lower() not in IMAGE_EXT or not _valid_image(path):
+            continue
+        segment_id = str(row.get("segment_id", "")).strip()
+        match = re.fullmatch(r"scene_(\d{1,4})", segment_id)
+        if not match:
+            log("Reviewed generated image has no valid story scene id; skipped: " + str(path))
+            continue
+        beat_index = int(match.group(1)) - 1
+        if beat_index < 0:
+            continue
+        width = height = 0
+        try:
+            from PIL import Image
+            with Image.open(path) as image:
+                width, height = image.size
+        except Exception:
+            continue
+        generated.append({
+            "provider": "reviewed_generated_asset",
+            "id": str(row.get("id", path.stem)),
+            "kind": "photo",
+            "path": str(path.resolve()),
+            "query": str(row.get("query", row.get("title", ""))),
+            "beat": beat_index,
+            "width": width,
+            "height": height,
+            "license": str(row.get("license", "Generated output — review provider terms")),
+            "page_url": str(row.get("source_page", "")),
+            "credit": str(row.get("creator", "AI-generated asset")),
+            "alpha_channel": _image_has_transparency(path),
+            "asset_origin": "ai_generated_and_license_reviewed",
+            "license_reviewed": True,
+        })
+    return generated
+
+
 def load_stock_pool_entries(config: dict[str, Any], project_dir: Path,
                             log: Callable[[str], None] = print) -> list[dict[str, Any]]:
     entries = fetch_stock(config, project_dir, log)
-    return [item for item in entries if item.get("kind") == "photo" and Path(str(item.get("path", ""))).is_file()]
+    licensed_stock = [
+        item for item in entries
+        if item.get("kind") == "photo" and Path(str(item.get("path", ""))).is_file()
+    ]
+    reviewed_generated = _load_reviewed_generated_entries(project_dir, log)
+    if reviewed_generated:
+        log("Reviewed generated visual assets available: %d" % len(reviewed_generated))
+    return licensed_stock + reviewed_generated
 
 
 def load_stock_pool(config: dict[str, Any], project_dir: Path,
