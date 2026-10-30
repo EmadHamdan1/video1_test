@@ -43,6 +43,40 @@ jobs:
             Write-Host "PowerShell syntax OK: $file"
           }
 
+
+  hyperframes-alpha-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python image dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Install FFmpeg tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+      - name: Render layered HyperFrames composition
+        run: python scripts/render_hyperframes_demo.py
+      - name: Verify transparent ProRes output and duration
+        shell: bash
+        run: |
+          output="build/hyperframes-demo/hyperframes/overlay.mov"
+          test -f "$output"
+          metadata=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,pix_fmt,duration -of json "$output")
+          echo "$metadata"
+          echo "$metadata" | grep -q '"codec_name": "prores"'
+          echo "$metadata" | grep -Eq '"pix_fmt": "yuva'
+          duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output")
+          python -c "import sys; d=float(sys.argv[1]); assert abs(d-6.0)<0.06, f'wrong overlay duration: {d}'" "$duration"
+
   motion-lab-typecheck:
     runs-on: ubuntu-latest
     defaults:
