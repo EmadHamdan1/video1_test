@@ -31,6 +31,25 @@ class MotionLibraryTests(unittest.TestCase):
         self.assertEqual(first["id"], second["id"])
         self.assertEqual(first["energy"], "subtle")
 
+
+    def test_capcut_adapter_uses_only_supported_transform_properties(self):
+        class Timeline:
+            def __init__(self):
+                self.keys = []
+            def key(self, target, prop, time, value, easing=None):
+                self.keys.append((target, prop, float(time), float(value), easing))
+
+        timeline = Timeline()
+        recipe = motion_library.choose_recipe("entrance", "urgent", 3, "scene-001")
+        motion_library.apply_capcut_motion(timeline, "scene-001", 3.2, 0.62, -0.24, 0.0, recipe)
+        self.assertTrue(timeline.keys)
+        self.assertTrue(all(
+            item[1] in {"uniform_scale", "position_x", "position_y", "rotation"}
+            for item in timeline.keys
+        ))
+        self.assertTrue(all(0 <= item[2] <= 3.2 for item in timeline.keys))
+        self.assertTrue(any(item[1] == "rotation" for item in timeline.keys))
+
     def test_recent_recipe_ids_are_avoided_when_alternatives_exist(self):
         first = motion_library.choose_recipe("entrance", "tense", 1, "beat-A")
         second = motion_library.choose_recipe("entrance", "tense", 1, "beat-B", [first["id"]])
