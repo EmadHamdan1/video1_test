@@ -153,10 +153,10 @@ def build_catalog() -> dict[str, dict[str, Any]]:
                 "exit": {"to": exit_state},
                 "hold": {"scale": 1.0, "autoAlpha": 1.0},
                 "recommended_for": {
-                    "tense": ["balanced", "dramatic"],
-                    "solemn": ["subtle"],
-                    "calm": ["subtle", "balanced"],
-                }[energy] if energy in {"subtle", "balanced"} else ["shock", "action"],
+                    "subtle": ["calm", "solemn", "grief", "neutral"],
+                    "balanced": ["tense", "curious", "mysterious", "urgent"],
+                    "dramatic": ["shock", "action", "panic"],
+                }[energy],
             }
     return catalogue
 
