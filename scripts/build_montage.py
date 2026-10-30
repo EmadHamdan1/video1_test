@@ -15,6 +15,9 @@ from pathlib import Path
 from typing import Any
 
 import hyperframes_bridge as hyperframes_bridge
+import production_director
+import renderer_router
+import toolchain_doctor
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1403,22 +1406,34 @@ def main(argv: list[str] | None = None) -> int:
         config, audio, images, presenters, duration, captions, captions_path
     )
 
-    # Optional transparent motion-graphics layer. Original photos, narration and
-    # native CapCut keyframes remain separate and editable.
-    hyperframes_result = hyperframes_bridge.render_hyperframes_overlay(
-        config.get("hyperframes", {}),
-        BUILD_DIR,
-        duration,
-        project_template=ROOT / "hyperframes-engine",
+    # Create the shared production contract before invoking any graphics renderer.
+    # Source media and narration remain editable CapCut tracks; specialised renderers
+    # only contribute additional, independently named visual tracks.
+    toolchain = toolchain_doctor.inspect_toolchain(ROOT)
+    (BUILD_DIR / "TOOLCHAIN_REPORT.json").write_text(
+        json.dumps(toolchain, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    if hyperframes_result:
-        hyperframes_bridge.add_overlay_track(spec, hyperframes_result, duration)
+    (BUILD_DIR / "TOOLCHAIN_REPORT.md").write_text(
+        toolchain_doctor.render_report(toolchain), encoding="utf-8"
+    )
+    production_plan = production_director.build_production_plan(
+        config, scenes, duration, toolchain=toolchain
+    )
+    production_director.write_production_plan(
+        production_plan, BUILD_DIR / "production_plan.json"
+    )
+    graphics_outputs = renderer_router.render_selected_graphics(
+        config, BUILD_DIR, duration, ROOT
+    )
+    renderer_router.attach_graphics_tracks(spec, graphics_outputs)
+    (BUILD_DIR / "RENDERER_MANIFEST.json").write_text(
+        json.dumps(graphics_outputs, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    for item in graphics_outputs:
         log(
-            "HyperFrames overlay ready: "
-            + hyperframes_result["path"]
-            + " ("
-            + hyperframes_result["pixel_format"]
-            + ")"
+            str(item.get("renderer", "graphics")).upper()
+            + " overlay ready: " + str(item["path"])
+            + " (" + str(item.get("pixel_format", "alpha checked")) + ")"
         )
 
     spec_path = BUILD_DIR / "compile-spec.json"
