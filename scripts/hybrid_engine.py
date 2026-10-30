@@ -116,7 +116,8 @@ def pop_motion(tl: _Timeline, ref: str, D: float, S: float, x: float, y: float,
 def scene_motion(tl: _Timeline, ref: str, D: float, S: float, bx: float, by: float,
                  index: int, edge: int, shock: int, is_last: bool,
                  pan_amount: float, push: float, emotion: str = "",
-                 trigger_word: str = "", forced_kind: str | None = None) -> str:
+                 trigger_word: str = "", forced_kind: str | None = None,
+                 forced_exit: str | None = None) -> str:
     """Hero image: story-aware entrance recipe -> living hold -> overlapping exit."""
     E = _clamp(D * 0.22, 0.16, 0.30)
     f = E / 0.30
@@ -232,7 +233,7 @@ def scene_motion(tl: _Timeline, ref: str, D: float, S: float, bx: float, by: flo
 
     if exit_len > 0:
         sc, x, y, r = at(xs)
-        ek = EXITS[index % len(EXITS)]
+        ek = forced_exit or EXITS[index % len(EXITS)]
         if ek == "shrink":
             tl.key(ref, "uniform_scale", xs + 0.4 * (D - xs), sc * 1.05, "ease-out")
             tl.key(ref, "uniform_scale", D, .05 * S, "ease-in")
@@ -453,15 +454,26 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
         chosen_motion = motion_library.choose_recipe(
             "entrance", str(beat.get("emotion", "")), shock, ref, recent_motion_ids
         )
+        chosen_camera = motion_library.choose_recipe(
+            "camera", str(beat.get("emotion", "")), shock, ref + ":camera", recent_motion_ids
+        )
+        chosen_transition = motion_library.choose_recipe(
+            "transition", str(beat.get("emotion", "")), shock, ref + ":transition", recent_motion_ids
+        )
+        hold_profile = motion_library.capcut_hold_profile(chosen_camera)
         entrance_kind[ref] = scene_motion(
-            tl, ref, clip_len, S, bx, by, index, edge, shock, is_last, pan_amount, push,
+            tl, ref, clip_len, S, bx, by, index, edge, shock, is_last,
+            pan_amount * hold_profile["pan_factor"], push * hold_profile["push_factor"],
             emotion=str(beat.get("emotion", "")), trigger_word=str(beat.get("trigger_word", "")),
             forced_kind=(
                 "pop" if index == 0 and shock < 3
                 else motion_library.hero_entrance_style(chosen_motion)
             ),
+            forced_exit=motion_library.capcut_transition_exit(chosen_transition),
         )
-        recent_motion_ids.append(chosen_motion["id"])
+        recent_motion_ids.extend([
+            chosen_motion["id"], chosen_camera["id"], chosen_transition["id"]
+        ])
         recent_motion_ids = recent_motion_ids[-15:]
         hero_scale[ref] = S
         label = ("C_full_bleed_stock_broll" if full_bleed_stock else
@@ -478,6 +490,9 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             "trigger_word": str(beat.get("trigger_word", "")),
             "motion_recipe_id": chosen_motion["id"],
             "motion_family": chosen_motion["family"],
+            "camera_recipe_id": chosen_camera["id"],
+            "transition_recipe_id": chosen_transition["id"],
+            "transition_family": chosen_transition["family"],
         })
 
     sfx_cues: list[tuple[float, list[str]]] = []
