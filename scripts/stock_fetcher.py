@@ -473,7 +473,7 @@ def fetch_stock(config: dict[str, Any], project_dir: Path, log: Callable[[str], 
     return manifest
 
 
-def _load_reviewed_generated_entries(project_dir: Path,
+def _load_selected_reviewed_entries(project_dir: Path,
                                       log: Callable[[str], None] = print) -> list[dict[str, Any]]:
     """Load only explicitly selected, license-reviewed AI illustrations from the asset tool."""
     manifest_path = project_dir / "media_candidates.csv"
@@ -525,7 +525,7 @@ def _load_reviewed_generated_entries(project_dir: Path,
             "page_url": str(row.get("source_page", "")),
             "credit": str(row.get("creator", "AI-generated asset")),
             "alpha_channel": _image_has_transparency(path),
-            "asset_origin": "ai_generated_and_license_reviewed",
+            "asset_origin": "selected_and_license_reviewed_local_asset",
             "license_reviewed": True,
         })
     return generated
@@ -538,10 +538,10 @@ def load_stock_pool_entries(config: dict[str, Any], project_dir: Path,
         item for item in entries
         if item.get("kind") == "photo" and Path(str(item.get("path", ""))).is_file()
     ]
-    reviewed_generated = _load_reviewed_generated_entries(project_dir, log)
-    if reviewed_generated:
-        log("Reviewed generated visual assets available: %d" % len(reviewed_generated))
-    return licensed_stock + reviewed_generated
+    reviewed_local_assets = _load_selected_reviewed_entries(project_dir, log)
+    if reviewed_local_assets:
+        log("Selected and license-reviewed local visuals available: %d" % len(reviewed_local_assets))
+    return licensed_stock + reviewed_local_assets
 
 
 def load_stock_pool(config: dict[str, Any], project_dir: Path,
