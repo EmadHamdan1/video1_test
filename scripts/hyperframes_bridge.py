@@ -403,10 +403,8 @@ def render_hyperframes_overlay(config: dict[str, Any], build_dir: Path,
         return None
     width, height = int(config.get("width", 1920)), int(config.get("height", 1080))
     template = (project_template or ROOT / "hyperframes-engine").resolve()
-    if not (template / "hyperframes.json").is_file():
-        raise FileNotFoundError(
-            f"HyperFrames template missing at {template}; initialize it from the repository root."
-        )
+    template_config = template / "hyperframes.json"
+    use_local_template = template_config.is_file()
 
     generated = (build_dir / "hyperframes" / "render-project").resolve()
     output = (build_dir / "hyperframes" / "overlay.mov").resolve()
@@ -414,9 +412,27 @@ def render_hyperframes_overlay(config: dict[str, Any], build_dir: Path,
         shutil.rmtree(generated)
     assets_dir = generated / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(template / "hyperframes.json", generated / "hyperframes.json")
-    if (template / "package.json").is_file():
-        shutil.copy2(template / "package.json", generated / "package.json")
+    if use_local_template:
+        # Respect the user's existing local HyperFrames project template without
+        # modifying it. Only the build-local copy is used for this render.
+        shutil.copy2(template_config, generated / "hyperframes.json")
+        if (template / "package.json").is_file():
+            shutil.copy2(template / "package.json", generated / "package.json")
+    else:
+        # A minimal official HyperFrames project config keeps fresh clones portable.
+        # The local untracked template, when present, still takes precedence.
+        (generated / "hyperframes.json").write_text(
+            json.dumps({
+                "$schema": "https://hyperframes.heygen.com/schema/hyperframes.json",
+                "registry": "https://raw.githubusercontent.com/heygen-com/hyperframes/main/registry",
+                "paths": {
+                    "blocks": "compositions",
+                    "components": "compositions/components",
+                    "assets": "assets",
+                },
+            }, ensure_ascii=False, indent=2) + "\\n",
+            encoding="utf-8",
+        )
     (generated / "meta.json").write_text(
         json.dumps({"id": "video1-overlay", "name": "Video1 transparent graphics"}, indent=2),
         encoding="utf-8",
