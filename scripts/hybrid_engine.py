@@ -578,7 +578,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             # Reuse a supplied neighbouring illustration only when the story author has
             # explicitly confirmed chronological image ordering. Never fill the frame with
             # an unrelated local image merely because the stock search returned nothing.
-            if pick is None and settings.get("allow_adjacent_local_support", False):
+            if pick is None and settings.get("allow_adjacent_local_support", True):
                 src = indices[index] if index < len(indices) else index % len(images)
                 for candidate_index in (src - 1, src + 1):
                     if not 0 <= candidate_index < len(images):
@@ -613,7 +613,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                             continue
                         layer_path = candidate_path
                         break
-                    if layer_path is None and settings.get("allow_adjacent_local_support", False):
+                    if layer_path is None and settings.get("allow_adjacent_local_support", True):
                         src = indices[index] if index < len(indices) else index % len(images)
                         for candidate_index in (src - 1, src + 1):
                             if not 0 <= candidate_index < len(images):
