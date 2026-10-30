@@ -1,0 +1,2 @@
+# Optional local background removal. This is intentionally separate from base requirements.
+rembg>=2.0,<3
