@@ -364,6 +364,39 @@ def build_composition_html(total_duration: float, elements: Any,
 """
 
 
+def verify_render_metadata(probe_payload: dict[str, Any], expected_duration: float,
+                           fps: int = 30) -> dict[str, Any]:
+    streams = probe_payload.get("streams", [])
+    stream = streams[0] if streams else {}
+    format_data = probe_payload.get("format", {}) or {}
+    codec = str(stream.get("codec_name", ""))
+    pixel_format = str(stream.get("pix_fmt", ""))
+    if codec != "prores" or "a" not in pixel_format:
+        raise RuntimeError(
+            f"HyperFrames alpha verification failed: codec={codec!r}, pix_fmt={pixel_format!r}."
+        )
+    raw_duration = stream.get("duration") or format_data.get("duration")
+    try:
+        source_duration = float(raw_duration)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("HyperFrames output has no readable duration metadata.") from exc
+    if not math.isfinite(source_duration) or source_duration <= 0:
+        raise RuntimeError("HyperFrames output has invalid duration metadata.")
+    if abs(source_duration - float(expected_duration)) > (1.0 / max(1, fps)) + 0.02:
+        raise RuntimeError(
+            f"HyperFrames duration verification failed: expected {expected_duration:.3f}s, "
+            f"got {source_duration:.3f}s."
+        )
+    return {
+        "codec": codec,
+        "pixel_format": pixel_format,
+        "width": int(stream.get("width", 1920)),
+        "height": int(stream.get("height", 1080)),
+        "fps": int(fps),
+        "duration": source_duration,
+    }
+
+
 def render_hyperframes_overlay(config: dict[str, Any], build_dir: Path,
                                total_duration: float, project_template: Path | None = None) -> dict[str, Any] | None:
     if not isinstance(config, dict) or not config.get("enabled", False) or not config.get("elements"):
@@ -459,31 +492,22 @@ def render_hyperframes_overlay(config: dict[str, Any], build_dir: Path,
 
     probe = subprocess.run(
         [ffprobe, "-v", "error", "-select_streams", "v:0",
-         "-show_entries", "stream=codec_name,pix_fmt,width,height,duration", "-of", "json", str(output)],
+         "-show_entries", "stream=codec_name,pix_fmt,width,height,duration:format=duration",
+         "-of", "json", str(output)],
         text=True, capture_output=True, check=False,
     )
     if probe.returncode != 0:
         raise RuntimeError("ffprobe could not inspect the HyperFrames MOV: " + probe.stderr[-2000:])
-    streams = json.loads(probe.stdout).get("streams", [])
-    stream = streams[0] if streams else {}
-    codec, pixel_format = str(stream.get("codec_name", "")), str(stream.get("pix_fmt", ""))
-    if codec != "prores" or "a" not in pixel_format:
-        raise RuntimeError(
-            f"HyperFrames alpha verification failed: codec={codec!r}, pix_fmt={pixel_format!r}."
-        )
+    metadata = verify_render_metadata(json.loads(probe.stdout), total_duration, fps=30)
     return {
         "path": str(output),
-        "codec": codec,
-        "pixel_format": pixel_format,
-        "width": int(stream.get("width", width)),
-        "height": int(stream.get("height", height)),
+        **metadata,
         "elements": len(normalized),
         "element_types": {
             kind: sum(item["type"] == kind for item in normalized)
             for kind in sorted({item["type"] for item in normalized})
         },
         "gsap_source": "local" if local_gsap else "pinned_cdn_fallback",
-        "duration": round(total_duration, 3),
     }
 
 
