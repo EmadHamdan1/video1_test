@@ -1,39 +1,29 @@
 # Video1 Motion Lab
 
-This is the source library for reusable motion-graphics elements used with the Video1 CapCut production system. It contains editable Remotion source (not just pre-rendered stock clips): a whiteboard scene card, word-by-word kinetic captions, and a transition showcase.
+Reusable Remotion + GSAP compositions that feed the Video1 production pipeline. These are renderer components, not a second editor: their outputs are imported as named tracks into the editable CapCut draft.
 
-## Install once
+## Available compositions
 
-From PowerShell at the repository root:
+- `WhiteboardExplainer`: a designed explainer scene.
+- `KineticCaption`: kinetic typography component. It is available as a graphic component, but the production policy forbids transcript subtitles.
+- `TransitionShowcase`: visual test bed for transition timing.
+- `NuttyPuttyTitle`: the story opening graphic.
+- `CaseFileOverlay`: a transparent documentary lower-third animated with GSAP.
+
+## Commands
 
 ```powershell
 cd .\motion-lab
 npm install
 npm run typecheck
 npm run studio
+npm run render:casefile:alpha
 ```
 
-Remotion Studio opens a local preview. Inspect the compositions before rendering.
+Transparent output uses ProRes 4444 and a PNG frame sequence. Import short samples into CapCut and verify that the empty areas remain transparent. Only rendered components requested by the shot plan should be exported.
 
-## Render a motion element
+## Shared production architecture
 
-```powershell
-npm run render:whiteboard
-npm run render:caption
-npm run render:caption:alpha
-npm run render:transitions
-```
+CapCut owns editable media tracks and final assembly. Python creates a common shot/layer plan. HyperFrames + GSAP handles HTML/SVG graphics and multi-layer compositions; Remotion + GSAP handles reusable React compositions. Each output is returned to CapCut as its own named track. The two renderers must not animate the same element.
 
-Outputs are written to `motion-lab/out/`, which is intentionally ignored by Git. Whiteboard and transition samples are full-frame video clips. `render:caption:alpha` exports the caption layer as ProRes 4444 with an alpha channel, using Remotion's documented transparency settings: https://www.remotion.dev/docs/transparent-videos. Import that short MOV into CapCut and inspect the transparent area before relying on it; codec support can vary by CapCut build. ProRes files can be large, so render only the overlays you actually use.
-
-## Reuse with a story
-
-- `WhiteboardExplainer` accepts `title`, `subtitle`, `imageUrl`, `accent`, and `sceneNumber` input props.
-- `KineticCaption` accepts `text`, `accent`, and `mode` (`phrase`, `punch`, or `lower-third`). It staggers word entrances with springs and a restrained underline draw.
-- `TransitionShowcase` demonstrates a small, intentional palette: fade and slide transitions with smooth timing. It is a visual lab, not a promise that every Remotion effect exists in CapCut's native catalogue.
-
-Remotion renders are imported into CapCut as clips. The rest of the timeline (source photos/video, presenter poses, narration, captions, and SFX) remains editable, but a rendered Remotion clip itself is one video asset in CapCut.
-
-## Licensing / costs
-
-Remotion's terms depend on the user and organization; review the current official license before using it commercially: https://www.remotion.dev/docs/license/pricing. Provider-based AI images are a separate optional feature and may incur usage charges. This motion lab runs locally after npm dependencies are installed.
+See `TOOLKIT_PLAN.md` for routing, roles, and constraints.
