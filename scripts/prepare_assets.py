@@ -842,6 +842,110 @@ def review_license(project: str, candidate_id: str, notes: str) -> None:
     log("Marked " + candidate_id + " as license-reviewed. This records your review; it is not legal advice.")
 
 
+def remove_background(
+    project: str,
+    candidate_id: str,
+    confirm_model_download: bool,
+) -> Path:
+    """Create a real-alpha PNG cutout from a selected, license-reviewed image."""
+    if not confirm_model_download:
+        raise ValueError(
+            "Background removal may download a local model on first use. "
+            "Re-run with --confirm-model-download after reviewing the model/download size."
+        )
+    try:
+        from rembg import remove
+    except ImportError as exc:
+        raise RuntimeError(
+            "The optional rembg package is not installed. No package was installed automatically. "
+            "Review the optional cutout requirements and install it into the existing .venv only when needed."
+        ) from exc
+
+    paths = project_paths(project)
+    rows = read_csv(paths["manifest"])
+    source = next((row for row in rows if row.get("id", "").upper() == candidate_id.upper()), None)
+    if source is None:
+        raise KeyError("Candidate ID not found: " + candidate_id)
+    if str(source.get("kind", "")).lower() not in {"image", "photo"}:
+        raise ValueError("Background removal accepts image candidates only.")
+    if str(source.get("selected", "")).strip().lower() not in {"yes", "true", "1"}:
+        raise ValueError("Select the source image in the asset gallery before creating a cutout.")
+    if str(source.get("license_reviewed", "")).strip().lower() not in {"yes", "true", "1"}:
+        raise ValueError("Review the source/model terms before creating a cutout.")
+    source_path = Path(str(source.get("downloaded_path", "")).strip()).expanduser()
+    if not source_path.is_file():
+        raise FileNotFoundError("Selected local image not found: " + str(source_path))
+    if source_path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+        raise ValueError("Unsupported image format for background removal: " + source_path.suffix)
+
+    from PIL import Image
+    if not _valid_image(source_path):
+        raise ValueError("Selected image is not a valid readable image.")
+
+    log("Removing background locally. The first run may download the rembg model.")
+    output_bytes = remove(source_path.read_bytes())
+    if not isinstance(output_bytes, (bytes, bytearray)):
+        raise TypeError("rembg returned an unsupported image result; expected PNG bytes.")
+    paths["generated"].mkdir(parents=True, exist_ok=True)
+    output_id = next_candidate_id(rows)
+    target = paths["generated"] / (
+        slugify(source.get("segment_id", source_path.stem) + "-cutout")
+        + "-" + datetime.now().strftime("%Y%m%d-%H%M%S") + ".png"
+    )
+    target.write_bytes(bytes(output_bytes))
+
+    try:
+        with Image.open(target) as opened:
+            rgba = opened.convert("RGBA")
+            alpha_min, alpha_max = rgba.getchannel("A").getextrema()
+            if alpha_min == 255 or alpha_max == 0:
+                raise ValueError(
+                    "Background removal did not produce visible transparent pixels. "
+                    "The output is not accepted as a cutout."
+                )
+            rgba.save(target, format="PNG", optimize=True)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+
+    # The derivative inherits the already-reviewed source terms. Keep the original
+    # file locally but deselect it so the same beat does not receive duplicate candidates.
+    source["selected"] = "no"
+    derivative = dict(source)
+    derivative.update({
+        "id": output_id,
+        "title": clean_text(source.get("title", source_path.stem)) + " — transparent cutout",
+        "downloaded_path": str(target.resolve()),
+        "downloaded_at": datetime.now().isoformat(timespec="seconds"),
+        "selected": "yes",
+        "license_reviewed": "yes",
+        "review_notes": (
+            str(source.get("review_notes", "")).strip()
+            + " Derived from the selected reviewed source using local rembg background removal; "
+              "the source licence/model terms remain applicable. Verified visible alpha channel."
+        ).strip(),
+        "notes": (
+            str(source.get("notes", "")).strip()
+            + " Cutout derivative created locally from candidate " + candidate_id
+            + ". Confirm alpha and edge quality visually before use."
+        ).strip(),
+    })
+    rows.append(derivative)
+    write_csv(paths["manifest"], rows)
+    write_gallery(paths)
+    target.with_suffix(".png.source.txt").write_text(
+        "Derived from candidate: " + candidate_id + "\n"
+        + "Original file: " + str(source_path.resolve()) + "\n"
+        + "Method: local rembg background removal\n"
+        + "Source license review inherited: yes\n"
+        + "Visible alpha verified: yes\n"
+        + "Review edge quality before publication.\n",
+        encoding="utf-8",
+    )
+    log("Created reviewed transparent cutout " + output_id + " -> " + str(target))
+    return target
+
+
 def download_icons(project: str, names: list[str]) -> list[Path]:
     paths = project_paths(project)
     paths["icons"].mkdir(parents=True, exist_ok=True)
@@ -1434,6 +1538,11 @@ def command_parser() -> argparse.ArgumentParser:
     gen.add_argument("--model", default=None, help="Model ID; defaults to HF_IMAGE_MODEL in .env, then black-forest-labs/FLUX.1-dev.")
     gen.add_argument("--confirm-possible-cost", action="store_true", help="Explicitly acknowledge that provider inference may cost credits.")
 
+    cutout = sub.add_parser("remove-background", help="Create a real-alpha PNG cutout from a selected, license-reviewed image.")
+    cutout.add_argument("--project", required=True)
+    cutout.add_argument("--id", required=True, help="Selected image candidate ID from media_candidates.csv.")
+    cutout.add_argument("--confirm-model-download", action="store_true", help="Acknowledge that rembg may download a local model on first use.")
+
     place_icon_parser = sub.add_parser("place-icon", help="Place a downloaded SVG icon on a scene as an editable CapCut overlay.")
     place_icon_parser.add_argument("--project", required=True)
     place_icon_parser.add_argument("--id", required=True, help="Icon candidate ID from media_candidates.csv.")
@@ -1493,6 +1602,8 @@ def main(argv: list[str] | None = None) -> int:
         download_icons(args.project, names)
     elif args.command == "generate-image":
         generate_hf_image(args.project, args.scene_id, args.prompt, args.model, args.confirm_possible_cost)
+    elif args.command == "remove-background":
+        remove_background(args.project, args.id, args.confirm_model_download)
     elif args.command == "place-icon":
         place_icon(
             args.project, args.id, args.scene_id, args.offset, args.duration,
