@@ -1487,6 +1487,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     corkscrew_start = phrase_start("CORKSCREW", 5)
     dimensions_start = phrase_start("EIGHTEEN INCHES", 11)
     rescue_start = phrase_start("TEAMS ARRIVED", 15)
+    twenty_seven_start = phrase_start("TWENTY SEVEN HOURS", 22)
     rope_start = phrase_start("ROPE SNAPPED", 19)
     # A simplified schematic: it is explanatory artwork, not a surveyed cave map.
     config["hyperframes"] = {
@@ -1552,13 +1553,25 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "compositions": [
             {
                 "id": "CaseFileOverlay",
-                "track_name": "Remotion - Rescue Case File",
+                "track_name": "Remotion - Rescue Operation",
                 "start": rescue_start,
                 "duration": min(5.0, duration - rescue_start),
                 "props": {
                     "kicker": "RESCUE OPERATION",
+                    "heading": "ALL NIGHT",
+                    "note": "THE RESCUE TEAMS KEPT WORKING",
+                    "accent": "#D94C42",
+                },
+            },
+            {
+                "id": "CaseFileOverlay",
+                "track_name": "Remotion - Twenty Seven Hours",
+                "start": twenty_seven_start,
+                "duration": min(4.5, duration - twenty_seven_start),
+                "props": {
+                    "kicker": "THE FINAL COUNT",
                     "heading": "27 HOURS",
-                    "note": "NOVEMBER 24–25, 2009",
+                    "note": "UPSIDE DOWN",
                     "accent": "#D94C42",
                 },
             },
