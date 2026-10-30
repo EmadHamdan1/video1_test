@@ -194,6 +194,65 @@ class HyperFramesBridgeTests(unittest.TestCase):
                 }]
             }, 6.0, fps=30)
 
+
+    def test_renders_with_fallback_config_when_no_local_template_exists(self):
+        import json
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source" / "object.png"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"synthetic transparent image bytes")
+            build = root / "build"
+            template = root / "no-template"
+            calls = []
+
+            def fake_which(name):
+                return {"npx": "/tools/npx", "ffprobe": "/tools/ffprobe"}.get(name)
+
+            def fake_run(command, **kwargs):
+                calls.append(command)
+                if command[0] == "/tools/npx":
+                    output = Path(command[command.index("--output") + 1])
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_bytes(b"fake rendered mov")
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=json.dumps({"streams": [{
+                        "codec_name": "prores",
+                        "pix_fmt": "yuva444p10le",
+                        "width": 1920,
+                        "height": 1080,
+                        "duration": "6.000000",
+                    }]}),
+                    stderr="",
+                )
+
+            config = {
+                "enabled": True,
+                "version": "0.8.221",
+                "elements": [{
+                    "id": "transparent-object", "type": "image", "path": str(source),
+                    "start": 0.5, "duration": 4.0,
+                }],
+            }
+            with patch.object(bridge.shutil, "which", side_effect=fake_which), \
+                 patch.object(bridge.subprocess, "run", side_effect=fake_run):
+                result = bridge.render_hyperframes_overlay(config, build, 6.0, template)
+
+            generated = build / "hyperframes" / "render-project"
+            project_config = json.loads((generated / "hyperframes.json").read_text(encoding="utf-8"))
+            self.assertEqual(project_config["paths"]["assets"], "assets")
+            self.assertTrue((generated / "assets" / "transparent-object.png").is_file())
+            self.assertIn("gsap@3.15.0", (generated / "index.html").read_text(encoding="utf-8"))
+            self.assertEqual(result["pixel_format"], "yuva444p10le")
+            self.assertEqual(result["duration"], 6.0)
+            self.assertTrue(any("hyperframes@0.8.221" in str(arg) for arg in calls[0]))
+
+
     def test_disabled_bridge_does_not_require_local_hyperframes_project(self):
         self.assertIsNone(
             bridge.render_hyperframes_overlay(
