@@ -57,6 +57,10 @@ def render_alpha_composition(spec: dict[str, Any], build_dir: Path,
         "--pixel-format", "yuva444p10le",
         "--image-format", "png",
     ]
+    # Windows cannot launch .cmd shims through CreateProcess directly with shell=False.
+    # Use cmd.exe explicitly while keeping every argument separately quoted by subprocess.
+    if os.name == "nt" and renderer.lower().endswith((".cmd", ".bat")):
+        command = ["cmd.exe", "/d", "/s", "/c", subprocess.list2cmdline(command)]
     result = subprocess.run(
         command, cwd=str(motion_lab), env=os.environ.copy(),
         text=True, capture_output=True, check=False,
