@@ -32,23 +32,22 @@ The current architecture uses one production plan and several specialised tools:
 - The motion catalogue contains 224 deterministic choreography recipes across 16 behaviour families. The director selects by role, emotion, impact and recent use.
 - Narration remains internal timing/reference data. The production plan explicitly disables transcript/subtitle overlays.
 
-The generated reports are written to the project's build folder: `production_plan.json`, `TOOLCHAIN_REPORT.md`, `RENDERER_MANIFEST.json`, and `QA_REPORT.md`.
+The generated reports are written to the project's build folder: `production_plan.json`, `TOOLCHAIN_REPORT.md`, `RENDERER_MANIFEST.json`, `ASSET_DEPARTMENT_REPORT.json/.md`, and `QA_REPORT.md`. These reports validate structure and metadata; they do not replace review of the actual CapCut preview.
 
 ## Run the latest version
 
-1. Save edits and **close CapCut completely**.
-2. Open PowerShell and run:
+1. Ensure the local working copy is on `feat/universal-montage-engine`, preserve local changes, and **close CapCut completely**.
+2. Confirm Remotion and GSAP dependencies exist in `motion-lab/node_modules`. If absent, review `motion-lab/package.json` and run `npm install` from `motion-lab` once.
+3. From the repository root, run:
 
-       cd C:\Users\EmQr\video1_test
-       git switch feat/capcut-montage-pipeline
-       git pull origin feat/capcut-montage-pipeline
-       .\run_nutty_putty.ps1
+       cd F:\video1_test
+       .\run_unified_pipeline.ps1
 
-3. Let the full build finish. A successful run ends with BUILD SUCCESSFUL. If it ends with BUILD FAILED or a traceback, read the error and projects\nutty-putty-cave\build\QA_REPORT.md; do not open the previous draft and assume it changed.
-4. Open the **newest CapCut draft** created by this run. Inspect the beginning, middle, high-impact beats and ending. The automated QA report cannot judge whether the story illustration truly matches the words being spoken.
-5. Export and review the MP4 from CapCut only after visual/audio review.
+4. This safe launcher does not switch branches, pull, reset, or clean the working tree. It prepares local assets, searches licensed stock for beat queries, creates the production and asset plans, renders selected HyperFrames/Remotion layers, and builds an editable CapCut draft.
+5. Review `projects\nutty-putty-cave\build\QA_REPORT.md`, `ASSET_DEPARTMENT_REPORT.md`, `production_plan.json`, `TOOLCHAIN_REPORT.md`, and `RENDERER_MANIFEST.json`.
+6. Open the newest CapCut draft, review representative scenes and all story-critical moments, then export only after visual and audio QA.
 
-The command .\run_nutty_putty.ps1 -BasicOnly deliberately produces a minimal draft without stock fetching, title card, Whisper, music, sound effects or captions; use it only for diagnosing basic project creation.
+The legacy `.\run_nutty_putty.ps1` performs Git branch switching and pulling. Do not use it while local changes are present; use `.\run_unified_pipeline.ps1` instead.
 
 ## HyperFrames + Remotion graphics bridge
 
