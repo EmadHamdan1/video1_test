@@ -37,7 +37,7 @@ def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
         beat_id = str(beat.get("scene_id") or f"beat_{index + 1:03d}")
         scene_id = str(scene.get("scene_ref") or f"scene_{index + 1:03d}")
         emotion = str(beat.get("emotion", scene.get("emotion", "neutral")))
-        shock = max(0, min(3, int(beat.get("shock_level", scene.get("shock_level", 0)) or 0))
+        shock = max(0, min(3, int(beat.get("shock_level", scene.get("shock_level", 0)) or 0)))
         primary = str(scene.get("source_image") or scene.get("image") or "")
         stock = str(scene.get("stock_source_path") or "")
         planned_entrance_id = str(scene.get("motion_recipe_id", "")).strip()
