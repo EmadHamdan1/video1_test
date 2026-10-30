@@ -1418,7 +1418,7 @@ def main(argv: list[str] | None = None) -> int:
         toolchain_doctor.render_report(toolchain), encoding="utf-8"
     )
     production_plan = production_director.build_production_plan(
-        config, scenes, duration, toolchain=toolchain
+        config, scenes, duration, toolchain=toolchain, spec=spec
     )
     production_director.write_production_plan(
         production_plan, BUILD_DIR / "production_plan.json"
@@ -1438,7 +1438,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     asset_report = asset_director.build_asset_report(
-        config, scenes, spec, CONFIG_PATH.parent, toolchain=toolchain
+        config, scenes, spec, CONFIG_PATH.parent, toolchain=toolchain, production_plan=production_plan
     )
     (BUILD_DIR / "ASSET_DEPARTMENT_REPORT.json").write_text(
         json.dumps(asset_report, ensure_ascii=False, indent=2), encoding="utf-8"
