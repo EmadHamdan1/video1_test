@@ -27,6 +27,29 @@ class ProductionDirectorTests(unittest.TestCase):
         self.assertEqual(plan["scenes"][1]["beat_id"], "b2")
         self.assertTrue(plan["scenes"][0]["motion"]["entrance"])
 
+
+    def test_production_plan_uses_the_same_enter_hold_and_transition_recipes(self):
+        enter = motion_library.choose_recipe("entrance", "tense", 1, "scene-1")
+        camera = motion_library.choose_recipe("camera", "tense", 1, "scene-1:camera")
+        transition = motion_library.choose_recipe("transition", "tense", 1, "scene-1:transition")
+        config = {"story_beats": [
+            {"scene_id": "beat-1", "start_s": 0, "end_s": 5,
+             "emotion": "tense", "shock_level": 1, "stock_query": "cave"}
+        ]}
+        scenes = [{
+            "scene_ref": "scene-1", "start": 0, "end": 5, "duration": 5,
+            "image": "user-art.png",
+            "motion_recipe_id": enter["id"],
+            "camera_recipe_id": camera["id"],
+            "transition_recipe_id": transition["id"],
+        }]
+        plan = production_director.build_production_plan(config, scenes, 5)
+        motion = plan["scenes"][0]["motion"]
+        self.assertEqual(motion["entrance"], enter["id"])
+        self.assertEqual(motion["hold"], camera["id"])
+        self.assertEqual(motion["transition_out"], transition["id"])
+        self.assertEqual(motion["exit"], transition["id"])
+
     def test_supplied_asset_remains_primary_and_stock_is_supporting(self):
         config = {"story_beats": [{"scene_id": "b", "start_s": 0, "end_s": 5, "stock_query": "cave rescue"}]}
         scenes = [{
