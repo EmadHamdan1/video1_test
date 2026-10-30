@@ -40,7 +40,7 @@ class MotionLibraryTests(unittest.TestCase):
                 self.keys.append((target, prop, float(time), float(value), easing))
 
         timeline = Timeline()
-        recipe = motion_library.choose_recipe("entrance", "urgent", 3, "scene-001")
+        recipe = motion_library.get_recipe("tilt_settle_left_subtle_01")
         motion_library.apply_capcut_motion(timeline, "scene-001", 3.2, 0.62, -0.24, 0.0, recipe)
         self.assertTrue(timeline.keys)
         self.assertTrue(all(
