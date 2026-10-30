@@ -430,7 +430,7 @@ def render_hyperframes_overlay(config: dict[str, Any], build_dir: Path,
                     "components": "compositions/components",
                     "assets": "assets",
                 },
-            }, ensure_ascii=False, indent=2) + "\\n",
+            }, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
     (generated / "meta.json").write_text(
