@@ -34,10 +34,11 @@ class GeneratedAssetRoutingTests(unittest.TestCase):
                 "project_name": "Test",
                 "asset_style_guide": "consistent flat 2D cartoon illustration",
                 "scene_images": ["main.png"],
-                "story_beats": [{
-                    "scene_id": "story_003", "start_s": 0, "end_s": 4,
-                    "stock_query": "cave rescue team",
-                }],
+                "story_beats": [
+                    {"scene_id": "story_001", "start_s": 0, "end_s": 0.8, "stock_query": "cave entrance"},
+                    {"scene_id": "story_002", "start_s": 0.8, "end_s": 1.6, "stock_query": "narrow passage"},
+                    {"scene_id": "story_003", "start_s": 1.6, "end_s": 4, "stock_query": "cave rescue team"},
+                ],
             }
             scenes = [{
                 "scene_ref": "scene_003", "start": 0, "end": 4,
