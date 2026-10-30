@@ -205,6 +205,50 @@ def choose_recipe(role: str, emotion: str, shock_level: int, stable_id: str,
     return candidates[int.from_bytes(digest[:4], "big") % len(candidates)]
 
 
+def hero_entrance_style(recipe: dict[str, Any]) -> str:
+    """Map the common choreography intent onto the established hero keyframe system."""
+    family, direction = str(recipe["family"]), str(recipe["direction"])
+    if family in {"pan_reveal", "push_transition"}:
+        return "slide_left" if direction == "left" else "slide_right" if direction == "right" else "slide"
+    if family == "scale_focus":
+        return "zoom_through"
+    if family == "diagonal_sweep" or family == "path_follow":
+        return "diagonal_sweep"
+    if family == "depth_dolly" or family == "blur_focus":
+        return "zoom_through"
+    if family == "tilt_settle" or family == "orbit_object":
+        return "tilt_pop"
+    if family in {"iris_reveal", "radial_reveal"}:
+        return "spin_in"
+    if family == "split_reveal" or family == "whip_pan" or family == "mask_uncover":
+        return "slide_left" if direction in {"left", "up"} else "slide_right"
+    if family == "parallax_drift" or family == "float_drift":
+        return "rise"
+    return "pop"
+
+
+def layer_entrance_style(recipe: dict[str, Any]) -> str:
+    """Map common motion intent to the tested layered-image choreography."""
+    family, direction = str(recipe["family"]), str(recipe["direction"])
+    if family in {"pan_reveal", "push_transition", "whip_pan"}:
+        return {"left": "from_right", "right": "from_left",
+                "up": "from_bottom", "down": "from_top"}[direction]
+    if family in {"scale_focus", "iris_reveal", "radial_reveal"}:
+        return "scale_pop"
+    if family in {"diagonal_sweep", "path_follow"}:
+        return "diagonal_sweep"
+    if family in {"depth_dolly", "blur_focus"}:
+        return "zoom_through"
+    if family in {"tilt_settle", "orbit_object"}:
+        return "tilt_swing"
+    if family in {"split_reveal", "mask_uncover"}:
+        return {"left": "from_right", "right": "from_left",
+                "up": "from_bottom", "down": "from_top"}[direction]
+    if family in {"parallax_drift", "float_drift"}:
+        return "rise_overshoot"
+    return "scale_pop"
+
+
 def apply_capcut_motion(timeline: Any, target: str, duration: float,
                         base_scale: float, x: float, y: float,
                         recipe: dict[str, Any], phase: int = 0) -> None:
