@@ -39,9 +39,14 @@ if ($CapCutProcess) {
 }
 
 $RemotionPackage = Join-Path $RepoRoot "motion-lab\node_modules\remotion\package.json"
+$RemotionGsapPackage = Join-Path $RepoRoot "motion-lab\node_modules\@remotion\gsap\package.json"
 $GsapPackage = Join-Path $RepoRoot "motion-lab\node_modules\gsap\package.json"
-if (-not $SkipMotionLabCheck -and (-not (Test-Path $RemotionPackage) -or -not (Test-Path $GsapPackage))) {
-    throw "Remotion/GSAP are not both installed in motion-lab. Review motion-lab\package.json, then run 'npm install' inside motion-lab. This launcher will not install them automatically."
+if (-not $SkipMotionLabCheck -and (
+    -not (Test-Path $RemotionPackage) -or
+    -not (Test-Path $RemotionGsapPackage) -or
+    -not (Test-Path $GsapPackage)
+)) {
+    throw "Remotion, @remotion/gsap, and GSAP are not all installed in motion-lab. Review motion-lab\package.json, then run 'npm ci' inside motion-lab. This launcher will not install them automatically."
 }
 
 $HyperFramesTemplate = Join-Path $RepoRoot "hyperframes-engine\hyperframes.json"
@@ -96,5 +101,6 @@ Write-Host "Production plan: $(Join-Path $BuildDir 'production_plan.json')"
 Write-Host "Toolchain report: $(Join-Path $BuildDir 'TOOLCHAIN_REPORT.md')"
 Write-Host "Renderer manifest: $(Join-Path $BuildDir 'RENDERER_MANIFEST.json')"
 Write-Host "Asset department report: $(Join-Path $BuildDir 'ASSET_DEPARTMENT_REPORT.md')"
+Write-Host "Asset generation queue: $(Join-Path $BuildDir 'ASSET_GENERATION_QUEUE.json')"
 Write-Host "QA report: $(Join-Path $BuildDir 'QA_REPORT.md')"
 Write-Host "Open the newest CapCut draft and review it before exporting."
