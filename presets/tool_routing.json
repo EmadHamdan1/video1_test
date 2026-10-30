@@ -1,87 +1,100 @@
 {
-  "version": 1,
-  "status": "bridge-implementation-in-progress",
+  "version": 2,
+  "status": "unified-production-pipeline",
   "project_mode": "reusable",
-  "primary_timeline_backend": "capcut",
-  "visual_insert_backend": "hyperframes",
-  "animation_runtime": "gsap",
-  "asset_gap_policy": [
-    "local_relevant_asset",
-    "licensed_stock",
-    "hyperframes_vector_diagram",
-    "optional_ai_image_generation"
-  ],
-  "motion_policy": {
-    "subject_aware": true,
-    "use_source_resolution_limits": true,
-    "respect_safe_margins": true,
-    "deterministic": true,
-    "avoid_repeat_window_shots": 5
+  "production_director": "scripts/production_director.py",
+  "asset_department": "scripts/asset_director.py",
+  "motion_catalogue": {
+    "module": "scripts/motion_library.py",
+    "recipe_count": 224,
+    "family_count": 16,
+    "selection": "deterministic_context_aware_recent_use_avoidance",
+    "capcut_properties": [
+      "uniform_scale",
+      "position_x",
+      "position_y",
+      "rotation"
+    ],
+    "browser_properties": [
+      "position",
+      "scale",
+      "rotation",
+      "opacity",
+      "blur",
+      "clipPath",
+      "path"
+    ]
   },
   "renderers": {
     "capcut": {
       "enabled": true,
-      "role": "editable_source_media_timeline_and_audio"
+      "role": "editable source footage, supplied images, narration, music, SFX and final multitrack assembly"
     },
     "hyperframes": {
       "enabled": true,
-      "role": "optional transparent HTML/SVG motion-graphics inserts",
-      "transparent_format": "mov_prores_4444",
-      "config_key": "hyperframes",
-      "default_enabled": false
-    },
-    "gsap": {
-      "enabled": true,
-      "host": "hyperframes",
-      "role": "seek-synchronized deterministic animation timelines",
-      "version": "3.14.2"
-    },
-    "d3": {
-      "enabled": false,
-      "role": "data_driven_maps_timelines_relationship_graphs"
-    },
-    "pixijs": {
-      "enabled": false,
-      "role": "selective_gpu_2d_atmosphere_particles_and_effects"
+      "role": "HTML/SVG/image/shape/text compound layers and frame-seekable motion overlays",
+      "format": "mov_prores_4444",
+      "config_key": "hyperframes"
     },
     "remotion": {
       "enabled": true,
-      "role": "legacy_compositions_only"
+      "role": "reusable React compositions and specialist transparent graphics",
+      "format": "mov_prores_4444",
+      "config_key": "remotion"
     },
-    "lottie": {
-      "enabled": false,
-      "role": "play_supplied_licensed_json_animations"
-    },
-    "matterjs": {
-      "enabled": false,
-      "role": "selected_physics_based_motion"
-    },
-    "p5js": {
-      "enabled": false,
-      "role": "selected_procedural_visuals"
-    },
-    "svgjs": {
-      "enabled": false,
-      "role": "optional_programmatic_svg_manipulation"
-    },
-    "animejs": {
-      "enabled": false,
-      "reason": "overlaps_with_gsap"
-    },
-    "motion": {
-      "enabled": false,
-      "reason": "ui_animation_not_core_video_timeline"
-    },
-    "motion_canvas": {
-      "enabled": false,
-      "reason": "separate_renderer_duplicates_current_render_path"
+    "gsap": {
+      "enabled": true,
+      "version": "3.15.0",
+      "role": "shared animation language for HyperFrames and Remotion"
     }
   },
-  "constraints": [
-    "do_not_flatten_original_photo_tracks",
-    "do_not_create_visuals_from_unverified_facts",
-    "do_not_use_decorative_motion_without_story_purpose",
-    "verify_transparent_mov_in_installed_capcut_before_automation",
-    "optional_ai_image_generation_requires_cost_and_licence_review"
-  ]
+  "optional_adapters": {
+    "d3": {
+      "role": "verified data-led maps, rescue timelines, graphs and relationships",
+      "activation": "only when the scene plan requests a data graphic"
+    },
+    "pixijs": {
+      "role": "GPU particles, dust, light and atmosphere",
+      "activation": "only when a visual effect is explicitly planned"
+    },
+    "matterjs": {
+      "role": "precomputed physics for a selected object simulation",
+      "activation": "specific prop scenes only"
+    },
+    "lottie": {
+      "role": "render or composite an existing licensed Lottie animation",
+      "activation": "only when a compatible supplied JSON asset exists"
+    },
+    "p5js": {
+      "role": "procedural generative animation",
+      "activation": "specific custom visual scenes only"
+    },
+    "svgjs": {
+      "role": "programmatic SVG authoring/manipulation",
+      "activation": "only if native SVG plus GSAP is insufficient"
+    },
+    "animejs": {
+      "role": "alternative DOM animation engine",
+      "activation": "disabled because GSAP is the common motion runtime"
+    },
+    "motion": {
+      "role": "React UI animation",
+      "activation": "not a video renderer; not part of shot animation"
+    },
+    "motion_canvas": {
+      "role": "separate vector renderer",
+      "activation": "deferred to avoid duplicating Remotion/HyperFrames render paths"
+    }
+  },
+  "policies": {
+    "supplied_assets_remain_primary": true,
+    "supporting_assets_require_story_beat_match": true,
+    "allow_unrelated_local_fallback": false,
+    "narration_subtitles": false,
+    "spoken_transcript_on_screen": false,
+    "preserve_editable_capcut_media_tracks": true,
+    "alpha_must_be_verified": true,
+    "no_unverified_facts_or_measurements": true,
+    "manual_semantic_asset_review_required": true
+  }
 }
