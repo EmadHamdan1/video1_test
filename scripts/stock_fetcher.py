@@ -484,7 +484,7 @@ def _load_selected_reviewed_entries(project_dir: Path,
         with manifest_path.open("r", encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.DictReader(handle))
     except OSError as exc:
-        log("Could not read generated-asset manifest: " + str(exc))
+        log("Could not read selected-asset manifest: " + str(exc))
         return []
 
     for row in rows:
@@ -500,7 +500,7 @@ def _load_selected_reviewed_entries(project_dir: Path,
         segment_id = str(row.get("segment_id", "")).strip()
         match = re.fullmatch(r"scene_(\d{1,4})", segment_id)
         if not match:
-            log("Reviewed generated image has no valid story scene id; skipped: " + str(path))
+            log("Reviewed local image has no valid story scene id; skipped: " + str(path))
             continue
         beat_index = int(match.group(1)) - 1
         if beat_index < 0:
@@ -513,7 +513,7 @@ def _load_selected_reviewed_entries(project_dir: Path,
         except Exception:
             continue
         generated.append({
-            "provider": "reviewed_generated_asset",
+            "provider": "selected_reviewed_local_asset",
             "id": str(row.get("id", path.stem)),
             "kind": "photo",
             "path": str(path.resolve()),
@@ -523,7 +523,7 @@ def _load_selected_reviewed_entries(project_dir: Path,
             "height": height,
             "license": str(row.get("license", "Generated output — review provider terms")),
             "page_url": str(row.get("source_page", "")),
-            "credit": str(row.get("creator", "AI-generated asset")),
+            "credit": str(row.get("creator", "Reviewed local asset")),
             "alpha_channel": _image_has_transparency(path),
             "asset_origin": "selected_and_license_reviewed_local_asset",
             "license_reviewed": True,
