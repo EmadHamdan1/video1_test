@@ -1,6 +1,8 @@
 """Read-only inventory of media executables and locally installed render libraries."""
 from __future__ import annotations
 
+import importlib.metadata
+import importlib.util
 import json
 import shutil
 from pathlib import Path
@@ -42,6 +44,28 @@ def _package_info(root: Path, package: str) -> dict[str, Any] | None:
     return None
 
 
+PYTHON_MODULES = {
+    "pillow": ("PIL", "Pillow"),
+    "huggingface_hub": ("huggingface_hub", "huggingface-hub"),
+    "rembg": ("rembg", "rembg"),
+    "faster_whisper": ("faster_whisper", "faster-whisper"),
+}
+
+
+def _python_module_info(module_name: str, distribution_name: str) -> dict[str, Any]:
+    try:
+        installed = importlib.util.find_spec(module_name) is not None
+    except (ImportError, ValueError, AttributeError):
+        installed = False
+    version = None
+    if installed:
+        try:
+            version = importlib.metadata.version(distribution_name)
+        except importlib.metadata.PackageNotFoundError:
+            version = "installed/version unavailable"
+    return {"installed": installed, "version": version}
+
+
 def inspect_toolchain(root: Path) -> dict[str, Any]:
     root = root.resolve()
     executables = {
@@ -58,11 +82,16 @@ def inspect_toolchain(root: Path) -> dict[str, Any]:
         "version": None,
         "path": str(template.resolve()) if template.exists() else None,
     }
+    python_modules = {
+        capability: _python_module_info(module, distribution)
+        for capability, (module, distribution) in PYTHON_MODULES.items()
+    }
     return {
         "schema_version": 1,
         "project_root": str(root),
         "executables": executables,
         "packages": packages,
+        "python_modules": python_modules,
         "renderers": {
             "capcut": bool(executables["capcut"]),
             "hyperframes": bool(executables["npx"] and packages["hyperframes_template"]["installed"]),
@@ -87,6 +116,11 @@ def render_report(report: dict[str, Any]) -> str:
         lines.append(f"| {name} | {'available' if path else 'missing'} | {path or '—'} |")
     lines.extend(["", "## Libraries", "", "| Capability | Status | Version |", "|---|---|---|"])
     for name, details in report["packages"].items():
+        lines.append(
+            f"| {name} | {'installed' if details['installed'] else 'not detected'} | {details.get('version') or '—'} |"
+        )
+    lines.extend(["", "## Python capabilities", "", "| Capability | Status | Version |", "|---|---|---|"])
+    for name, details in report.get("python_modules", {}).items():
         lines.append(
             f"| {name} | {'installed' if details['installed'] else 'not detected'} | {details.get('version') or '—'} |"
         )
