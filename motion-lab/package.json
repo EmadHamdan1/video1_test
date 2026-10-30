@@ -2,7 +2,7 @@
   "name": "video1-motion-lab",
   "version": "1.0.0",
   "private": true,
-  "description": "Reusable whiteboard explainer scenes, kinetic captions, and smooth transition tests for CapCut overlays.",
+  "description": "Reusable motion-graphics elements for the Video1 CapCut production system.",
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render:whiteboard": "remotion render src/index.ts WhiteboardExplainer out/whiteboard-explainer.mp4 --codec h264",
@@ -10,15 +10,18 @@
     "render:transitions": "remotion render src/index.ts TransitionShowcase out/transition-showcase.mp4 --codec h264",
     "typecheck": "tsc --noEmit && node --check scripts/render-svg.mjs && npm run test:icon-renderer",
     "render:caption:alpha": "remotion render src/index.ts KineticCaption out/kinetic-caption-alpha.mov --codec prores --prores-profile 4444 --pixel-format yuva444p10le --image-format png",
+    "render:casefile:alpha": "remotion render src/index.ts CaseFileOverlay out/casefile-overlay.mov --codec prores --prores-profile 4444 --pixel-format yuva444p10le --image-format png",
     "test:icon-renderer": "node scripts/test-render-svg.mjs",
     "render:nutty-title": "remotion render src/index.ts NuttyPuttyTitle ../projects/nutty-putty-cave/assets/generated/nutty-putty-title.mp4 --codec h264 --crf 17"
   },
   "dependencies": {
+    "@remotion/gsap": "4.0.539",
     "@remotion/transitions": "4.0.539",
+    "@resvg/resvg-js": "2.6.2",
+    "gsap": "3.15.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "remotion": "4.0.539",
-    "@resvg/resvg-js": "2.6.2"
+    "remotion": "4.0.539"
   },
   "devDependencies": {
     "@remotion/cli": "4.0.539",
