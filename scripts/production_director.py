@@ -46,11 +46,19 @@ def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
             if planned_entrance_id in motion_library.CATALOG
             else motion_library.choose_recipe("entrance", emotion, shock, scene_id, recent_motion)
         )
-        # The selected recipe contains its paired exit choreography. Do not choose
-        # a second unrelated exit and let the report disagree with the CapCut timeline.
-        exit_recipe = enter
-        camera = motion_library.choose_recipe("camera", emotion, shock, scene_id + ":camera", recent_motion)
-        recent_motion.extend([enter["id"], camera["id"]])
+        camera_id = str(scene.get("camera_recipe_id", "")).strip()
+        camera = (
+            motion_library.get_recipe(camera_id)
+            if camera_id in motion_library.CATALOG
+            else motion_library.choose_recipe("camera", emotion, shock, scene_id + ":camera", recent_motion)
+        )
+        transition_id = str(scene.get("transition_recipe_id", "")).strip()
+        transition = (
+            motion_library.get_recipe(transition_id)
+            if transition_id in motion_library.CATALOG
+            else motion_library.choose_recipe("transition", emotion, shock, scene_id + ":transition", recent_motion)
+        )
+        recent_motion.extend([enter["id"], camera["id"], transition["id"]])
         recent_motion = recent_motion[-15:]
 
         supporting: list[dict[str, Any]] = []
@@ -86,10 +94,11 @@ def build_production_plan(config: dict[str, Any], scenes: list[dict[str, Any]],
             "motion": {
                 "entrance": enter["id"],
                 "hold": camera["id"],
-                "exit": exit_recipe["id"],
-                "transition_out": motion_library.choose_recipe(
-                    "transition", emotion, shock, scene_id + ":transition", recent_motion
-                )["id"],
+                "exit": transition["id"],
+                "transition_out": transition["id"],
+                "capcut_entrance_style": motion_library.hero_entrance_style(enter),
+                "capcut_exit_style": motion_library.capcut_transition_exit(transition),
+                "capcut_hold_profile": motion_library.capcut_hold_profile(camera),
             },
             "screen_text": [],
             "renderer_roles": {
