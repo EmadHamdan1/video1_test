@@ -1645,7 +1645,14 @@ def main(argv: list[str] | None = None) -> int:
         "icon_overlay_segments": sum(len(track.get("items", [])) for track in spec["tracks"] if track.get("name") == "Icon Overlays"),
         "registered_in_capcut": registered,
         "visual_assets_dir": str(Path(spec["tracks"][0]["items"][0]["path"]).parent),
-        "caption_cues": sum(len(track["items"]) for track in spec["tracks"] if track.get("type") == "text"),
+        "caption_cues": sum(
+            len(track.get("items", [])) for track in spec["tracks"]
+            if track.get("name") == "Animated Captions"
+        ),
+        "story_label_cues": sum(
+            len(track.get("items", [])) for track in spec["tracks"]
+            if track.get("name") == "Animated Scene Callouts"
+        ),
         "caption_file": str(captions_path) if captions_path else None,
         "matting": matting_results,
         "text_animations": text_animation_results,
@@ -1668,12 +1675,14 @@ def main(argv: list[str] | None = None) -> int:
     log("Shot plan: " + str(scene_csv))
     if settings.get("make_sfx_cue_sheet", True):
         log("Sound-effect cue sheet: " + str(BUILD_DIR / "SFX_Cue_Sheet.csv"))
-    if any(track.get("type") == "text" for track in spec["tracks"]):
-        log("Editable phrase-level text overlays were added with fade/float keyframes.")
+    if any(track.get("name") == "Animated Captions" for track in spec["tracks"]):
+        log("Spoken transcript caption overlays were added by explicit project policy.")
+    elif any(track.get("name") == "Animated Scene Callouts" for track in spec["tracks"]):
+        log("Designed scene labels were added; spoken narration text remains off-screen.")
     elif captions_path:
-        log("Whisper transcript exists, but text overlays were disabled by this project's settings.")
+        log("Narration timing data exists, but spoken transcript overlays are disabled by project policy.")
     else:
-        log("No automatic captions were added. Install Whisper to enable transcript timing and captions.")
+        log("No spoken transcript overlays were added; narration remains audio-only.")
     log("Reopen CapCut and inspect the project before exporting.")
     return 0
 
