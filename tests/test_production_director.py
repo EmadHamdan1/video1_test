@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import production_director
+import motion_library
 
 
 class ProductionDirectorTests(unittest.TestCase):
@@ -42,6 +43,7 @@ class ProductionDirectorTests(unittest.TestCase):
             "motion_recipe_id": enter["id"],
             "camera_recipe_id": camera["id"],
             "transition_recipe_id": transition["id"],
+            "capcut_transition_style": "slide_out_left",
         }]
         plan = production_director.build_production_plan(config, scenes, 5)
         motion = plan["scenes"][0]["motion"]
@@ -49,6 +51,7 @@ class ProductionDirectorTests(unittest.TestCase):
         self.assertEqual(motion["hold"], camera["id"])
         self.assertEqual(motion["transition_out"], transition["id"])
         self.assertEqual(motion["exit"], transition["id"])
+        self.assertEqual(motion["capcut_exit_style"], "slide_out_left")
 
     def test_supplied_asset_remains_primary_and_stock_is_supporting(self):
         config = {"story_beats": [{"scene_id": "b", "start_s": 0, "end_s": 5, "stock_query": "cave rescue"}]}
