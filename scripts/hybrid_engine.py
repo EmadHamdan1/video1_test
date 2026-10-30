@@ -116,13 +116,13 @@ def pop_motion(tl: _Timeline, ref: str, D: float, S: float, x: float, y: float,
 def scene_motion(tl: _Timeline, ref: str, D: float, S: float, bx: float, by: float,
                  index: int, edge: int, shock: int, is_last: bool,
                  pan_amount: float, push: float, emotion: str = "",
-                 trigger_word: str = "") -> str:
+                 trigger_word: str = "", forced_kind: str | None = None) -> str:
     """Hero image: story-aware entrance recipe -> living hold -> overlapping exit."""
     E = _clamp(D * 0.22, 0.16, 0.30)
     f = E / 0.30
     exit_len = 0.0 if is_last else _clamp(D * 0.14, 0.10, 0.18)
     xs = min(D, max(E + 0.12, D - exit_len))
-    kind = mr.choose_hero_entrance(index, shock, emotion, trigger_word)
+    kind = forced_kind or mr.choose_hero_entrance(index, shock, emotion, trigger_word)
 
     def T(v: float) -> float:
         return v * f
@@ -453,10 +453,13 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
         chosen_motion = motion_library.choose_recipe(
             "entrance", str(beat.get("emotion", "")), shock, ref, recent_motion_ids
         )
-        motion_library.apply_capcut_motion(tl, ref, clip_len, S, bx, by, chosen_motion, index)
+        entrance_kind[ref] = scene_motion(
+            tl, ref, clip_len, S, bx, by, index, edge, shock, is_last, pan_amount, push,
+            emotion=str(beat.get("emotion", "")), trigger_word=str(beat.get("trigger_word", "")),
+            forced_kind=motion_library.hero_entrance_style(chosen_motion),
+        )
         recent_motion_ids.append(chosen_motion["id"])
         recent_motion_ids = recent_motion_ids[-15:]
-        entrance_kind[ref] = chosen_motion["family"]
         hero_scale[ref] = S
         label = ("C_full_bleed_stock_broll" if full_bleed_stock else
                  {"left": "A_subject-left_host-right", "right": "A_mirrored_subject-right_host-left",
@@ -648,11 +651,13 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                     "element", str(row.get("emotion", "neutral")),
                     int(row.get("shock_level", 0)), ref, recent_motion_ids
                 )
-                motion_library.apply_capcut_motion(tl, ref, dur, scale, tx, ty,
-                                                   layer_motion, index + slot_index)
+                layer_recipe = motion_library.layer_entrance_style(layer_motion)
+                mr.apply_layer_motion(tl, ref, dur, scale, tx, ty,
+                                      layer_recipe, index + slot_index)
                 recent_motion_ids.append(layer_motion["id"])
                 recent_motion_ids = recent_motion_ids[-15:]
                 insert_items[-1]["motion_recipe_id"] = layer_motion["id"]
+                insert_items[-1]["motion_family"] = layer_motion["family"]
                 if slot_index == 0:
                     sfx_cues.append((start_at, ["pop", "whoosh", "other"]))
             inserted_per_beat[beat_index if beat_index is not None else index] = (
