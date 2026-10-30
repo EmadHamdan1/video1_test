@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stock_fetcher
 import text_system as ts
 import motion_recipes as mr
+import motion_library
 from qa_spec import audit_spec
 
 TAU = math.tau
@@ -384,6 +385,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
     scene_rows: list[dict[str, Any]] = []
     hero_scale: dict[str, float] = {}
     entrance_kind: dict[str, str] = {}
+    recent_motion_ids: list[str] = []
     scene_tracks: list[list[dict[str, Any]]] = [[], []]
     count = len(indices)
 
@@ -448,10 +450,13 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             "duration": clip_len, "ref": ref, "scale": round(S, 4), "x": bx, "y": by, "rotation": 0,
         })
         tl.clip(ref, clip_len)
-        entrance_kind[ref] = scene_motion(
-            tl, ref, clip_len, S, bx, by, index, edge, shock, is_last, pan_amount, push,
-            emotion=str(beat.get("emotion", "")), trigger_word=str(beat.get("trigger_word", "")),
+        chosen_motion = motion_library.choose_recipe(
+            "entrance", str(beat.get("emotion", "")), shock, ref, recent_motion_ids
         )
+        motion_library.apply_capcut_motion(tl, ref, clip_len, S, bx, by, chosen_motion, index)
+        recent_motion_ids.append(chosen_motion["id"])
+        recent_motion_ids = recent_motion_ids[-15:]
+        entrance_kind[ref] = chosen_motion["family"]
         hero_scale[ref] = S
         label = ("C_full_bleed_stock_broll" if full_bleed_stock else
                  {"left": "A_subject-left_host-right", "right": "A_mirrored_subject-right_host-left",
@@ -465,17 +470,17 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             "base_x": bx, "base_y": by, "full_bleed": full_bleed_stock,
             "emotion": str(beat.get("emotion", "calm")), "shock_level": shock,
             "trigger_word": str(beat.get("trigger_word", "")),
+            "motion_recipe_id": chosen_motion["id"],
+            "motion_family": chosen_motion["family"],
         })
 
     sfx_cues: list[tuple[float, list[str]]] = []
     for row in scene_rows:
         kind = entrance_kind[row["scene_ref"]]
-        if row["shock_level"] >= 2 or kind == "punch":
+        if row["shock_level"] >= 2 or kind in {"whip_pan", "depth_dolly", "tilt_settle"}:
             prefs = ["hit", "pop", "other"]
-        elif kind == "slide":
+        elif kind in {"pan_reveal", "diagonal_sweep", "push_transition", "split_reveal"}:
             prefs = ["whoosh", "pop", "other"]
-        elif kind == "drop":
-            prefs = ["hit", "pop", "other"]
         else:
             prefs = ["pop", "whoosh", "other"]
         sfx_cues.append((row["start"], prefs))
@@ -639,7 +644,15 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 used_insert_paths[str(layer_path)] = index
                 avoid_paths.add(str(layer_path))
                 tl.clip(ref, dur)
-                mr.apply_layer_motion(tl, ref, dur, scale, tx, ty, str(slot["recipe"]), index + slot_index)
+                layer_motion = motion_library.choose_recipe(
+                    "element", str(row.get("emotion", "neutral")),
+                    int(row.get("shock_level", 0)), ref, recent_motion_ids
+                )
+                motion_library.apply_capcut_motion(tl, ref, dur, scale, tx, ty,
+                                                   layer_motion, index + slot_index)
+                recent_motion_ids.append(layer_motion["id"])
+                recent_motion_ids = recent_motion_ids[-15:]
+                insert_items[-1]["motion_recipe_id"] = layer_motion["id"]
                 if slot_index == 0:
                     sfx_cues.append((start_at, ["pop", "whoosh", "other"]))
             inserted_per_beat[beat_index if beat_index is not None else index] = (
