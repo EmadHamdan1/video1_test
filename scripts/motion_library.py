@@ -205,6 +205,98 @@ def choose_recipe(role: str, emotion: str, shock_level: int, stable_id: str,
     return candidates[int.from_bytes(digest[:4], "big") % len(candidates)]
 
 
+def apply_capcut_motion(timeline: Any, target: str, duration: float,
+                        base_scale: float, x: float, y: float,
+                        recipe: dict[str, Any], phase: int = 0) -> None:
+    """Translate a catalogue recipe into CapCut's verified transform properties.
+
+    CapCut receives only uniform_scale, position_x, position_y and rotation.
+    Masks, opacity, blur and complex paths remain in the HyperFrames/Remotion
+    renderers; this function gives the editable source-photo track a compatible
+    motion approximation without inventing unsupported CapCut property names.
+    """
+    d = max(0.28, float(duration))
+    s = max(0.04, float(base_scale))
+    family = str(recipe.get("family", "pan_reveal"))
+    direction = str(recipe.get("direction", "left"))
+    energy = str(recipe.get("energy", "balanced"))
+    sx, sy = _sign(direction)
+    magnitude = _energy(energy)
+    enter = min(0.38, max(0.16, d * 0.20))
+    exit_len = min(0.30, max(0.14, d * 0.16))
+    exit_at = max(enter + 0.08, d - exit_len)
+
+    start_x, start_y, start_scale, start_rotation = x, y, s, 0.0
+    end_x, end_y, end_scale, end_rotation = x, y, s, 0.0
+    distance = 0.52 * magnitude
+
+    if family in {"pan_reveal", "split_reveal", "mask_uncover"}:
+        start_x, start_y, start_scale = x + sx * distance, y + sy * distance * .12, .94 * s
+        end_x, end_y = x - sx * distance * .52, y - sy * distance * .18
+    elif family in {"scale_focus", "depth_dolly", "blur_focus", "iris_reveal", "radial_reveal"}:
+        start_scale = (1.22 if family == "depth_dolly" else .76 if family == "scale_focus" else 1.12) * s
+        end_scale = (1.045 if family == "depth_dolly" else .96) * s
+    elif family == "diagonal_sweep":
+        start_x, start_y, start_scale = x + sx * distance, y + sy * distance, .91 * s
+        start_rotation = -sx * 5.0 * magnitude
+        end_x, end_y, end_rotation = x - sx * distance * .35, y - sy * distance * .24, 0.0
+    elif family == "tilt_settle":
+        start_x, start_y, start_scale, start_rotation = x + sx * .10, y + sy * .08, .94 * s, sx * 12 * magnitude
+        end_rotation = -sx * 1.2
+    elif family == "parallax_drift":
+        start_scale, end_scale = 1.015 * s, 1.065 * s
+        start_x, end_x = x - sx * .035, x + sx * .035
+        start_y, end_y = y - sy * .018, y + sy * .018
+    elif family == "whip_pan":
+        start_x, start_scale = x + sx * 1.15, 1.04 * s
+        end_x, end_scale = x - sx * .95, 1.08 * s
+    elif family == "push_transition":
+        start_x, start_scale = x + sx * .72, .94 * s
+        end_x, end_scale = x - sx * .55, 1.035 * s
+    elif family == "orbit_object":
+        start_x, start_y, start_scale, start_rotation = x + sx * .18, y + sy * .14, .86 * s, -sx * 18 * magnitude
+        end_rotation = sx * 8 * magnitude
+    elif family == "float_drift":
+        start_y, start_scale = y + sy * .26, .96 * s
+        end_y, end_scale = y - sy * .035, 1.015 * s
+    elif family == "path_follow":
+        start_x, start_y, start_scale = x + sx * .62, y - sy * .34, .9 * s
+        end_x, end_y, end_scale = x - sx * .12, y + sy * .08, s
+    else:
+        start_x, start_scale = x + sx * distance, .92 * s
+        end_x = x - sx * distance * .4
+
+    timeline.key(target, "position_x", 0.0, start_x)
+    timeline.key(target, "position_y", 0.0, start_y)
+    timeline.key(target, "uniform_scale", 0.0, start_scale)
+    timeline.key(target, "rotation", 0.0, start_rotation)
+    timeline.key(target, "position_x", enter, x, "ease-out")
+    timeline.key(target, "position_y", enter, y, "ease-out")
+    timeline.key(target, "uniform_scale", enter, s, "ease-out")
+    timeline.key(target, "rotation", enter, 0.0, "ease-out")
+
+    # A restrained mid-shot camera move keeps a still alive without adding jitter.
+    hold_mid = enter + max(0.08, (exit_at - enter) * .55)
+    wobble = .006 * magnitude
+    timeline.key(target, "position_x", hold_mid, x + sx * wobble, "ease-in-out")
+    timeline.key(target, "position_y", hold_mid, y - sy * wobble * .65, "ease-in-out")
+    timeline.key(target, "uniform_scale", hold_mid, (s + end_scale) / 2.0, "ease-in-out")
+    timeline.key(target, "position_x", exit_at, x, "ease-in-out")
+    timeline.key(target, "position_y", exit_at, y, "ease-in-out")
+
+    if family in {"whip_pan", "push_transition", "pan_reveal", "path_follow"}:
+        timeline.key(target, "position_x", d, end_x, "ease-in")
+        timeline.key(target, "position_y", d, end_y, "ease-in")
+    elif family in {"tilt_settle", "orbit_object", "diagonal_sweep"}:
+        timeline.key(target, "rotation", d, end_rotation, "ease-in")
+        timeline.key(target, "position_x", d, end_x, "ease-in")
+        timeline.key(target, "position_y", d, end_y, "ease-in")
+    else:
+        timeline.key(target, "uniform_scale", d, end_scale, "ease-in")
+        timeline.key(target, "position_x", d, end_x, "ease-in")
+        timeline.key(target, "position_y", d, end_y, "ease-in")
+
+
 def catalogue_summary() -> dict[str, Any]:
     return {
         "recipe_count": len(CATALOG),
