@@ -60,6 +60,52 @@ class HyperFramesBridgeTests(unittest.TestCase):
         self.assertEqual(item["duration"], 9.25)
         self.assertEqual(item["path"], "overlay.mov")
 
+
+    def test_image_element_is_registered_as_an_independent_clip(self):
+        html = bridge.build_composition_html(
+            8.0,
+            [{"id": "rope-cutout", "type": "image", "path": "assets/rope.png",
+              "start": 1.0, "duration": 3.0, "x": 0.2, "y": 0.3,
+              "width": 0.4, "height": 0.5, "track_index": 3}],
+            asset_map={"rope-cutout": "assets/rope-cutout.png"},
+        )
+        self.assertIn('class="clip hf-image"', html)
+        self.assertIn('src="assets/rope-cutout.png"', html)
+        self.assertIn('data-track-index="3"', html)
+        self.assertIn("object-fit:contain", html)
+
+    def test_vector_shapes_and_text_labels_are_supported(self):
+        html = bridge.build_composition_html(
+            5.0,
+            [
+                {"id": "cave-outline", "type": "shape", "shape": "path",
+                 "path_d": "M0 80 C30 10 70 10 100 80", "start": 0.5, "duration": 3},
+                {"id": "not-to-scale", "type": "text", "text": "NOT TO SCALE",
+                 "start": 0.5, "duration": 3},
+            ],
+        )
+        self.assertIn('class="clip hf-shape"', html)
+        self.assertIn("M0 80 C30 10 70 10 100 80", html)
+        self.assertIn("NOT TO SCALE", html)
+
+    def test_motion_recipe_is_embedded_for_independent_layers(self):
+        html = bridge.build_composition_html(
+            5.0,
+            [{"id": "object", "type": "shape", "shape": "circle",
+              "start": 0.0, "duration": 3.0}],
+        )
+        self.assertIn("motionIn", html)
+        self.assertIn("motionOut", html)
+        self.assertIn("gsap.timeline", html)
+
+    def test_rejects_unsafe_svg_path_commands(self):
+        with self.assertRaises(ValueError):
+            bridge.build_composition_html(
+                4.0,
+                [{"id": "unsafe", "type": "shape", "shape": "path",
+                  "path_d": '<script>alert(1)</script>', "start": 0, "duration": 2}],
+            )
+
     def test_disabled_bridge_does_not_require_local_hyperframes_project(self):
         self.assertIsNone(
             bridge.render_hyperframes_overlay(
