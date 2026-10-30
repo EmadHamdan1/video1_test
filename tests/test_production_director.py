@@ -29,6 +29,37 @@ class ProductionDirectorTests(unittest.TestCase):
         self.assertTrue(plan["scenes"][0]["motion"]["entrance"])
 
 
+
+    def test_scene_contract_contains_timed_independent_graphics_and_secondary_assets(self):
+        config = {
+            "story_beats": [{"scene_id": "beat-1", "start_s": 0, "end_s": 5,
+                             "emotion": "tense", "shock_level": 1}],
+            "hyperframes": {"enabled": True, "elements": [
+                {"id": "cave-outline", "type": "shape", "start": 1, "duration": 2,
+                 "visual_purpose": "Corkscrew passage schematic"},
+                {"id": "late-arrow", "type": "arrow", "start": 8, "duration": 2},
+            ]},
+            "remotion": {"enabled": True, "compositions": [
+                {"id": "CaseFileOverlay", "start": 3, "duration": 1.5}
+            ]},
+        }
+        scenes = [{
+            "scene_ref": "scene-1", "start": 0, "end": 5, "duration": 5,
+            "image": "source.png", "motion_recipe_id": "",
+        }]
+        spec = {"tracks": [{
+            "name": "Fast Secondary Image Inserts",
+            "items": [{"type": "photo", "path": "support.png",
+                       "ref": "support-1", "start": 2, "duration": 1.2}],
+        }]}
+        plan = production_director.build_production_plan(config, scenes, 10, spec=spec)
+        shot = plan["scenes"][0]
+        self.assertEqual(len(shot["graphics_layers"]), 2)
+        self.assertEqual({item["renderer"] for item in shot["graphics_layers"]}, {"hyperframes", "remotion"})
+        self.assertEqual(len(shot["supporting_assets"]), 1)
+        self.assertEqual(shot["supporting_assets"][0]["asset"], "support.png")
+        self.assertEqual(shot["graphics_layers"][0]["purpose"], "Corkscrew passage schematic")
+
     def test_production_plan_uses_the_same_enter_hold_and_transition_recipes(self):
         enter = motion_library.choose_recipe("entrance", "tense", 1, "scene-1")
         camera = motion_library.choose_recipe("camera", "tense", 1, "scene-1:camera")
