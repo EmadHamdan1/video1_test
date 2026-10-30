@@ -77,6 +77,17 @@ def clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _valid_image(path: Path) -> bool:
+    """Verify that a local image can be decoded by Pillow without trusting its suffix."""
+    try:
+        from PIL import Image
+        with Image.open(path) as image:
+            image.verify()
+        return True
+    except Exception:
+        return False
+
+
 def safe_web_url(value: Any, *, allow_file: bool = False) -> str:
     """Allow only safe external HTTP(S) links, plus file URLs for gallery-local previews."""
     raw = str(value or "").strip()
