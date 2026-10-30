@@ -101,9 +101,9 @@ class HyperFramesBridgeTests(unittest.TestCase):
  
     def test_each_image_uses_separate_entrance_camera_and_transition_recipes(self):
         item = bridge.normalize_elements(
-            8.0,
             [{"id": "rope-cutout", "type": "image", "path": "rope.png",
               "start": 0, "duration": 5, "emotion": "tense", "shock_level": 2}],
+            8.0,
         )[0]
         motion = item["motion"]
         self.assertEqual(
@@ -130,18 +130,18 @@ class HyperFramesBridgeTests(unittest.TestCase):
 
     def test_vector_shapes_default_to_element_motion_but_allow_reviewed_role_override(self):
         item = bridge.normalize_elements(
-            6.0,
             [{"id": "diagram-node", "type": "shape", "shape": "circle",
               "start": 0, "duration": 4}],
+            6.0,
         )[0]
         self.assertEqual(
             bridge.motion_library.get_recipe(item["motion"]["id"])["category"],
             "element",
         )
         image_item = bridge.normalize_elements(
-            6.0,
             [{"id": "diagram-image", "type": "image", "path": "node.png",
               "motion_role": "element", "start": 0, "duration": 4}],
+            6.0,
         )[0]
         self.assertEqual(
             bridge.motion_library.get_recipe(image_item["motion"]["id"])["category"],
@@ -151,9 +151,9 @@ class HyperFramesBridgeTests(unittest.TestCase):
     def test_rejects_unknown_motion_role(self):
         with self.assertRaisesRegex(ValueError, "motion_role"):
             bridge.normalize_elements(
-                5.0,
                 [{"id": "bad-role", "type": "image", "path": "x.png",
                   "motion_role": "random", "start": 0, "duration": 3}],
+                5.0,
             )
 
     def test_rejects_unsafe_svg_path_commands(self):
