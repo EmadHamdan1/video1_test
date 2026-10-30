@@ -29,6 +29,7 @@ def render_selected_graphics(config: dict[str, Any], build_dir: Path, duration: 
             })
 
     remotion = config.get("remotion", {})
+    project_fps = int((config.get("canvas") or {}).get("fps", 30))
     if isinstance(remotion, dict) and remotion.get("enabled", False):
         compositions = remotion.get("compositions", [])
         if not isinstance(compositions, list):
@@ -43,7 +44,7 @@ def render_selected_graphics(config: dict[str, Any], build_dir: Path, duration: 
             if start >= duration:
                 continue
             clip_duration = min(requested_duration, duration - start)
-            render_spec = {**item, "duration": clip_duration}
+            render_spec = {**item, "duration": clip_duration, "fps": int(item.get("fps", project_fps))}
             rendered = remotion_bridge.render_alpha_composition(
                 render_spec,
                 build_dir,
