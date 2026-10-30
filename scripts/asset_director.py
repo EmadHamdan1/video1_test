@@ -237,29 +237,32 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
                 ),
             }
             gaps.append(gap)
-            prompt_row = scene_prompts.get(f"scene_{beat_index + 1:03d}", {})
-            prompt_seed = (
-                prompt_row.get("visual_prompt")
-                or "Create a clear, literal supporting visual of: " + visual_query
-            )
-            prompt = _generation_prompt(visual_query, style_guide, prompt_row.get("sentence", prompt_seed))
-            generation_queue.append({
-                "scene_id": scene_id,
-                "segment_id": f"scene_{beat_index + 1:03d}",
-                "beat_id": beat_id,
-                "start": row["start"],
-                "purpose": visual_query,
-                "prompt": prompt,
-                "generator": "scripts/prepare_assets.py generate-image",
-                "generation_requires_explicit_cost_confirmation": True,
-                "use_requires_selection_and_license_review": True,
-                "alpha_policy": (
-                    "Accept only a verified real alpha channel for a cutout layer. "
-                    "If the selected file is opaque, use it only as an opaque image layer; "
-                    "never simulate transparency with a white or black matte."
-                ),
-                "background_removal_available": rembg_available,
-            })
+            # Prefer an existing beat-matched licensed/approved candidate. Only
+            # queue generation when the asset department has no viable local candidate.
+            if not stock_candidates:
+                prompt_row = scene_prompts.get(f"scene_{beat_index + 1:03d}", {})
+                prompt_seed = (
+                    prompt_row.get("visual_prompt")
+                    or "Create a clear, literal supporting visual of: " + visual_query
+                )
+                prompt = _generation_prompt(visual_query, style_guide, prompt_row.get("sentence", prompt_seed))
+                generation_queue.append({
+                    "scene_id": scene_id,
+                    "segment_id": f"scene_{beat_index + 1:03d}",
+                    "beat_id": beat_id,
+                    "start": row["start"],
+                    "purpose": visual_query,
+                    "prompt": prompt,
+                    "generator": "scripts/prepare_assets.py generate-image",
+                    "generation_requires_explicit_cost_confirmation": True,
+                    "use_requires_selection_and_license_review": True,
+                    "alpha_policy": (
+                        "Accept only a verified real alpha channel for a cutout layer. "
+                        "If the selected file is opaque, use it only as an opaque image layer; "
+                        "never simulate transparency with a white or black matte."
+                    ),
+                    "background_removal_available": rembg_available,
+                })
 
     return {
         "schema_version": 2,
