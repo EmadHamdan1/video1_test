@@ -46,7 +46,7 @@ def _load_json(path: Path, fallback: Any) -> Any:
         return fallback
 
 
-def _load_reviewed_generated_assets(project_dir: Path) -> list[dict[str, Any]]:
+def _load_selected_reviewed_assets(project_dir: Path) -> list[dict[str, Any]]:
     """Return only AI-generated local files a person selected and explicitly license-reviewed."""
     manifest = project_dir / "media_candidates.csv"
     if not manifest.is_file():
@@ -76,7 +76,7 @@ def _load_reviewed_generated_assets(project_dir: Path) -> list[dict[str, Any]]:
             "query": str(item.get("query", "")),
             "beat": int(match.group(1)) - 1,
             "alpha_channel": inspect_asset(str(path))["alpha_channel"],
-            "asset_origin": "selected_and_license_reviewed_generated_asset",
+            "asset_origin": "selected_and_license_reviewed_local_assets_asset",
         })
     return assets
 
@@ -121,7 +121,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
     stock_manifest = _load_json(manifest_path, [])
     if not isinstance(stock_manifest, list):
         stock_manifest = []
-    reviewed_generated = _load_reviewed_generated_assets(project_dir)
+    reviewed_local_assets = _load_selected_reviewed_assets(project_dir)
     scene_prompts = _load_scene_prompts(project_dir)
 
     missing_doc = _load_json(project_dir / "build" / "MISSING_ASSETS.json", {"items": []})
@@ -194,8 +194,8 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
             and Path(str(item.get("path", ""))).is_file()
         ]
         stock_candidates.extend([
-            {**item, "origin": "reviewed_generated_asset"}
-            for item in reviewed_generated
+            {**item, "origin": "reviewed_local_assets_asset"}
+            for item in reviewed_local_assets
             if abs(int(item.get("beat", -1)) - beat_index) <= 1
             and Path(str(item.get("path", ""))).is_file()
         ])
@@ -283,7 +283,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
         "source_image_count": len(config.get("scene_images", [])),
         "stock_manifest": str(manifest_path),
         "stock_asset_count": len(stock_manifest),
-        "reviewed_generated_asset_count": len(reviewed_generated),
+        "reviewed_local_assets_asset_count": len(reviewed_local_assets),
         "scenes": planned,
         "visual_gaps": gaps,
         "asset_generation_queue": generation_queue,
@@ -293,7 +293,7 @@ def build_asset_report(config: dict[str, Any], scenes: list[dict[str, Any]],
             "scenes_with_supporting_layers": sum(bool(row["supporting_layers_used"]) for row in planned),
             "visual_gaps": len(gaps),
             "stock_assets": len(stock_manifest),
-            "reviewed_generated_assets": len(reviewed_generated),
+            "reviewed_local_assets_assets": len(reviewed_local_assets),
             "generation_queue_items": len(generation_queue),
         },
     }
@@ -309,7 +309,7 @@ def render_asset_report(report: dict[str, Any]) -> str:
         "- Supporting media is accepted only when its query belongs to the scene beat or an adjacent beat.",
         "- Image metadata does not prove semantic relevance; visual review is required.",
         "- AI generation is queued, never triggered automatically; each generation needs explicit cost acknowledgement.",
-        "- Generated assets are excluded until a human selects them and records a licence/model-terms review.",
+        "- Locally selected assets are excluded until a human selects them and records a licence/source or model-terms review.",
         "",
         "## Summary",
         "",
@@ -317,7 +317,7 @@ def render_asset_report(report: dict[str, Any]) -> str:
         f"- Scenes with supporting layers: {summary.get('scenes_with_supporting_layers', 0)}",
         f"- Visual gaps: {summary.get('visual_gaps', 0)}",
         f"- Licensed stock assets cached: {summary.get('stock_assets', 0)}",
-        f"- Reviewed generated assets ready for beat matching: {summary.get('reviewed_generated_assets', 0)}",
+        f"- Selected and reviewed local assets ready for beat matching: {summary.get('reviewed_local_assets_assets', 0)}",
         f"- Suggested AI asset prompts: {summary.get('generation_queue_items', 0)}",
         "",
         "## Generation capability",
