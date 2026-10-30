@@ -97,7 +97,7 @@ class GeneratedAssetRoutingTests(unittest.TestCase):
             self.assertEqual(pool[0]["id"], "C0002")
             self.assertEqual(pool[0]["beat"], 2)
             self.assertTrue(pool[0]["alpha_channel"])
-            self.assertEqual(pool[0]["asset_origin"], "ai_generated_and_license_reviewed")
+            self.assertEqual(pool[0]["asset_origin"], "selected_and_license_reviewed_local_asset")
 
 
 if __name__ == "__main__":
