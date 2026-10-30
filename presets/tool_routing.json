@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "status": "design-contract-not-runtime",
+  "project_mode": "reusable",
+  "primary_timeline_backend": "capcut",
+  "visual_insert_backend": "hyperframes",
+  "animation_runtime": "gsap",
+  "asset_gap_policy": [
+    "local_relevant_asset",
+    "licensed_stock",
+    "hyperframes_vector_diagram",
+    "optional_ai_image_generation"
+  ],
+  "motion_policy": {
+    "subject_aware": true,
+    "use_source_resolution_limits": true,
+    "respect_safe_margins": true,
+    "deterministic": true,
+    "avoid_repeat_window_shots": 5
+  },
+  "renderers": {
+    "capcut": {
+      "enabled": true,
+      "role": "editable_source_media_timeline_and_audio"
+    },
+    "hyperframes": {
+      "enabled": true,
+      "role": "html_svg_canvas_motion_graphics_and_gap_filling_inserts",
+      "transparent_format": "mov_prores_4444"
+    },
+    "gsap": {
+      "enabled": true,
+      "host": "hyperframes",
+      "role": "deterministic_animation_timeline"
+    },
+    "d3": {
+      "enabled": false,
+      "role": "data_driven_maps_timelines_relationship_graphs"
+    },
+    "pixijs": {
+      "enabled": false,
+      "role": "selective_gpu_2d_atmosphere_particles_and_effects"
+    },
+    "remotion": {
+      "enabled": true,
+      "role": "legacy_compositions_only"
+    },
+    "lottie": {
+      "enabled": false,
+      "role": "play_supplied_licensed_json_animations"
+    },
+    "matterjs": {
+      "enabled": false,
+      "role": "selected_physics_based_motion"
+    },
+    "p5js": {
+      "enabled": false,
+      "role": "selected_procedural_visuals"
+    },
+    "svgjs": {
+      "enabled": false,
+      "role": "optional_programmatic_svg_manipulation"
+    },
+    "animejs": {
+      "enabled": false,
+      "reason": "overlaps_with_gsap"
+    },
+    "motion": {
+      "enabled": false,
+      "reason": "ui_animation_not_core_video_timeline"
+    },
+    "motion_canvas": {
+      "enabled": false,
+      "reason": "separate_renderer_duplicates_current_render_path"
+    }
+  },
+  "constraints": [
+    "do_not_flatten_original_photo_tracks",
+    "do_not_create_visuals_from_unverified_facts",
+    "do_not_use_decorative_motion_without_story_purpose",
+    "verify_transparent_mov_in_installed_capcut_before_automation",
+    "optional_ai_image_generation_requires_cost_and_licence_review"
+  ]
+}
