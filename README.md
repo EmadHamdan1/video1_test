@@ -32,7 +32,25 @@ The current architecture uses one production plan and several specialised tools:
 - The motion catalogue contains 224 deterministic choreography recipes across 16 behaviour families. The director selects by role, emotion, impact and recent use.
 - Narration remains internal timing/reference data. The production plan explicitly disables transcript/subtitle overlays.
 
-The generated reports are written to the project's build folder: `production_plan.json`, `TOOLCHAIN_REPORT.md`, `RENDERER_MANIFEST.json`, `ASSET_DEPARTMENT_REPORT.json/.md`, and `QA_REPORT.md`. These reports validate structure and metadata; they do not replace review of the actual CapCut preview.
+The generated reports are written to the project's build folder: `production_plan.json`, `TOOLCHAIN_REPORT.md`, `RENDERER_MANIFEST.json`, `ASSET_DEPARTMENT_REPORT.json/.md`, `ASSET_GENERATION_QUEUE.json`, and `QA_REPORT.md`. These reports validate structure and metadata; they do not replace review of the actual CapCut preview.
+
+### Missing illustrations and AI-generated assets
+
+The preparation stage creates `projects/nutty-putty-cave/scene_plan.csv` once and preserves it on later runs so reviewed scene prompts are not overwritten. The asset department writes `ASSET_GENERATION_QUEUE.json` with scene-specific visual gaps and prompts that follow the supplied 2D cartoon art direction.
+
+The existing Hugging Face generator is connected to this queue, but it never runs automatically. Generation may consume provider credits. First review the prompt and cost, then explicitly run the command for the missing scene:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\prepare_assets.py generate-image --project projects\nutty-putty-cave --scene-id scene_012 --prompt "Paste the reviewed prompt from ASSET_GENERATION_QUEUE.json" --confirm-possible-cost
+```
+
+The generated file is not inserted merely because it exists. Review the model/provider terms and the generated image, then mark its candidate ID as approved:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\prepare_assets.py review-license --project projects\nutty-putty-cave --id C0001 --notes "Reviewed model card and provider terms; approved for this video."
+```
+
+Use the actual candidate ID returned by the asset manifest. The candidate must remain selected and have `license_reviewed=yes` before the engine can consider it for the matching story beat. Opaque illustrations remain ordinary image layers; only files with real transparent pixels may be used as cutouts. Background removal is reported as an optional local capability and is never faked with a white/black matte.
 
 ## Run the latest version
 
