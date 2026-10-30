@@ -36,8 +36,16 @@ def render_selected_graphics(config: dict[str, Any], build_dir: Path, duration: 
         for index, item in enumerate(compositions, start=1):
             if not isinstance(item, dict):
                 raise ValueError(f"Remotion composition {index} must be an object.")
+            start = max(0.0, float(item.get("start", 0.0)))
+            requested_duration = float(item.get("duration", 5.0))
+            if requested_duration <= 0:
+                raise ValueError(f"Remotion composition {index} duration must be positive.")
+            if start >= duration:
+                continue
+            clip_duration = min(requested_duration, duration - start)
+            render_spec = {**item, "duration": clip_duration}
             rendered = remotion_bridge.render_alpha_composition(
-                item,
+                render_spec,
                 build_dir,
                 project_root / "motion-lab",
             )
@@ -46,19 +54,27 @@ def render_selected_graphics(config: dict[str, Any], build_dir: Path, duration: 
                     **rendered,
                     "renderer": "remotion",
                     "track_name": str(item.get("track_name") or f"Remotion Graphics {index:02d}"),
-                    "start": float(item.get("start", 0.0)),
-                    "duration": float(item.get("duration", rendered["duration"])),
+                    "start": start,
+                    "duration": clip_duration,
                 })
     return outputs
 
 
-def attach_graphics_tracks(spec: dict[str, Any], outputs: list[dict[str, Any]]) -> None:
+def attach_graphics_tracks(spec: dict[str, Any], outputs: list[dict[str, Any]],
+                           total_duration: float | None = None) -> None:
     tracks = spec.setdefault("tracks", [])
     if not isinstance(tracks, list):
         raise ValueError("CapCut compile spec tracks must be a list.")
     for index, output in enumerate(outputs, start=1):
         start = max(0.0, float(output.get("start", 0.0)))
-        duration = max(0.1, float(output.get("duration", 0.1)))
+        requested = max(0.0, float(output.get("duration", 0.0)))
+        if total_duration is not None:
+            if start >= float(total_duration):
+                continue
+            requested = min(requested, float(total_duration) - start)
+        duration = requested
+        if duration < 0.1:
+            continue
         tracks.append({
             "type": "video",
             "name": str(output.get("track_name") or f"Motion Graphics {index:02d}"),
