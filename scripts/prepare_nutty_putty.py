@@ -1453,6 +1453,12 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     flash_times: list[float] = []
     config = {
         "project_name": "Nutty Putty Cave — Horror Story",
+        "asset_style_guide": (
+            "match the supplied story artwork: stylized 2D cartoon documentary illustration, "
+            "consistent clean outlines, readable silhouettes, restrained cave-earth palette, "
+            "expressive but believable characters and props, cinematic directional lighting; "
+            "do not switch to photorealism or a different illustration style"
+        ),
         "drafts_dir": "",
         "audio": str(master_audio),
         "scene_images": [str(item) for item in scene_images],
