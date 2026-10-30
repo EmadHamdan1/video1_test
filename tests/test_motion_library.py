@@ -50,6 +50,21 @@ class MotionLibraryTests(unittest.TestCase):
         self.assertTrue(all(0 <= item[2] <= 3.2 for item in timeline.keys))
         self.assertTrue(any(item[1] == "rotation" for item in timeline.keys))
 
+
+    def test_transition_and_camera_recipes_map_to_native_capcut_behaviors(self):
+        transition = motion_library.get_recipe("whip_pan_left_dramatic_01")
+        camera = motion_library.get_recipe("parallax_drift_right_balanced_03")
+        self.assertIn(
+            motion_library.capcut_transition_exit(transition),
+            {"slide_out_left", "slide_out_right", "shrink", "zoom_away"},
+        )
+        profile = motion_library.capcut_hold_profile(camera)
+        self.assertGreater(profile["pan_factor"], 0)
+        self.assertGreater(profile["push_factor"], 0)
+        self.assertEqual(motion_library.hero_entrance_style(
+            motion_library.get_recipe("diagonal_sweep_right_balanced_01")
+        ), "diagonal_sweep")
+
     def test_recent_recipe_ids_are_avoided_when_alternatives_exist(self):
         first = motion_library.choose_recipe("entrance", "tense", 1, "beat-A")
         second = motion_library.choose_recipe("entrance", "tense", 1, "beat-B", [first["id"]])
