@@ -86,6 +86,14 @@ The bridge renders one full-duration transparent ProRes 4444 MOV and appends it 
 
 This first version consumes reviewed graphic instructions. It does not yet infer factual arrows, detect missing objects, or generate a diagram from narration by itself. The universal story planner and image-aware motion analysis remain separate implementation phases.
 
+To verify the local renderer without changing a real project's config or CapCut draft, run:
+
+```powershell
+python .\scripts\render_hyperframes_demo.py
+```
+
+The six-second demo writes a transparent overlay MOV under `build\hyperframes-demo\hyperframes\overlay.mov`. It does not create or modify a CapCut project.
+
 ## Stock sources, keys, licences and credits
 
 - **Openverse:** openly licensed photo search; no API key in this pipeline. See https://api.openverse.org/v1/.
