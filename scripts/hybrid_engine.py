@@ -461,6 +461,10 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             "transition", str(beat.get("emotion", "")), shock, ref + ":transition", recent_motion_ids
         )
         hold_profile = motion_library.capcut_hold_profile(chosen_camera)
+        transition_exit_style = (
+            "shrink" if index == 0 and shock < 3
+            else motion_library.capcut_transition_exit(chosen_transition)
+        )
         entrance_kind[ref] = scene_motion(
             tl, ref, clip_len, S, bx, by, index, edge, shock, is_last,
             pan_amount * hold_profile["pan_factor"], push * hold_profile["push_factor"],
@@ -469,7 +473,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 "pop" if index == 0 and shock < 3
                 else motion_library.hero_entrance_style(chosen_motion)
             ),
-            forced_exit=motion_library.capcut_transition_exit(chosen_transition),
+            forced_exit=transition_exit_style,
         )
         recent_motion_ids.extend([
             chosen_motion["id"], chosen_camera["id"], chosen_transition["id"]
@@ -493,6 +497,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
             "camera_recipe_id": chosen_camera["id"],
             "transition_recipe_id": chosen_transition["id"],
             "transition_family": chosen_transition["family"],
+            "capcut_transition_style": transition_exit_style,
         })
 
     sfx_cues: list[tuple[float, list[str]]] = []
