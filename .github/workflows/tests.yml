@@ -2,7 +2,7 @@ name: Python syntax and timing tests
 
 on:
   push:
-    branches: ["main", "feat/capcut-montage-pipeline"]
+    branches: ["main", "feat/capcut-montage-pipeline", "feat/motion-toolkit-phase1-gsap"]
   pull_request:
     branches: ["main"]
 
