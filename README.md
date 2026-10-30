@@ -20,6 +20,20 @@ The story-specific full build uses the hybrid_whiteboard engine:
 
 The full build adds concrete English stock-search terms to each prepared story beat. Verified transparent PNGs are marked in the asset manifest and preferred for secondary cutout-style layers when available; ordinary opaque stock images remain supported. The stock searcher tries Openverse and Wikimedia Commons without API keys. Pexels and Pixabay are optional when their keys are present in process environment variables or the root .env. If a provider fails or no image survives filtering, the project falls back to its existing local artwork.
 
+## Unified production pipeline
+
+The current architecture uses one production plan and several specialised tools:
+
+- Python creates the time-aligned shot/layer plan and performs read-only toolchain detection.
+- CapCut keeps the supplied photos, narration, music and sound effects editable.
+- HyperFrames + GSAP renders compound HTML/SVG/image layers. Its bridge supports titles, callouts, arrows, independent images, vector shapes and labels.
+- Remotion + GSAP renders selected React compositions such as the case-file overlay.
+- Every transparent ProRes output is checked with FFprobe before it becomes a separate CapCut track.
+- The motion catalogue contains 224 deterministic choreography recipes across 16 behaviour families. The director selects by role, emotion, impact and recent use.
+- Narration remains internal timing/reference data. The production plan explicitly disables transcript/subtitle overlays.
+
+The generated reports are written to the project's build folder: `production_plan.json`, `TOOLCHAIN_REPORT.md`, `RENDERER_MANIFEST.json`, and `QA_REPORT.md`.
+
 ## Run the latest version
 
 1. Save edits and **close CapCut completely**.
@@ -36,11 +50,11 @@ The full build adds concrete English stock-search terms to each prepared story b
 
 The command .\run_nutty_putty.ps1 -BasicOnly deliberately produces a minimal draft without stock fetching, title card, Whisper, music, sound effects or captions; use it only for diagnosing basic project creation.
 
-## Optional HyperFrames graphics bridge
+## HyperFrames + Remotion graphics bridge
 
 The main CapCut timeline remains the editable assembly. HyperFrames is an optional renderer for transparent titles, callouts and connecting arrows. It does not replace the source-photo tracks or the Python keyframe engine.
 
-The bridge is disabled unless the project config contains a top-level `hyperframes` object with `enabled: true` and a reviewed `elements` list. The first version accepts `title`, `callout`, and `arrow` items. A future story planner can populate that list from narration beats and verified relationships.
+The bridge is disabled unless the project config contains a top-level `hyperframes` object with `enabled: true` and a reviewed `elements` list. The current bridge accepts `title`, `callout`, `arrow`, `image`, `shape`, and short functional `text` elements. Images are copied into the generated composition's local assets folder; shape and text layers receive independent GSAP timelines. A future story planner can populate that list from narration beats and verified relationships.
 
 Example config fragment:
 
@@ -82,9 +96,9 @@ Example config fragment:
 }
 ```
 
-The bridge renders one full-duration transparent ProRes 4444 MOV and appends it as a separate topmost CapCut video track. FFprobe verifies the codec and alpha pixel format before the draft is compiled. Rendering uses the pinned HyperFrames CLI and the GSAP CDN script, so network access is required for a first render. Verify alpha import in the installed CapCut version before enabling this in a production project.
+The bridge renders one full-duration transparent ProRes 4444 MOV and appends it as a separate topmost CapCut video track. FFprobe verifies the codec and alpha pixel format before the draft is compiled. Rendering uses the pinned HyperFrames CLI and prefers a local GSAP bundle from motion-lab; a version-pinned CDN is only the fallback when the local bundle is absent. Verify alpha import in the installed CapCut version before enabling this in a production project.
 
-This first version consumes reviewed graphic instructions. It does not yet infer factual arrows, detect missing objects, or generate a diagram from narration by itself. The universal story planner and image-aware motion analysis remain separate implementation phases.
+The renderer consumes reviewed graphic instructions. Story-beat planning is generated automatically, but factual image recognition and automatic cutout generation still require a reviewed vision/asset provider. The universal story planner and image-aware motion analysis remain separate implementation phases.
 
 To verify the local renderer without changing a real project's config or CapCut draft, run:
 
