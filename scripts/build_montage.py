@@ -1423,12 +1423,53 @@ def main(argv: list[str] | None = None) -> int:
     env = os.environ.copy()
     env["CAPCUT_DRAFT_DIR"] = str(drafts_dir)
 
-    command = [
-        capcut, "compile", str(spec_path),
-        "--drafts", str(drafts_dir),
-        "--out", str(out_dir),
-    ]
-    log("Creating a real CapCut draft at: " + str(out_dir))
+    # The most reliable compatibility path is to fill a blank project created
+    # by the installed CapCut app. This preserves that app's own version markers,
+    # project identity, and store registration instead of cloning a possibly stale
+    # template from an older draft.
+    shell_raw = os.environ.get("NUTTY_PUTTY_CAPCUT_SHELL", "").strip()
+    shell_dir: Path | None = None
+    if shell_raw:
+        shell_dir = Path(os.path.expandvars(shell_raw)).expanduser().resolve()
+        canonical_candidates = (shell_dir / "draft_content.json", shell_dir / "draft_info.json")
+        if not shell_dir.is_dir() or not any(item.is_file() for item in canonical_candidates):
+            raise RuntimeError(
+                "NUTTY_PUTTY_CAPCUT_SHELL must point to an existing, blank CapCut project folder "
+                "containing draft_content.json or draft_info.json. Create the blank project in CapCut, "
+                "close CapCut completely, then set the variable to that folder."
+            )
+        compile_base = [capcut, "compile", str(spec_path), "--into", str(shell_dir)]
+        if (shell_dir / "Timelines").is_dir():
+            compile_base.append("--active-timeline")
+        check_command = [*compile_base, "--check"]
+        log("Checking the app-created CapCut shell before writing: " + str(shell_dir))
+        check_result = subprocess.run(
+            check_command, text=True, capture_output=True, env=env, check=False
+        )
+        if check_result.stdout.strip():
+            print(check_result.stdout.strip())
+        if check_result.returncode != 0:
+            if check_result.stderr.strip():
+                print(check_result.stderr.strip(), file=sys.stderr)
+            raise RuntimeError(
+                "The selected CapCut shell is not empty or compatible. Create a new blank project "
+                "in CapCut, close the app, update capcut-cli, and set NUTTY_PUTTY_CAPCUT_SHELL "
+                "to that new project's folder."
+            )
+        command = compile_base
+        out_dir = shell_dir
+        log("Filling the blank project authored by this CapCut installation.")
+    else:
+        command = [
+            capcut, "compile", str(spec_path),
+            "--drafts", str(drafts_dir),
+            "--out", str(out_dir),
+        ]
+        log(
+            "Creating a new CapCut draft from the local store template. "
+            "For version-safe creation, set NUTTY_PUTTY_CAPCUT_SHELL to a blank app-created project."
+        )
+
     result = subprocess.run(command, text=True, capture_output=True, env=env, check=False)
     if result.stdout.strip():
         print(result.stdout.strip())
@@ -1459,7 +1500,7 @@ def main(argv: list[str] | None = None) -> int:
                     payload = candidate
                     break
 
-    draft_path = Path(str(payload.get("draft_path", out_dir))).resolve()
+    draft_path = Path(str(payload.get("draft_path", shell_dir or out_dir))).resolve()
     refs = payload.get("refs", {}) if isinstance(payload.get("refs", {}), dict) else {}
     matting_results: list[dict[str, str]] = []
     if presenter_rows:
@@ -1554,7 +1595,7 @@ def main(argv: list[str] | None = None) -> int:
             log("Applied native CapCut text intro animations to " + str(sum(1 for item in text_animation_results if item["status"] == "applied")) + " text segment(s).")
 
     register_result = subprocess.run(
-        [capcut, "register", str(draft_path), "--apply"],
+        [capcut, "register", str(draft_path), "--materials", "--apply"],
         text=True, capture_output=True, env=env, check=False,
     )
     registered = register_result.returncode == 0
@@ -1563,6 +1604,47 @@ def main(argv: list[str] | None = None) -> int:
     else:
         detail = (register_result.stderr or register_result.stdout or "").strip()
         log("Automatic registration did not complete; the draft was still created. " + detail[-400:])
+
+    # Read-only checks cannot prove that every CapCut desktop build will open the
+    # project, but they catch stale templates, missing assets, and schema problems
+    # before the user attempts to open it in the editor.
+    compatibility_checks: list[dict[str, Any]] = []
+    for label, arguments in (
+        ("version", [capcut, "version", str(draft_path)]),
+        ("lint", [capcut, "lint", str(draft_path)]),
+        ("diagnose", [capcut, "diagnose", str(draft_path), "-H"]),
+    ):
+        try:
+            checked = subprocess.run(
+                arguments, text=True, capture_output=True, env=env, check=False
+            )
+            detail = (checked.stdout or "").strip()
+            if checked.stderr.strip():
+                detail = (detail + "\\n" + checked.stderr.strip()).strip()
+            compatibility_checks.append({
+                "check": label,
+                "returncode": checked.returncode,
+                "output": detail[-12000:],
+            })
+            if detail:
+                log("CapCut " + label + " check completed (exit " + str(checked.returncode) + ").")
+            if label == "version" and "template-stale" in detail.lower():
+                log(
+                    "WARNING: CapCut reports a stale project template. Rebuild into a blank "
+                    "project created by the currently installed CapCut app."
+                )
+        except OSError as exc:
+            compatibility_checks.append({"check": label, "error": str(exc)})
+
+    compatibility_report = BUILD_DIR / "CAPCUT_COMPATIBILITY_REPORT.txt"
+    compatibility_report.write_text(
+        "\\n\\n".join(
+            "=== " + str(item.get("check", "check")) + " ===\\n"
+            + str(item.get("output", item.get("error", "No output")))
+            for item in compatibility_checks
+        ) + "\\n",
+        encoding="utf-8",
+    )
 
     report = {
         "ok": True,
@@ -1585,6 +1667,8 @@ def main(argv: list[str] | None = None) -> int:
         "matting": matting_results,
         "text_animations": text_animation_results,
         "warnings": payload.get("warnings", []),
+        "capcut_compatibility_checks": compatibility_checks,
+        "capcut_compatibility_report": str(compatibility_report),
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "notes": [
             "This is an editable CapCut draft, not a rendered MP4.",
