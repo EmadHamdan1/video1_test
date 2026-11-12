@@ -340,11 +340,11 @@ def _plan_boundaries(bm: dict, config: dict, settings: dict, images: list, durat
 
 def _sfx_kind(path: Path) -> str:
     name = path.stem.lower()
-    if any(k in name for k in ("whoosh", "swoosh", "swish", "slide", "swipe")):
+    if any(k in name for k in ("whoosh", "swoosh", "swish", "slide", "swipe", "paper", "sweep")):
         return "whoosh"
-    if any(k in name for k in ("hit", "impact", "boom", "thud", "bass", "slam", "stinger", "drop")):
+    if any(k in name for k in ("hit", "impact", "boom", "thud", "bass", "slam", "stinger", "drop", "snap", "crack", "rope")):
         return "hit"
-    if any(k in name for k in ("pop", "click", "tick", "ding", "bubble", "blip")):
+    if any(k in name for k in ("pop", "click", "tick", "ding", "bubble", "blip", "shutter", "tap")):
         return "pop"
     return "other"
 
@@ -857,6 +857,25 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                               "volume": float(item.get("volume", 0.16)), "ref": "local_sfx_%02d" % (index + 1)})
         except (TypeError, ValueError):
             log("Invalid optional SFX entry skipped: " + str(item))
+
+    # The pack pool is separate from explicitly timed SFX: these files are only
+    # candidates for entrance cues on secondary illustrations and other visual accents.
+    pool_paths = {str(Path(str(item["path"])).resolve()) for item in pool}
+    for raw_item in settings.get("sfx_pool", []):
+        raw_path = raw_item.get("path", "") if isinstance(raw_item, dict) else str(raw_item)
+        path = Path(os.path.expandvars(str(raw_path))).expanduser()
+        if not path.is_file():
+            log("SFX pool file was not found; skipped: " + str(raw_path))
+            continue
+        resolved_path = str(path.resolve())
+        if resolved_path in pool_paths:
+            continue
+        pool_paths.add(resolved_path)
+        try:
+            volume = float(raw_item.get("volume", 0.16)) if isinstance(raw_item, dict) else 0.16
+        except (TypeError, ValueError):
+            volume = 0.16
+        pool.append({"path": path.resolve(), "volume": volume, "kind": _sfx_kind(path)})
 
     if settings.get("auto_entrance_sfx", True) and pool:
         explicit = [i["start"] for i in sfx_items]
