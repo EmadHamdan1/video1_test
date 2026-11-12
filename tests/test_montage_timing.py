@@ -1,0 +1,609 @@
+import csv
+import importlib.util
+import sys
+import tempfile
+import unittest
+import wave
+from pathlib import Path
+
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_montage.py"
+sys.path.insert(0, str(SCRIPT.parent))
+import stock_fetcher
+SPEC = importlib.util.spec_from_file_location("build_montage", SCRIPT)
+BUILDER = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(BUILDER)
+
+
+class MontageTimingTests(unittest.TestCase):
+    def test_nutty_putty_title_composition_has_duration_headroom(self):
+        root_path = Path(__file__).resolve().parents[1] / "motion-lab" / "src" / "Root.tsx"
+        source = root_path.read_text(encoding="utf-8")
+        self.assertIn('id="NuttyPuttyTitle"', source)
+        self.assertIn("durationInFrames={75}", source)
+
+    def test_hybrid_video_segment_never_exceeds_source_duration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temp = Path(temporary)
+            previous_build_dir = BUILDER.BUILD_DIR
+            previous_audio_duration = BUILDER.audio_duration
+            BUILDER.BUILD_DIR = temp / "build"
+            title = temp / "nutty-putty-title.mp4"
+            title.touch()
+            images = [title, temp / "scene_a.jpg", temp / "scene_b.jpg"]
+            for image in images[1:]:
+                image.touch()
+            # Simulate a rendered title file whose actual media duration is 2.0 sec.
+            BUILDER.audio_duration = lambda _path: 2.0
+            config = {
+                "project_name": "Title source-range regression",
+                "storyboard_boundaries": [0.0, 2.14, 6.5, 10.0],
+                "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                "settings": {
+                    "motion_preset": "nutty_putty_casefile",
+                    "layout_mode": "hybrid_whiteboard",
+                    "use_storyboard_boundaries": True,
+                    "presenter_overlay": False,
+                    "add_captions_when_transcribed": False,
+                    "show_scene_text_without_transcript": False,
+                    "sound_effects": [],
+                },
+            }
+            try:
+                spec, _, _ = BUILDER.make_spec(
+                    config, temp / "voice.mp3", images, [], 10.0, [], None
+                )
+                title_items = [
+                    item
+                    for track in spec["tracks"]
+                    for item in track.get("items", [])
+                    if item.get("path") == str(title)
+                ]
+                self.assertEqual(len(title_items), 1)
+                self.assertLessEqual(title_items[0]["duration"], 1.999)
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+                BUILDER.audio_duration = previous_audio_duration
+
+    def test_hybrid_uses_relevant_stock_as_an_animated_full_bleed_hero(self):
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as temporary:
+            temp = Path(temporary)
+            previous_build_dir = BUILDER.BUILD_DIR
+            previous_stock_loader = stock_fetcher.load_stock_pool_entries
+            BUILDER.BUILD_DIR = temp / "build"
+            images = [temp / ("scene_%d.jpg" % index) for index in range(4)]
+            for image in images:
+                image.touch()
+            stock_dir = temp / "assets" / "stock"
+            stock_dir.mkdir(parents=True)
+            stock = stock_dir / "openverse_cave.jpg"
+            Image.new("RGB", (1600, 900), (70, 90, 120)).save(stock)
+            stock_fetcher.load_stock_pool_entries = lambda *_args: [{
+                "provider": "openverse", "id": "cave-1", "kind": "photo",
+                "beat": 1, "query": "dark cave passage", "path": str(stock.resolve()),
+            }]
+            config = {
+                "project_name": "Stock B-roll hero regression",
+                "storyboard_boundaries": [0.0, 2.0, 4.0, 6.0, 8.0],
+                "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                "story_beats": [
+                    {"start_s": 0.0, "end_s": 2.4, "text": "opening", "trigger_word": "CAVE"},
+                    {"start_s": 2.4, "end_s": 4.4, "text": "narrow passage", "trigger_word": "CORKSCREW"},
+                    {"start_s": 4.4, "end_s": 6.4, "text": "rescue", "trigger_word": "RESCUE", "shock_level": 3},
+                    {"start_s": 6.4, "end_s": 8.0, "text": "ending", "trigger_word": "HELP"},
+                ],
+                "settings": {
+                    "motion_preset": "nutty_putty_casefile",
+                    "layout_mode": "hybrid_whiteboard",
+                    "use_storyboard_boundaries": True,
+                    "presenter_overlay": False,
+                    "keyword_callouts": False,
+                    "text_caps": {},
+                    "stock_media": {"enabled": True, "hero_every": 2, "allow_video": False},
+                    "sound_effects": [],
+                    "icon_overlays": [],
+                    "callout_overlays": [],
+                    "chapter_titles": [],
+                },
+            }
+            try:
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, temp / "voice.mp3", images, [], 8.0, [], None
+                )
+                self.assertTrue(scenes[1]["stock_hero"])
+                self.assertTrue(scenes[1]["full_bleed"])
+                self.assertEqual(scenes[1]["stock_source_path"], str(stock.resolve()))
+                hero_path = Path(scenes[1]["image"])
+                self.assertTrue(hero_path.is_file())
+                with Image.open(hero_path) as hero:
+                    self.assertEqual(hero.size, (1920, 1080))
+                hero_items = [
+                    item for track in spec["tracks"] for item in track.get("items", [])
+                    if item.get("ref") == scenes[1]["scene_ref"]
+                ]
+                self.assertEqual(len(hero_items), 1)
+                self.assertEqual(hero_items[0]["scale"], 1.0)
+                self.assertEqual(hero_items[0]["x"], 0.0)
+                self.assertEqual(hero_items[0]["y"], 0.0)
+
+                inserts = next(track["items"] for track in spec["tracks"]
+                               if track["name"] == "Fast Secondary Image Inserts")
+                paired = [item for item in inserts if 4.0 <= item["start"] < 6.5]
+                self.assertGreaterEqual(len(paired), 2)
+                self.assertGreaterEqual(len({item["path"] for item in paired}), 2)
+                paired_refs = {item["ref"] for item in paired}
+                motion_keys = [op for op in spec["operations"]
+                               if op.get("op") == "keyframe" and op.get("target") in paired_refs]
+                self.assertTrue(any(op.get("property") == "rotation" for op in motion_keys))
+                self.assertTrue(any(op.get("property") == "position_x" for op in motion_keys))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+                stock_fetcher.load_stock_pool_entries = previous_stock_loader
+
+    def test_timestamp_parser(self):
+        self.assertAlmostEqual(BUILDER.parse_timestamp("00:01:02,500"), 62.5)
+
+    def test_srt_parser(self):
+        text = (
+            "1\n00:00:00,000 --> 00:00:01,200\nHello there.\n\n"
+            "2\n00:00:01,200 --> 00:00:02,500\nA second line.\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "test.srt"
+            path.write_text(text, encoding="utf-8")
+            cues = BUILDER.read_srt(path)
+        self.assertEqual(len(cues), 2)
+        self.assertEqual(cues[0]["text"], "Hello there.")
+        self.assertAlmostEqual(cues[1]["end"], 2.5)
+
+    def test_audio_clip_duration_is_clamped_to_wave_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "pop.wav"
+            sample_rate = 10000
+            frame_count = 2200  # 0.22 seconds
+            with wave.open(str(path), "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(b"\x00\x00" * frame_count)
+
+            safe_duration = BUILDER.bounded_audio_clip_duration(path, 0.38)
+            short_request = BUILDER.bounded_audio_clip_duration(path, 0.15)
+
+        self.assertLess(safe_duration, 0.22)
+        self.assertGreater(safe_duration, 0.19)
+        self.assertAlmostEqual(short_request, 0.15)
+
+    def test_boundaries_are_monotonic_and_cover_duration(self):
+        boundaries = BUILDER.scene_boundaries(40.0, 8, 4.2, 1.6, [])
+        self.assertEqual(boundaries[0], 0.0)
+        self.assertEqual(boundaries[-1], 40.0)
+        self.assertEqual(len(boundaries), 9)
+        self.assertTrue(all(right > left for left, right in zip(boundaries, boundaries[1:])))
+        self.assertTrue(all(right - left >= 1.59 for left, right in zip(boundaries, boundaries[1:])))
+
+    def test_boundary_can_snap_to_nearby_caption_end(self):
+        cues = [{"start": 8.0, "end": 9.6, "text": "caption end"}]
+        boundaries = BUILDER.scene_boundaries(40.0, 4, 10.0, 1.6, cues)
+        self.assertAlmostEqual(boundaries[1], 9.6)
+
+    def test_scene_indices_cover_range_or_loop_when_needed(self):
+        self.assertEqual(BUILDER.choose_scene_indices(10, 4), [0, 3, 6, 9])
+        self.assertEqual(BUILDER.choose_scene_indices(2, 5), [0, 1, 0, 1, 0])
+
+    def test_scene_csv_includes_scene_ref_column(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "scene_timing.csv"
+            scenes = [{
+                "start": 0.0,
+                "end": 2.0,
+                "duration": 2.0,
+                "image": "scene.jpeg",
+                "caption_context": "",
+                "scene_ref": "scene_001",
+                "frame_ref": "frame_001",
+                "layout": "whiteboard-card-left / presenter-right",
+                "emotion": "scary",
+                "trigger_word": "CORKSCREW",
+                "shock_level": 2,
+            }]
+            BUILDER.write_scene_csv(path, scenes, [])
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+        self.assertEqual(rows[0]["scene_ref"], "scene_001")
+        self.assertEqual(rows[0]["frame_ref"], "frame_001")
+        self.assertEqual(rows[0]["layout"], "whiteboard-card-left / presenter-right")
+        self.assertEqual(rows[0]["presenter_ref"], "")
+        self.assertEqual(rows[0]["emotion"], "scary")
+        self.assertEqual(rows[0]["trigger_word"], "CORKSCREW")
+        self.assertEqual(rows[0]["shock_level"], "2")
+
+
+    def test_whiteboard_spec_uses_framed_images_and_persistent_presenter(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "Whiteboard test",
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 3.9,
+                        "minimum_shot_seconds": 1.8,
+                        "presenter_overlay": True,
+                        "presenter_pose_seconds": 9.5,
+                        "scene_image_scale": 0.50,
+                        "scene_image_x": -0.25,
+                        "scene_image_y": -0.02,
+                        "presenter_scale": 0.42,
+                        "presenter_x": 0.72,
+                        "presenter_y": 0.18,
+                    },
+                }
+                spec, scenes, presenters = BUILDER.make_spec(
+                    config,
+                    Path("voiceover.mp3"),
+                    [Path("scene_a.jpeg"), Path("scene_clip.mp4"), Path("scene_c.jpeg")],
+                    [Path("pose_1.jpeg"), Path("pose_2.jpeg"), Path("pose_3.jpeg")],
+                    24.0,
+                    [],
+                    None,
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Whiteboard Background", tracks)
+                self.assertIn("Whiteboard Scene Frames", tracks)
+                self.assertIn("Presenter Explainer", tracks)
+                self.assertEqual(len(tracks["Scene Artwork"]["items"]), len(scenes))
+                self.assertTrue(all(item["scale"] < 0.7 for item in tracks["Scene Artwork"]["items"]))
+                self.assertTrue(all(item["x"] < 0 for item in tracks["Scene Artwork"]["items"]))
+                self.assertIn("video", {item["type"] for item in tracks["Scene Artwork"]["items"]})
+                board = Path(tracks["Whiteboard Background"]["items"][0]["path"])
+                first_card = Path(tracks["Whiteboard Scene Frames"]["items"][0]["path"])
+                self.assertTrue(board.is_file())
+                self.assertTrue(first_card.is_file())
+                self.assertEqual(len(presenters), 3)
+                self.assertAlmostEqual(presenters[0]["start"], 0.0)
+                self.assertAlmostEqual(presenters[-1]["end"], 24.0)
+                self.assertTrue(all(row["side"] == "right" for row in presenters))
+                self.assertTrue(all(row["layout"] == "whiteboard-card-left / presenter-right" for row in scenes))
+                for left, right in zip(presenters, presenters[1:]):
+                    self.assertAlmostEqual(left["end"], right["start"], places=2)
+                slugs = {
+                    operation["slug"] for operation in spec["operations"]
+                    if operation.get("op") == "transition"
+                }
+                self.assertTrue(slugs.issubset({"dissolve", "horizontal-blur", "radial-blur"}))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
+    def test_timed_text_splits_long_cues_and_keeps_time(self):
+        chunks = BUILDER.split_timed_text(
+            2.0, 5.0, "The old machine began to glow", max_words=3, min_hold=0.8
+        )
+        self.assertEqual(len(chunks), 2)
+        self.assertAlmostEqual(chunks[0]["start"], 2.0)
+        self.assertAlmostEqual(chunks[-1]["end"], 5.0)
+        self.assertTrue(all(chunk["end"] > chunk["start"] for chunk in chunks))
+        self.assertEqual(chunks[0]["text"], "The old machine")
+
+    def test_transcript_creates_editable_animated_caption_track(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "Caption test",
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 3.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        "add_captions_when_transcribed": True,
+                        "caption_words_per_chunk": 4,
+                        "show_captions": True,
+                    },
+                }
+                spec, _, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0,
+                    [{"start": 0.0, "end": 3.0, "text": "The old machine began to glow"}],
+                    Path("captions.srt"),
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Animated Captions", tracks)
+                text_items = tracks["Animated Captions"]["items"]
+                self.assertGreaterEqual(len(text_items), 2)
+                self.assertTrue(all(item["ref"].startswith("caption_") for item in text_items))
+                operations = spec["operations"]
+                self.assertTrue(any(op.get("op") == "text-style" for op in operations))
+                self.assertTrue(any(op.get("op") == "keyframe" and op.get("property") == "position_y" for op in operations))
+                self.assertFalse(any(op.get("op") == "keyframe" and op.get("property") == "opacity" for op in operations))
+                self.assertFalse(any(op.get("op") == "captions" for op in operations))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
+    def test_project_text_policy_hides_spoken_transcript_but_keeps_designed_story_labels(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "No narration subtitles",
+                    "text_policy": {
+                        "narration_subtitles": False,
+                        "spoken_transcript_on_screen": False,
+                        "allow_story_labels": True,
+                    },
+                    "scene_texts": ["THE CORKSCREW"],
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 3.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        # Deliberately conflicting legacy switches: the project-level policy wins.
+                        "show_captions": True,
+                        "add_captions_when_transcribed": True,
+                        "show_scene_text_without_transcript": True,
+                    },
+                }
+                spec, _, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0,
+                    [{"start": 0.0, "end": 3.0, "text": "John entered the dangerous passage"}],
+                    Path("captions.srt"),
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertNotIn("Animated Captions", tracks)
+                self.assertIn("Animated Scene Callouts", tracks)
+                rendered_text = [
+                    item.get("text", "")
+                    for track in spec["tracks"]
+                    for item in track.get("items", [])
+                    if track.get("type") == "text"
+                ]
+                self.assertIn("THE CORKSCREW", rendered_text)
+                self.assertNotIn("John entered the dangerous passage", rendered_text)
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+    def test_scene_text_creates_callouts_without_whisper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                config = {
+                    "project_name": "Callout test",
+                    "scene_texts": ["A strange machine appeared in the forest"],
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 4.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        "show_scene_text_without_transcript": True,
+                        "show_captions": True,
+                    },
+                }
+                spec, _, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0, [], None
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Animated Scene Callouts", tracks)
+                self.assertGreaterEqual(len(tracks["Animated Scene Callouts"]["items"]), 1)
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+    def test_full_frame_storyboard_uses_exact_boundaries_without_whiteboard_cards(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                flash = Path(temporary) / "flash.png"
+                flash.write_bytes(b"test fixture placeholder")
+                config = {
+                    "project_name": "Full-frame horror test",
+                    "story_beats": [
+                        {"start_s": 0.0, "end_s": 2.0, "text": "NUTTY PUTTY CAVE", "emotion": "tense", "shock_level": 1, "trigger_word": "CAVE"},
+                        {"start_s": 2.0, "end_s": 4.5, "text": "John went deeper", "emotion": "scary", "shock_level": 3, "trigger_word": "ROPE SNAPPED"},
+                    ],
+                    "storyboard_boundaries": [0.0, 2.0, 4.5, 7.0],
+                    "background_music": {"path": str(Path(temporary) / "music.wav"), "start": 0.0, "duration": 7.0, "volume": 0.3},
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "layout_mode": "full_frame",
+                        "use_storyboard_boundaries": True,
+                        "scene_zoom_start": 1.0,
+                        "scene_zoom_end": 1.065,
+                        "target_shot_seconds": 2.5,
+                        "minimum_shot_seconds": 1.2,
+                        "presenter_overlay": False,
+                        "show_scene_text_without_transcript": False,
+                        "flash_overlay_path": str(flash),
+                        "flash_times": [4.5],
+                        "horror_overlay_path": str(flash),
+                        "horror_overlay_times": [4.5],
+                        "callout_overlays": [{
+                            "path": str(flash), "start_seconds": 3.1, "duration": 0.8,
+                            "label": "18 x 10 INCHES",
+                        }],
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config,
+                    Path("voice.mp3"),
+                    [Path("intro.mp4"), Path("scene_a.jpg"), Path("scene_b.jpg")],
+                    [],
+                    7.0,
+                    [],
+                    None,
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertFalse(any(operation.get("op") == "audio-fade" for operation in spec["operations"]))
+                self.assertIn("Scene Artwork", tracks)
+                self.assertNotIn("Whiteboard Background", tracks)
+                self.assertNotIn("Whiteboard Scene Frames", tracks)
+                self.assertEqual(len(tracks["Scene Artwork"]["items"]), 3)
+                self.assertAlmostEqual(scenes[0]["start"], 0.0)
+                self.assertAlmostEqual(scenes[0]["end"], 2.0)
+                self.assertAlmostEqual(scenes[1]["start"], 2.0)
+                self.assertIn("Shock Flash Hits", tracks)
+                self.assertIn("Critical Horror Tint", tracks)
+                self.assertIn("Story Fact Callouts", tracks)
+                callout_item = tracks["Story Fact Callouts"]["items"][0]
+                self.assertAlmostEqual(callout_item["start"], 3.1)
+                self.assertAlmostEqual(callout_item["duration"], 0.8)
+                self.assertTrue(any(
+                    operation.get("op") == "keyframe" and operation.get("property") == "rotation"
+                    for operation in spec["operations"]
+                ))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
+    def test_nutty_putty_scale_pop_is_keyframed_not_a_native_transition(self):
+        motion = BUILDER.load_motion_preset({"motion_preset": "nutty_putty_casefile"})
+        self.assertEqual(BUILDER.transition_for_scene(0, motion), ("cut", 0.0))
+        self.assertEqual(BUILDER.transition_for_scene(13, motion), ("scale-pop", 0.16))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            duration = 42.0
+            count = 14
+            boundaries = [round(duration * index / count, 3) for index in range(count + 1)]
+            try:
+                config = {
+                    "project_name": "Scale-pop test",
+                    "storyboard_boundaries": boundaries,
+                    "background_music": {},
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "motion_preset": "nutty_putty_casefile",
+                        "layout_mode": "full_frame",
+                        "use_storyboard_boundaries": True,
+                        "presenter_overlay": False,
+                        "show_scene_text_without_transcript": False,
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"),
+                    [Path("scene_%02d.jpg" % index) for index in range(count)],
+                    [], duration, [], None,
+                )
+                scene14_keys = [
+                    operation for operation in spec["operations"]
+                    if operation.get("op") == "keyframe"
+                    and operation.get("target") == "scene_014"
+                    and operation.get("property") == "uniform_scale"
+                ]
+                self.assertGreaterEqual(len(scene14_keys), 4)
+                self.assertGreater(scene14_keys[0]["value"], 1.0)
+                self.assertFalse(any(
+                    operation.get("op") == "transition" and operation.get("slug") == "scale-pop"
+                    for operation in spec["operations"]
+                ))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
+    def test_icon_overlay_uses_separate_track_and_scene_relative_timing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                icon = Path(temporary) / "test-icon.png"
+                icon.write_bytes(b"fake png placeholder")
+                config = {
+                    "project_name": "Icon overlay test",
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "target_shot_seconds": 4.0,
+                        "minimum_shot_seconds": 1.0,
+                        "presenter_overlay": False,
+                        "icon_overlays": [{
+                            "candidate_id": "C0001",
+                            "scene_id": "scene_001",
+                            "path": str(icon),
+                            "offset": 0.35,
+                            "duration": 1.4,
+                            "x": -0.56,
+                            "y": -0.42,
+                            "scale": 0.16,
+                        }],
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"), [Path("image.jpeg")], [], 4.0, [], None
+                )
+                tracks = {track["name"]: track for track in spec["tracks"]}
+                self.assertIn("Icon Overlays", tracks)
+                icon_item = tracks["Icon Overlays"]["items"][0]
+                self.assertEqual(icon_item["ref"], "icon_001")
+                self.assertAlmostEqual(icon_item["start"], scenes[0]["start"] + 0.35, places=2)
+                self.assertAlmostEqual(icon_item["duration"], 1.4, places=2)
+                self.assertTrue(any(
+                    operation.get("op") == "keyframe"
+                    and operation.get("target") == "icon_001"
+                    and operation.get("property") == "uniform_scale"
+                    for operation in spec["operations"]
+                ))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
+    def test_hybrid_whiteboard_pop_in_out_no_captions_and_small_callouts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_build_dir = BUILDER.BUILD_DIR
+            BUILDER.BUILD_DIR = Path(temporary) / "build"
+            try:
+                count = 5
+                config = {
+                    "project_name": "Hybrid movement test",
+                    "storyboard_boundaries": [float(i * 2) for i in range(count + 1)],
+                    "story_beats": [
+                        {"start_s": i * 2.0, "end_s": (i + 1) * 2.0, "emotion": "scary" if i == 2 else "tense",
+                         "shock_level": 3 if i == 2 else 1, "trigger_word": "TEST"}
+                        for i in range(count)
+                    ],
+                    "canvas": {"width": 1920, "height": 1080, "fps": 30, "ratio": "16:9"},
+                    "settings": {
+                        "motion_preset": "nutty_putty_casefile",
+                        "layout_mode": "hybrid_whiteboard",
+                        "use_storyboard_boundaries": True,
+                        "presenter_overlay": False,
+                        "add_captions_when_transcribed": True,
+                    },
+                }
+                spec, scenes, _ = BUILDER.make_spec(
+                    config, Path("voice.mp3"),
+                    [Path("scene_%02d.jpg" % i) for i in range(count)], [], 10.0,
+                    [{"start": 0.0, "end": 10.0, "text": "This full narration cue must stay hidden"}],
+                    Path("captions.srt"),
+                )
+                tracks = {t["name"]: t for t in spec["tracks"]}
+                self.assertEqual([r["layout_side"] for r in scenes],
+                                 ["left", "right", "center", "left", "center"])
+                self.assertIn("Scene Artwork B", tracks)
+                self.assertNotIn("Animated Captions", tracks)
+                self.assertNotIn("Animated Scene Callouts", tracks)
+                self.assertIn("Fast Secondary Image Inserts", tracks)
+                self.assertIn("Keyword Callouts", tracks)
+                self.assertTrue(all(i["fontSize"] <= 30 for i in tracks["Keyword Callouts"]["items"]))
+                from PIL import Image
+                with Image.open(tracks["Whiteboard Background"]["items"][0]["path"]) as bg:
+                    self.assertEqual(bg.getpixel((960, 540)), (255, 255, 255))
+                keys = [op for op in spec["operations"]
+                        if op.get("op") == "keyframe" and op.get("target") == "scene_001"
+                        and op.get("property") == "uniform_scale"]
+                self.assertTrue(any(op["time"] <= 0.001 and op["value"] < 0.1 for op in keys))
+                self.assertTrue(any(op["time"] >= 2.0 and op["value"] < 0.1 for op in keys))
+                times = [op["time"] for op in keys]
+                self.assertEqual(times, sorted(times))
+            finally:
+                BUILDER.BUILD_DIR = previous_build_dir
+
+
+if __name__ == "__main__":
+    unittest.main()

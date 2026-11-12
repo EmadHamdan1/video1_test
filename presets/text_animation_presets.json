@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "note": "The builder applies fade/float keyframes to phrase-level text. Selected presets can also invoke native CapCut text intro animations: typewriter -> typewriter, punch_caption/kinetic_caption/number_pop -> pop-up, and lower_third/side_callout -> fade-in. More specialized recipes remain guidance for Remotion or manual finishing.",
+  "presets": {
+    "marker_caption": {
+      "label": "Marker Caption",
+      "placement": "lower-safe-area",
+      "max_lines": 2,
+      "words_per_chunk": 4,
+      "enter": "short-opacity-and-y-rise",
+      "exit": "short-fade",
+      "duration_seconds": 2,
+      "easing": "ease-out",
+      "emphasis": "marker-underline",
+      "outline": "none",
+      "shadow": "soft"
+    },
+    "punch_caption": {
+      "label": "Punch Word",
+      "placement": "center-lower",
+      "max_lines": 2,
+      "words_per_chunk": 3,
+      "enter": "scale-pop-overshoot",
+      "exit": "fast-fade",
+      "duration_seconds": 1.25,
+      "easing": "spring-light",
+      "emphasis": "single-keyword-color",
+      "outline": "thin",
+      "shadow": "medium",
+      "use_only_on": "joke, shock or reveal"
+    },
+    "lower_third": {
+      "label": "Editorial Lower Third",
+      "placement": "bottom-left-safe-area",
+      "max_lines": 2,
+      "words_per_chunk": 7,
+      "enter": "slide-from-left",
+      "exit": "dissolve",
+      "duration_seconds": 3,
+      "easing": "ease-in-out",
+      "emphasis": "small-accent-rule",
+      "outline": "none",
+      "shadow": "soft"
+    },
+    "kinetic_caption": {
+      "label": "Kinetic Caption",
+      "placement": "lower-safe-area",
+      "max_lines": 2,
+      "words_per_chunk": 3,
+      "enter": "slide-up-by-phrase",
+      "exit": "short-fade",
+      "duration_seconds": 1.5,
+      "easing": "spring-light",
+      "emphasis": "highlight-current-word",
+      "outline": "thin",
+      "shadow": "soft"
+    },
+    "typewriter": {
+      "label": "Typewriter",
+      "placement": "on-card",
+      "max_lines": 3,
+      "words_per_chunk": 6,
+      "enter": "character-reveal",
+      "exit": "cursor-fade",
+      "duration_seconds": 2.4,
+      "easing": "linear-with-pause",
+      "emphasis": "marker-cursor",
+      "outline": "none",
+      "shadow": "none"
+    },
+    "marker_underline": {
+      "label": "Drawn Underline",
+      "placement": "near-target",
+      "max_lines": 1,
+      "words_per_chunk": 5,
+      "enter": "svg-path-draw",
+      "exit": "hold-then-fade",
+      "duration_seconds": 0.65,
+      "easing": "ease-out",
+      "emphasis": "underline-or-circle",
+      "outline": "none",
+      "shadow": "none"
+    },
+    "number_pop": {
+      "label": "Number Pop",
+      "placement": "near-data-visual",
+      "max_lines": 1,
+      "words_per_chunk": 3,
+      "enter": "scale-spring",
+      "exit": "fade-down",
+      "duration_seconds": 1,
+      "easing": "spring-light",
+      "emphasis": "large-number-small-label",
+      "outline": "none",
+      "shadow": "soft"
+    },
+    "side_callout": {
+      "label": "Side Callout",
+      "placement": "left-or-right-of-character",
+      "max_lines": 3,
+      "words_per_chunk": 5,
+      "enter": "card-slide-and-opacity",
+      "exit": "slide-away",
+      "duration_seconds": 2.2,
+      "easing": "ease-in-out",
+      "emphasis": "small-icon-and-accent",
+      "outline": "thin",
+      "shadow": "soft"
+    }
+  },
+  "global_rules": {
+    "safe_area_percent": 8,
+    "minimum_readable_hold_seconds": 1.2,
+    "avoid_all_caps_paragraphs": true,
+    "avoid_full_sentence_bounce": true,
+    "never_cover_presenter_face_or_main_subject": true,
+    "use_one_emphasis_style_per_shot": true,
+    "pair_sfx_only_with_meaningful_emphasis": true
+  }
+}
