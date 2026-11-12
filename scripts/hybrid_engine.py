@@ -468,8 +468,12 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
         })
 
     sfx_cues: list[tuple[float, list[str]]] = []
-    for row in scene_rows:
+    for scene_index, row in enumerate(scene_rows):
         kind = entrance_kind[row["scene_ref"]]
+        # Keep ordinary picture changes quiet; accent only impact beats or every
+        # third calm scene so the pack does not become a constant sound carpet.
+        if int(row["shock_level"]) < 2 and kind != "punch" and scene_index % 3 != 0:
+            continue
         if row["shock_level"] >= 2 or kind == "punch":
             prefs = ["hit", "pop", "other"]
         elif kind == "slide":
@@ -635,7 +639,7 @@ def make_hybrid_spec(bm: dict, config: dict, audio: Path, images: list, presente
                 avoid_paths.add(str(layer_path))
                 tl.clip(ref, dur)
                 mr.apply_layer_motion(tl, ref, dur, scale, tx, ty, str(slot["recipe"]), index + slot_index)
-                if slot_index == 0:
+                if slot_index == 0 and (int(row["shock_level"]) >= 2 or index % 6 == 1):
                     sfx_cues.append((start_at, ["pop", "whoosh", "other"]))
             inserted_per_beat[beat_index if beat_index is not None else index] = (
                 inserted_per_beat.get(beat_index if beat_index is not None else index, 0)
