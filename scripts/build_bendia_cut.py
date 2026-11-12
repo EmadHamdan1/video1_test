@@ -489,9 +489,6 @@ def make_spec(audio: Path, voice: Path, ambience: Path | None, images: list[Path
             }},
             {"op": "keyframe", "target": text_ref, "property": "position_y", "time": 0.0, "value": text_y + 0.10},
             {"op": "keyframe", "target": text_ref, "property": "position_y", "time": 0.18, "value": text_y, "easing": "ease-out"},
-            {"op": "keyframe", "target": text_ref, "property": "uniform_scale", "time": 0.0, "value": 0.84},
-            {"op": "keyframe", "target": text_ref, "property": "uniform_scale", "time": 0.18, "value": 1.04, "easing": "ease-out"},
-            {"op": "keyframe", "target": text_ref, "property": "uniform_scale", "time": 0.28, "value": 1.0, "easing": "ease-in-out"},
         ])
         scene_manifest.append({
             "shot": idx + 1, "start": start, "end": row["end"], "source_image": image_path.name,
