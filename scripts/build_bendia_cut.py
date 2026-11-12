@@ -123,10 +123,11 @@ def log(message: str) -> None:
     print("[bendia-cut] " + message, flush=True)
 
 
-def run(command: list[str], timeout: int | None = None) -> subprocess.CompletedProcess[str]:
+def run(command: list[str], timeout: int | None = None,
+        env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command, text=True, encoding="utf-8", errors="replace",
-        capture_output=True, check=False, timeout=timeout,
+        capture_output=True, check=False, timeout=timeout, env=env,
     )
 
 
@@ -590,7 +591,7 @@ def build_capcut(spec: Path, duration: float) -> tuple[Path, dict[str, Any]]:
         command.append("--active-timeline")
     env = os.environ.copy()
     env["CAPCUT_DRAFT_DIR"] = str(shell.parent)
-    check = run([*command, "--check"], timeout=None)
+    check = run([*command, "--check"], timeout=None, env=env)
     if check.stdout.strip():
         print(check.stdout.strip())
     if check.returncode != 0:
@@ -598,14 +599,14 @@ def build_capcut(spec: Path, duration: float) -> tuple[Path, dict[str, Any]]:
             "The selected CapCut shell is not blank/compatible. Create a new empty project and close CapCut.\n"
             + (check.stderr or check.stdout)[-1600:]
         )
-    result = run(command, timeout=None)
+    result = run(command, timeout=None, env=env)
     if result.stdout.strip():
         print(result.stdout.strip())
     if result.returncode != 0:
         raise RuntimeError("CapCut could not compile the fresh Bendia cut:\n" + (result.stderr or "")[-2200:])
     payload = parse_json_output(result.stdout)
     draft = Path(str(payload.get("draft_path", shell))).resolve()
-    register = run([capcut, "register", str(draft), "--materials", "--apply"], timeout=None)
+    register = run([capcut, "register", str(draft), "--materials", "--apply"], timeout=None, env=env)
     if register.stdout.strip():
         log(register.stdout.strip()[-1000:])
     if register.returncode != 0:
@@ -617,7 +618,7 @@ def build_capcut(spec: Path, duration: float) -> tuple[Path, dict[str, Any]]:
         ("lint", [capcut, "lint", str(draft)]),
         ("diagnose", [capcut, "diagnose", str(draft), "-H"]),
     ]:
-        checked = run(args, timeout=None)
+        checked = run(args, timeout=None, env=env)
         detail = (checked.stdout + "\n" + checked.stderr).strip()
         checks.append({"name": name, "exit_code": checked.returncode, "output": detail[-12000:]})
         log("CapCut " + name + " check: exit " + str(checked.returncode))
