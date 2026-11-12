@@ -3,7 +3,7 @@ param([switch]$BasicOnly)
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $RepoRoot
-$Branch = "feat/capcut-montage-pipeline"
+$Branch = "feat/bendia-inspired-nutty-putty"
 $Project = "projects\nutty-putty-cave"
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
@@ -54,7 +54,7 @@ if ($BasicOnly) {
     Write-Host "=== Phase 1: basic preparation (original narration + supplied images) ===" -ForegroundColor Cyan
     & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project --simple
 } else {
-    Write-Host "=== Phase 1: full-style preparation (local motion, callouts, music, SFX, subtitles) ===" -ForegroundColor Cyan
+    Write-Host "=== Phase 1: full-style preparation (local motion, callouts, music, Saoud SFX) ===" -ForegroundColor Cyan
     & $Python (Join-Path $RepoRoot "scripts\prepare_nutty_putty.py") --stage prepare --project $Project
 }
 if ($LASTEXITCODE -ne 0) { throw "Asset preparation failed. Read the error above; no CapCut draft was built." }
@@ -74,6 +74,9 @@ foreach ($Candidate in @($Config.presenter_images)) {
     if ($Candidate -and ([string]$Candidate).Trim()) { $AssetPaths.Add([string]$Candidate) }
 }
 foreach ($Item in @($Config.settings.sound_effects)) {
+    if ($Item.path) { $AssetPaths.Add([string]$Item.path) }
+}
+foreach ($Item in @($Config.settings.sfx_pool)) {
     if ($Item.path) { $AssetPaths.Add([string]$Item.path) }
 }
 foreach ($Item in @($Config.settings.icon_overlays)) {
@@ -107,7 +110,8 @@ Write-Host "Project data: $BuildDir"
 Write-Host "QA report: $(Join-Path $BuildDir 'QA_REPORT.md')"
 Write-Host "Asset catalog: $(Join-Path $BuildDir 'ASSET_CATALOG_SUMMARY.md')"
 Write-Host "Contact sheet: $(Join-Path $BuildDir 'ASSET_CONTACT_SHEET.jpg')"
-Write-Host "Stock B-roll contact sheet: $(Join-Path $BuildDir 'ASSET_STOCK_CONTACT_SHEET.jpg')"
+Write-Host "Stock B-roll contact sheet: $(Join-Path $BuildDir 'ASSET_STOCK_CONTACT_SHEET.jpg')" 
+Write-Host "SFX pack manifest: $(Join-Path $BuildDir 'SFX_PACK_MANIFEST.json')"
 Write-Host ""
 Write-Host "Open CapCut Desktop and review the new Nutty Putty Cave draft before exporting."
 if ($BasicOnly) {
