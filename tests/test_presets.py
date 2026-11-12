@@ -28,7 +28,7 @@ class PresetIntegrityTests(unittest.TestCase):
                 self.assertIn(preset["text_preset"], text_names)
                 self.assertGreater(preset["target_shot_seconds"], preset["minimum_shot_seconds"])
                 transitions = preset["transitions"]
-                if name == "nutty_putty_casefile":
+                if name in {"nutty_putty_casefile", "bendia_casefile"}:
                     self.assertEqual(transitions["default"]["slug"], "cut")
                     self.assertEqual(transitions["default"]["duration"], 0)
                 else:
