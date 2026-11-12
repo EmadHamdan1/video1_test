@@ -47,6 +47,27 @@ The build searches for a local \`Saoud_SFX_Pack\`. Set an explicit path before r
 
 The pack remains on your computer. The build copies only chosen, converted sounds into the ignored project folder and writes \`projects\nutty-putty-cave\build\SFX_PACK_MANIFEST.json\`. Original JPEGs are not magically background-removed; only files with verified transparency are treated as cutouts.
 
+## Configure local Nutty Putty source media
+
+The source audio and 28 story images are not stored in Git. The build accepts their actual local locations through PowerShell environment variables, so it does not require the original `D:\\Videos Chanel\\v2\\p1` folder.
+
+Set the full narration file path and the folder containing the 28 original images (keep their original filenames):
+
+```powershell
+$env:NUTTY_PUTTY_AUDIO = "E:\\YourFolder\\narration.mp3"
+$env:NUTTY_PUTTY_IMAGES_DIR = "E:\\YourFolder\\images"
+.\\run_nutty_putty.ps1
+```
+
+Alternatively, place `narration.mp3` and an `images` folder inside one source folder, then set only:
+
+```powershell
+$env:NUTTY_PUTTY_SOURCE_DIR = "E:\\YourFolder\\NuttyPuttySource"
+.\\run_nutty_putty.ps1
+```
+
+The image directory must contain the 28 image files expected by `scripts/prepare_nutty_putty.py`. Presenter poses are optional.
+
 ## Stock sources, keys, licences and credits
 
 - **Openverse:** openly licensed photo search; no API key in this pipeline. See https://api.openverse.org/v1/.
