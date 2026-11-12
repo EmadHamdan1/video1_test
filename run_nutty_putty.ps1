@@ -112,6 +112,7 @@ Write-Host "Asset catalog: $(Join-Path $BuildDir 'ASSET_CATALOG_SUMMARY.md')"
 Write-Host "Contact sheet: $(Join-Path $BuildDir 'ASSET_CONTACT_SHEET.jpg')"
 Write-Host "Stock B-roll contact sheet: $(Join-Path $BuildDir 'ASSET_STOCK_CONTACT_SHEET.jpg')" 
 Write-Host "SFX pack manifest: $(Join-Path $BuildDir 'SFX_PACK_MANIFEST.json')"
+Write-Host "CapCut compatibility report: $(Join-Path $BuildDir 'CAPCUT_COMPATIBILITY_REPORT.txt')"
 Write-Host ""
 Write-Host "Open CapCut Desktop and review the new Nutty Putty Cave draft before exporting."
 if ($BasicOnly) {
