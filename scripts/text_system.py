@@ -19,7 +19,7 @@ def classify(word: str, shock: int) -> str:
 
 def style_for(kind: str) -> tuple[str, dict[str, Any]]:
     if kind == "alert":
-        return PALETTE["alert"], {"borderWidth": 3.0, "borderColor": PALETTE["paper"], "borderAlpha": 1.0}
+        return PALETTE["alert"], {"borderWidth": 4.5, "borderColor": PALETTE["ink"], "borderAlpha": 1.0}
     if kind == "stat":
         return PALETTE["gold"], {"borderWidth": 4.0, "borderColor": PALETTE["ink"], "borderAlpha": 1.0}
     if kind == "chapter":

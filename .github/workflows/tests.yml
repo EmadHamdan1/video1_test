@@ -2,9 +2,9 @@ name: Python syntax and timing tests
 
 on:
   push:
-    branches: ["main", "feat/capcut-montage-pipeline"]
+    branches: ["main", "feat/capcut-montage-pipeline", "feat/bendia-inspired-nutty-putty"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "feat/capcut-montage-pipeline"]
 
 jobs:
   test:

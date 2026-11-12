@@ -150,6 +150,33 @@
       },
       "text_preset": "punch_caption",
       "sfx_density": "medium"
+    },
+    "bendia_casefile": {
+      "label": "Bendia-Inspired Casefile — Clean Illustrated Documentary",
+      "description": "White-stage documentary storytelling with prominent illustrated heroes, selective archival/B-roll inserts, fast editorial pops and slides, brief red/yellow fact stamps, and restrained sound accents.",
+      "target_shot_seconds": 2.45,
+      "minimum_shot_seconds": 1.35,
+      "scene_zoom_start": 0.5,
+      "scene_zoom_end": 0.55,
+      "scene_pan_amount": 0.012,
+      "scene_push": 0.055,
+      "card_scene_scale": 0.68,
+      "presenter_pose_seconds": 35,
+      "transitions": {
+        "default": {
+          "slug": "cut",
+          "duration": 0
+        },
+        "accents": [
+          {
+            "every": 7,
+            "slug": "scale-pop",
+            "duration": 0.16
+          }
+        ]
+      },
+      "text_preset": "punch_caption",
+      "sfx_density": "medium"
     }
   }
 }
