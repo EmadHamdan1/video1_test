@@ -26,6 +26,7 @@ The full build adds concrete English stock-search terms to each prepared story b
 2. Open PowerShell and run:
 
        cd F:\video1_test
+       git fetch origin
        git switch feat/bendia-inspired-nutty-putty
        git pull origin feat/bendia-inspired-nutty-putty
        .\run_nutty_putty.ps1
