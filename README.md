@@ -83,7 +83,7 @@ capcut --version
 3. In the same PowerShell window, point the builder at that new project and rebuild:
 
 ```powershell
-$store = Join-Path $env:LOCALAPPDATA "CapCut\\User Data\\Projects\\com.lveditor.draft"
+$store = Join-Path $env:LOCALAPPDATA "CapCut\User Data\Projects\com.lveditor.draft"
 $shell = Get-ChildItem -LiteralPath $store -Directory |
     Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "draft_content.json") } |
     Sort-Object LastWriteTime -Descending |
@@ -92,15 +92,15 @@ $shell = Get-ChildItem -LiteralPath $store -Directory |
 if (-not $shell) { throw "The new CapCut shell project was not found." }
 
 $env:NUTTY_PUTTY_CAPCUT_SHELL = $shell.FullName
-$env:NUTTY_PUTTY_AUDIO = "F:\\Videos Chanel\\videos\\v2\\p1\\ElevenLabs_2026-06-03T09_19_08_Mark - Natural Conversations_pvc_sp100_s39_sb75_se0_b_m2.mp3"
-$env:NUTTY_PUTTY_IMAGES_DIR = "F:\\Videos Chanel\\videos\\v2\\p1"
+$env:NUTTY_PUTTY_AUDIO = "F:\Videos Chanel\videos\v2\p1\ElevenLabs_2026-06-03T09_19_08_Mark - Natural Conversations_pvc_sp100_s39_sb75_se0_b_m2.mp3"
+$env:NUTTY_PUTTY_IMAGES_DIR = "F:\Videos Chanel\videos\v2\p1"
 
-cd F:\\video1_test
+cd F:\video1_test
 git pull --ff-only origin feat/bendia-inspired-nutty-putty
-.\\run_nutty_putty.ps1
+.\run_nutty_putty.ps1
 ```
 
-The builder validates the blank shell with `capcut compile --check` before writing. It keeps the CapCut-created project identity, adds media registration, and records read-only `version`, `lint`, and `diagnose` results in `projects\\nutty-putty-cave\\build\\CAPCUT_COMPATIBILITY_REPORT.txt`. Do not open CapCut while the build is running. Keep the rejected draft as a backup until the recovered one opens correctly.
+The builder validates the blank shell with `capcut compile --check` before writing. It keeps the CapCut-created project identity, adds media registration, and records read-only `version`, `lint`, and `diagnose` results in `projects\nutty-putty-cave\build\CAPCUT_COMPATIBILITY_REPORT.txt`. Do not open CapCut while the build is running. Keep the rejected draft as a backup until the recovered one opens correctly.
 
 ## Stock sources, keys, licences and credits
 
