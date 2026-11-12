@@ -65,3 +65,19 @@ Only after the output verifies a property should `settings.text_caps` be set. Fo
 - GitHub editing workflow ideas: https://github.com/copiadigital/footage-montage
 - GitHub video-editing pipeline examples: https://github.com/gitethanwoo/video-editing
 - Curated video skills: https://github.com/ella-wang-opus/awesome-video-skills
+
+
+## Nutty Putty: Bendia-inspired casefile profile
+
+The project profile is an original adaptation of broad editing principles observed in two public Bendia videos. It is not a frame-for-frame copy.
+
+- White background and high-contrast illustrated storytelling remain the visual foundation.
+- Hero illustrations are enlarged and alternate left, right and centre. Relevant stock images are limited to a small approved set; the engine can use a stock still as an occasional full-frame break and as a smaller evidence insert.
+- The default shot target is about 2.45 seconds (minimum 1.35 seconds), but story boundaries and the narrator's line timing take priority. Keep quieter aftermath beats slower.
+- Secondary cards are selectively enabled, not forced onto every scene. High-impact layouts may use two small evidence cards, keeping the hero readable.
+- Short fact cards and keyword callouts are enabled for matched phrases. Keep them brief, collision-aware and high-contrast; use red for danger and gold for numbers/actions.
+- The sound-effects module first searches for the local `Saoud_SFX_Pack`. It accepts `SAOUD_SFX_PACK` as an explicit folder override, scans supported audio formats, matches filenames to a small set of sound roles, and converts selected clips to project-local WAV files. If no category match exists or conversion fails, the existing generated effect is used as a fallback.
+- The user pack is never uploaded or committed. `build/SFX_PACK_MANIFEST.json` records which pack files were used and which categories fell back.
+- The pipeline does not automatically remove backgrounds from the original JPEG illustrations. Use only genuinely transparent art as cutouts; any manual or third-party matting must be verified visually in CapCut before export.
+
+The build remains an **editable CapCut draft**, not a final MP4. Visual matching, audio balance, transparent edges and final export must be checked in CapCut on the workstation that owns the source assets.
