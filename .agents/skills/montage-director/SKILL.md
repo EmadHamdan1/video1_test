@@ -57,3 +57,17 @@ When working in this repository, act as a documentary editor and a cautious pipe
 - Generate/inspect a contact sheet or sample frames at regular intervals. If frame inspection is unavailable, clearly mark visual review as not done.
 - Open the newest generated CapCut draft, not the previous draft. The pipeline builds an editable CapCut project; it does not export the final MP4 unless an export stage is explicitly run.
 - Do not say "best", "finished", or "looks good" based solely on passing unit tests. Separate code checks from on-device rendered visual review.
+
+
+## Bendia-inspired documentary profile
+
+For the Nutty Putty casefile profile, use a white editorial stage and an illustrated-documentary mix rather than copying any single creator's exact frames or assets.
+
+- Keep a clear hero subject and no more than two supporting elements in a composition. Alternate full-frame cave/environment views, a character/action illustration, a close detail, and occasional evidence/photo cards.
+- Change the viewer's visual anchor roughly every 1.5–3 seconds when the narration carries a new beat. Hold longer on solemn aftermath and key facts.
+- Use quick, directional entrance motion (roughly 0.18–0.32 seconds): pop, slide, rise/drop, tilt-pop or zoom-through. Settle with a small overshoot; reserve shake and stronger zoom for a specific impact.
+- Use short editorial labels, dates and numbers, not full sentences. Red is for danger, gold for quantities/actions, and black/white for ordinary labels. Keep labels brief and visible long enough to read.
+- Pair only meaningful photo reveals, host entrances or impact beats with a whoosh, click/pop or low hit. Keep effects below narration and do not add a cue to every cut.
+- Use a restrained tension bed. Duck it under speech and let it breathe during pauses; the voice remains the primary signal.
+- Treat transparent PNGs as cutouts only after checking their alpha channel. JPEG art is opaque unless a separate verified matting stage removes the background; never describe a flat JPEG as a cutout.
+- Keep CapCut properties limited to the installed CLI schema. Do not guess opacity, mask or alpha keyframes.
