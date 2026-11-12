@@ -21,6 +21,8 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from sfx_pack import discover_audio_files, find_sfx_pack, select_sfx_sources
+
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "projects" / "nutty-putty-cave"
 AUDIO_SOURCE = Path(r"D:\Videos Chanel\v2\p1\ElevenLabs_2026-06-03T09_19_08_Mark - Natural Conversations_pvc_sp100_s39_sb75_se0_b_m2.mp3")
@@ -163,12 +165,14 @@ CHAPTERS = [
 ]
 # Reserve sound effects for story-critical beats; routine cuts and text stay quiet.
 SFX_EVENTS = [
-    ("HEAD FIRST", "bass_drop", 0.22),
+    ("HEAD FIRST", "bass_drop", 0.20),
+    ("EVERY BREATH", "air_gasp", 0.12),
     ("TEAMS ARRIVED", "whoosh", 0.16),
-    ("ROPE SNAPPED", "rope_snap", 0.28),
-    ("DECLARED DEAD", "low_hit", 0.20),
+    ("OXYGEN", "heartbeat", 0.14),
+    ("ROPE SNAPPED", "rope_snap", 0.24),
+    ("DECLARED DEAD", "low_hit", 0.18),
     ("SEALED WITH CONCRETE", "concrete_thud", 0.18),
-    ("WHAT IF", "scratch", 0.15),
+    ("WHAT IF", "scratch", 0.14),
 ]
 ICON_CHAPTERS = [
     ("map-pin", "#FFD447"), ("compass", "#FFFFFF"), ("triangle-alert", "#FF3030"),
@@ -561,16 +565,82 @@ def make_horror_overlay() -> Path:
 
 
 def make_sfx_files() -> dict[str, Path]:
+    """Prefer the user's Saoud pack; synthesize only categories with no safe match."""
     lengths = {
         "whoosh": 0.48, "pop": 0.22, "scratch": 0.42, "bass_drop": 0.80,
         "heartbeat": 0.72, "air_gasp": 0.62, "low_hit": 0.72,
         "rope_snap": 0.34, "soft_click": 0.16, "concrete_thud": 0.64,
     }
-    results = {}
+    output_dir = PROJECT / "assets" / "audio" / "sfx"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pack_dir = find_sfx_pack(ROOT, PROJECT, AUDIO_SOURCE)
+    pack_files = discover_audio_files(pack_dir)
+    selected = select_sfx_sources(pack_files)
+    ffmpeg = shutil.which("ffmpeg")
+    results: dict[str, Path] = {}
+    manifest: dict[str, Any] = {
+        "pack_dir": str(pack_dir) if pack_dir else None,
+        "discovered_audio_files": len(pack_files),
+        "selected": [],
+        "fallbacks": [],
+        "note": "Original pack files remain in place; only selected effects are converted into the local project.",
+    }
+
     for index, (kind, length) in enumerate(lengths.items(), start=1):
-        path = PROJECT / "assets" / "audio" / "sfx" / (kind + ".wav")
-        synth_sfx(kind, path, length, 2009 + index)
-        results[kind] = path.resolve()
+        source = selected.get(kind)
+        output = output_dir / (("saoud_" + kind + ".wav") if source else (kind + ".wav"))
+        used_pack = False
+        if source and ffmpeg:
+            try:
+                source_duration = ffprobe_duration(source)
+                clip_duration = min(float(length), source_duration)
+                if clip_duration < 0.04:
+                    raise RuntimeError("selected source is too short to use")
+                fade_out = min(0.06, clip_duration / 3.0)
+                fade_start = max(0.0, clip_duration - fade_out)
+                filters = (
+                    "afade=t=in:st=0:d=0.012,"
+                    f"afade=t=out:st={fade_start:.3f}:d={fade_out:.3f}"
+                )
+                converted = run_process([
+                    ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", str(source), "-vn", "-t", f"{clip_duration:.3f}",
+                    "-af", filters, "-ac", "2", "-ar", "48000",
+                    "-c:a", "pcm_s16le", str(output),
+                ], timeout=None)
+                if converted.returncode != 0 or not output.is_file() or output.stat().st_size < 1024:
+                    raise RuntimeError((converted.stderr or converted.stdout or "FFmpeg conversion failed")[-500:])
+                used_pack = True
+                manifest["selected"].append({
+                    "kind": kind, "source": str(source), "project_copy": str(output.resolve()),
+                    "duration_seconds": round(clip_duration, 3),
+                })
+            except Exception as exc:
+                log(f"Saoud SFX conversion failed for {kind}; using generated fallback: {exc}")
+        elif source and not ffmpeg:
+            log(f"FFmpeg unavailable for Saoud SFX conversion ({kind}); using generated fallback.")
+
+        if not used_pack:
+            output = output_dir / (kind + ".wav")
+            synth_sfx(kind, output, length, 2009 + index)
+            manifest["fallbacks"].append({
+                "kind": kind,
+                "reason": "no matching pack file" if source is None else "conversion unavailable or failed",
+            })
+        results[kind] = output.resolve()
+
+    manifest["used_pack_count"] = len(manifest["selected"])
+    manifest["fallback_count"] = len(manifest["fallbacks"])
+    if pack_dir:
+        log("Saoud SFX pack found: " + str(pack_dir))
+    else:
+        log("Saoud SFX pack not found; using generated local fallback effects.")
+    log("Saoud SFX files used: %d/%d; generated fallbacks: %d." % (
+        manifest["used_pack_count"], len(lengths), manifest["fallback_count"]
+    ))
+    manifest_path = PROJECT / "build" / "SFX_PACK_MANIFEST.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return results
 
 
@@ -619,7 +689,7 @@ def make_fact_callouts(tokens: list[dict[str, Any]], duration: float) -> list[di
         elif mood == "action":
             fill, accent, ink = (246, 207, 69, 250), (240, 68, 68, 255), (20, 20, 20, 255)
         else:
-            fill, accent, ink = (250, 249, 245, 248), (21, 168, 156, 255), (20, 20, 20, 255)
+            fill, accent, ink = (250, 249, 245, 248), (246, 207, 69, 255), (20, 20, 20, 255)
         # Tiny offset shadow and bold black stroke keep the callout readable over detailed art.
         draw.rounded_rectangle((x0 + 7, y0 + 8, x1 + 7, y1 + 8), radius=22, fill=(0, 0, 0, 65))
         draw.rounded_rectangle((x0, y0, x1, y1), radius=22, fill=fill, outline=ink, width=6)
@@ -1322,28 +1392,30 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
                 sfx_events[index - 1]["start"] + sfx_events[index - 1]["duration"] + 0.06,
             ), 3)
     settings = {
-        "motion_preset": "nutty_putty_casefile",
+        "motion_preset": "bendia_casefile",
         "layout_mode": "hybrid_whiteboard",
-        # Keep the previous keyframed hero-motion engine, but remove layers that
-        # caused unrelated images, badges and oversized callouts to collide.
-        "stock_media": {"enabled": False, "providers": [], "per_query": 0,
-                        "max_total": 0, "max_queries": 0, "hero_every": 0,
+        # Bendia-inspired visual grammar: white field, larger hero artwork, selective
+        # secondary evidence, concise fact/keyword stamps, and story-led motion.
+        "stock_media": {"enabled": True, "providers": ["openverse", "wikimedia-commons"],
+                        "per_query": 1, "max_total": 8, "max_queries": 8, "hero_every": 6,
                         "min_width": 1280, "allow_video": False, "allow_share_alike": False},
-        "secondary_image_inserts": False,
+        "secondary_image_inserts": True,
+        "insert_every": 3,
         "show_motion_badges": False,
-        "show_fact_callouts": False,
-        "keyword_callouts": False,
-        "auto_entrance_sfx": False,
+        "show_fact_callouts": True,
+        "keyword_callouts": True,
+        "keyword_callout_min_shock": 2,
+        "auto_entrance_sfx": True,
         "scene_exit_overlap": 0.0,
         "text_caps": {},
-        "callout_font_size": 22,
-        "chapter_font_max": 22,
+        "callout_font_size": 26,
+        "chapter_font_max": 23,
         "use_storyboard_boundaries": True,
-        "scene_image_scale": 1.0, "scene_image_x": -0.24, "scene_image_y": -0.02,
-        "card_scene_scale": 0.58,
-        "scene_zoom_start": 0.55, "scene_zoom_end": 0.59, "scene_pan_amount": 0.009,
-        "scene_push": 0.035,
-        "target_shot_seconds": 3.0, "minimum_shot_seconds": 1.5,
+        "scene_image_scale": 1.0, "scene_image_x": -0.17, "scene_image_y": -0.01,
+        "card_scene_scale": 0.68,
+        "scene_zoom_start": 0.50, "scene_zoom_end": 0.55, "scene_pan_amount": 0.012,
+        "scene_push": 0.055,
+        "target_shot_seconds": 2.45, "minimum_shot_seconds": 1.35,
         "presenter_overlay": False, "presenter_mode": "reset", "presenter_backplate": False,
         "presenter_smart_matte": False, "presenter_scale": 0.31, "presenter_x": 0.72, "presenter_y": 0.35,
         "presenter_pose_seconds": 35.0, "presenter_reset_duration": 2.15,
@@ -1354,8 +1426,12 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         "caption_outline_width": 1.5, "caption_outline_color": "#000000", "caption_outline_alpha": 0.78,
         "caption_y": 0.80, "caption_x": 0.0,
         "voice_volume": 0.98, "voice_fade_in": 0.08, "voice_fade_out": 0.65,
-        "make_sfx_cue_sheet": False, "flash_duration": 0.067,
+        "make_sfx_cue_sheet": True, "flash_duration": 0.067,
         "caption_danger_words": [], "caption_action_words": [],
+        "sfx_pool": [
+            {"path": str(path), "volume": 0.16}
+            for path in sound_paths.values()
+        ],
         "sound_effects": [
             {"path": item["path"], "start": item["start"], "duration": item["duration"], "volume": item["volume"]}
             for item in sfx_events
@@ -1364,7 +1440,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
     chapters = make_chapters(rows, duration, 2.0 if intro_path else 0.0)
     # Chapter text is retained, but sticker icons and full-frame fact cards are intentionally off.
     overlays: list[dict[str, Any]] = []
-    fact_overlays: list[dict[str, Any]] = []
+    fact_overlays = make_fact_callouts(tokens, duration)
 
     scene_images = ([intro_path] if intro_path else []) + fullframe_images
     fallback_texts = STORY_EN + [STORY_EN[-1]] * max(0, len(fullframe_images) - len(STORY_EN))
@@ -1456,7 +1532,7 @@ def prepare(project_override: str | None = None, simple: bool = False) -> int:
         ],
         "chapter_titles": chapters,
         "background_music": {"path": str(music_path.resolve()), "start": 0.0,
-                              "duration": round(duration, 3), "volume": 0.16},
+                              "duration": round(duration, 3), "volume": 0.13},
         "settings": settings,
     }
     config["settings"]["icon_overlays"] = overlays
