@@ -243,11 +243,67 @@ def voice_master_filter_chain(duration: float, fade_in: float = 0.08, fade_out: 
     return ",".join(filters)
 
 
+def resolve_source_inputs() -> tuple[Path, list[Path]]:
+    """Resolve source media from explicit environment paths or the legacy defaults.
+
+    NUTTY_PUTTY_SOURCE_DIR may contain narration.mp3 (or the original MP3 name)
+    and an images/ subfolder. Explicit NUTTY_PUTTY_AUDIO and
+    NUTTY_PUTTY_IMAGES_DIR values take priority.
+    """
+    audio_override = os.getenv("NUTTY_PUTTY_AUDIO", "").strip()
+    images_override = os.getenv("NUTTY_PUTTY_IMAGES_DIR", "").strip()
+    source_root_value = os.getenv("NUTTY_PUTTY_SOURCE_DIR", "").strip()
+
+    audio_source = Path(audio_override).expanduser() if audio_override else AUDIO_SOURCE
+    image_sources = list(IMAGE_SOURCES)
+
+    source_root = Path(source_root_value).expanduser() if source_root_value else None
+    if source_root:
+        if not audio_override:
+            audio_candidates = [
+                source_root / AUDIO_SOURCE.name,
+                source_root / "narration.mp3",
+                source_root / "audio" / AUDIO_SOURCE.name,
+                source_root / "audio" / "narration.mp3",
+            ]
+            audio_source = next((candidate for candidate in audio_candidates if candidate.is_file()), audio_source)
+
+        if not images_override:
+            image_dir_candidates = [source_root / "images", source_root / "assets" / "images", source_root]
+            image_dir = next(
+                (directory for directory in image_dir_candidates
+                 if all((directory / source.name).is_file() for source in IMAGE_SOURCES)),
+                None,
+            )
+            if image_dir:
+                image_sources = [image_dir / source.name for source in IMAGE_SOURCES]
+
+    if images_override:
+        image_dir = Path(images_override).expanduser()
+        image_sources = [image_dir / source.name for source in IMAGE_SOURCES]
+
+    return audio_source, image_sources
+
+
 def copy_sources(simple: bool = False) -> tuple[list[Path], list[Path], Path, Path, dict[str, Any]]:
-    missing_required = [path for path in [AUDIO_SOURCE, *IMAGE_SOURCES] if not path.is_file()]
+    audio_source, image_sources = resolve_source_inputs()
+    missing_required = [path for path in [audio_source, *image_sources] if not path.is_file()]
     if missing_required:
-        details = "\n".join("  - " + str(path) for path in missing_required)
-        raise FileNotFoundError("Required source files were not found. Check the exact Windows paths:\n" + details)
+        missing_images = sum(1 for path in image_sources if not path.is_file())
+        details = "\n".join("  - " + str(path) for path in missing_required[:12])
+        if len(missing_required) > 12:
+            details += "\n  - ... and %d more missing files" % (len(missing_required) - 12)
+        raise FileNotFoundError(
+            "Required Nutty Putty source media was not found.\n"
+            "Set the actual local paths in PowerShell before running:\n"
+            '  $env:NUTTY_PUTTY_AUDIO = "FULL_PATH_TO_NARRATION.mp3"\n'
+            '  $env:NUTTY_PUTTY_IMAGES_DIR = "FOLDER_CONTAINING_THE_28_ORIGINAL_IMAGES"\n'
+            "Or set NUTTY_PUTTY_SOURCE_DIR to a folder containing narration.mp3 and an images subfolder.\n"
+            "Missing narration: %s; missing images: %d of %d.\n%s"
+            % ("yes" if not audio_source.is_file() else "no", missing_images, len(image_sources), details)
+        )
+    log("Using narration source: " + str(audio_source))
+    log("Using %d original story images from: %s" % (len(image_sources), image_sources[0].parent))
     available_presenters = [path for path in PRESENTER_SOURCES if path.is_file()]
     missing_presenters = [path for path in PRESENTER_SOURCES if not path.is_file()]
     if missing_presenters:
@@ -255,7 +311,7 @@ def copy_sources(simple: bool = False) -> tuple[list[Path], list[Path], Path, Pa
             ", ".join(path.name for path in missing_presenters))
     source_map: dict[str, Any] = {"images": [], "presenter": [], "audio": []}
     images: list[Path] = []
-    for index, source in enumerate(IMAGE_SOURCES, start=1):
+    for index, source in enumerate(image_sources, start=1):
         target = PROJECT / "assets" / "images" / ("%03d_story%s" % (index, source.suffix.lower()))
         shutil.copy2(source, target)
         images.append(target.resolve())
@@ -267,8 +323,8 @@ def copy_sources(simple: bool = False) -> tuple[list[Path], list[Path], Path, Pa
         presenters.append(target.resolve())
         source_map["presenter"].append({"original": str(source), "local": str(target.resolve()), "sequence": index})
     source_copy = PROJECT / "assets" / "audio" / "narration_source.mp3"
-    shutil.copy2(AUDIO_SOURCE, source_copy)
-    source_map["audio"].append({"original": str(AUDIO_SOURCE), "local": str(source_copy.resolve())})
+    shutil.copy2(audio_source, source_copy)
+    source_map["audio"].append({"original": str(audio_source), "local": str(source_copy.resolve())})
     if simple:
         log("Basic CapCut mode: keeping the supplied narration MP3 unchanged.")
         return images, presenters, source_copy.resolve(), source_copy.resolve(), source_map
