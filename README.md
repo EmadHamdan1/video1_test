@@ -25,9 +25,9 @@ The full build adds concrete English stock-search terms to each prepared story b
 1. Save edits and **close CapCut completely**.
 2. Open PowerShell and run:
 
-       cd C:\Users\EmQr\video1_test
-       git switch feat/capcut-montage-pipeline
-       git pull origin feat/capcut-montage-pipeline
+       cd F:\video1_test
+       git switch feat/bendia-inspired-nutty-putty
+       git pull origin feat/bendia-inspired-nutty-putty
        .\run_nutty_putty.ps1
 
 3. Let the full build finish. A successful run ends with BUILD SUCCESSFUL. If it ends with BUILD FAILED or a traceback, read the error and projects\nutty-putty-cave\build\QA_REPORT.md; do not open the previous draft and assume it changed.
@@ -35,6 +35,16 @@ The full build adds concrete English stock-search terms to each prepared story b
 5. Export and review the MP4 from CapCut only after visual/audio review.
 
 The command .\run_nutty_putty.ps1 -BasicOnly deliberately produces a minimal draft without stock fetching, title card, Whisper, music, sound effects or captions; use it only for diagnosing basic project creation.
+
+## Bendia-inspired Nutty Putty profile
+
+The \`feat/bendia-inspired-nutty-putty\` branch adds an original illustrated-casefile profile: white stage, faster 2.45s target visual rhythm, story-selected pop/slide/zoom motion, selective evidence inserts, brief fact/keyword cards, and restrained sound accents. It does not copy Bendia's frames or assets.
+
+The build searches for a local \`Saoud_SFX_Pack\`. Set an explicit path before running when it is not beside the voiceover or in a standard project/download folder:
+
+       $env:SAOUD_SFX_PACK = "D:\Audio\Saoud_SFX_Pack"
+
+The pack remains on your computer. The build copies only chosen, converted sounds into the ignored project folder and writes \`projects\nutty-putty-cave\build\SFX_PACK_MANIFEST.json\`. Original JPEGs are not magically background-removed; only files with verified transparency are treated as cutouts.
 
 ## Stock sources, keys, licences and credits
 
