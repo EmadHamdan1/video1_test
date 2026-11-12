@@ -1620,7 +1620,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             detail = (checked.stdout or "").strip()
             if checked.stderr.strip():
-                detail = (detail + "\\n" + checked.stderr.strip()).strip()
+                detail = (detail + "\n" + checked.stderr.strip()).strip()
             compatibility_checks.append({
                 "check": label,
                 "returncode": checked.returncode,
@@ -1638,11 +1638,11 @@ def main(argv: list[str] | None = None) -> int:
 
     compatibility_report = BUILD_DIR / "CAPCUT_COMPATIBILITY_REPORT.txt"
     compatibility_report.write_text(
-        "\\n\\n".join(
-            "=== " + str(item.get("check", "check")) + " ===\\n"
+        "\n\n".join(
+            "=== " + str(item.get("check", "check")) + " ===\n"
             + str(item.get("output", item.get("error", "No output")))
             for item in compatibility_checks
-        ) + "\\n",
+        ) + "\n",
         encoding="utf-8",
     )
 
