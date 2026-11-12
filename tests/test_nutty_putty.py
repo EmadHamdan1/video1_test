@@ -1,10 +1,12 @@
 import importlib.util
 import tempfile
 import unittest
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 SCRIPT = ROOT / "scripts" / "prepare_nutty_putty.py"
 SPEC = importlib.util.spec_from_file_location("prepare_nutty_putty", SCRIPT)
 BUILDER = importlib.util.module_from_spec(SPEC)
