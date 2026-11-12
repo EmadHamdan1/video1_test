@@ -127,26 +127,18 @@
       "sfx_density": "medium"
     },
     "nutty_putty_casefile": {
-      "label": "Nutty Putty Cave — Full-frame Illustrated Horror",
-      "description": "Pure-white canvas, fast slide-in/slide-out artwork, rotating left/center/right compositions, occasional paired-image inserts, continuous zoom pulses, selective snap-shake beats, and restrained scale-pop replacements.",
+      "label": "Nutty Putty Cave — White Canvas Pop Explainer",
+      "description": "Pure-white canvas, overshoot pop/slide/drop entrances, overlapping smooth exits on two tracks, living hold (push, breathe, pulse), shock snap-zoom + shake, sticker inserts, ! and ? badges, short keyword callouts, no captions.",
       "target_shot_seconds": 2.65,
       "minimum_shot_seconds": 1.25,
+      "card_scene_scale": 0.62,
       "scene_zoom_start": 1,
       "scene_zoom_end": 1.065,
-      "scene_pan_amount": 0.008,
+      "scene_pan_amount": 0.012,
       "presenter_pose_seconds": 8,
       "transitions": {
-        "default": {
-          "slug": "cut",
-          "duration": 0
-        },
-        "accents": [
-          {
-            "every": 7,
-            "slug": "scale-pop",
-            "duration": 0.16
-          }
-        ]
+        "default": { "slug": "cut", "duration": 0 },
+        "accents": []
       },
       "text_preset": "punch_caption",
       "sfx_density": "medium"

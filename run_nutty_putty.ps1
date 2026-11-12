@@ -1,4 +1,4 @@
-param([switch]$BasicOnly)
+param([switch]$BasicOnly, [switch]$SkipGitUpdate)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -12,11 +12,16 @@ Write-Host "=== Nutty Putty Cave: local-first CapCut build + licensed stock B-ro
 Write-Host "This run will not install Python/npm packages or download AI models."
 Write-Host "Full mode may query Openverse/Wikimedia online and uses Pexels/Pixabay only when local API keys are configured."
 Write-Host "Downloaded stock assets and provenance stay local in the project assets\stock folder."
-Write-Host "Updating only the existing GitHub project code..."
-git switch $Branch
-if ($LASTEXITCODE -ne 0) { throw "Could not switch to $Branch." }
-git pull origin $Branch
-if ($LASTEXITCODE -ne 0) { throw "Git pull failed. Resolve Git status before building." }
+if (-not $SkipGitUpdate) {
+    Write-Host "Updating only the existing GitHub project code..."
+    git switch $Branch
+    if ($LASTEXITCODE -ne 0) { throw "Could not switch to $Branch." }
+    git pull origin $Branch
+    if ($LASTEXITCODE -ne 0) { throw "Git pull failed. Resolve Git status before building." }
+} else {
+    Write-Host "Skipping GitHub update; using the current local code." -ForegroundColor Yellow
+    Write-Host "Local commit: $(git rev-parse --short HEAD)"
+}
 
 # Fail fast rather than creating environments or installing dependencies.
 if (-not (Test-Path -LiteralPath $Python)) {
